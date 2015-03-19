@@ -132,7 +132,8 @@ bool Controller::configure()
     alternative_angle_tolerance = goal_angle_tolerance;
     alternative_tolerances_service = action_nh.advertiseService("set_alternative_tolerances", &Controller::alternativeTolerancesService, this);
 
-    if (camera_control) {
+    if (camera_control)
+    {
         cameraOrientationPublisher = nh.advertise<geometry_msgs::QuaternionStamped>("camera/command", 1);
         lookatPublisher = nh.advertise<geometry_msgs::PointStamped>("camera/look_at", 1);
         cameraOrientationPublisher.publish(cameraDefaultOrientation);
@@ -153,13 +154,15 @@ void Controller::stateCallback(const nav_msgs::Odometry& state)
     this->velocity.header = state.header;
     this->velocity.vector = state.twist.twist.linear;
 
-    try{
+    try
+    {
         listener.waitForTransform(this->map_frame_id, state.header.frame_id, state.header.stamp, ros::Duration(3.0));
         listener.waitForTransform(this->base_frame_id, state.header.frame_id, state.header.stamp, ros::Duration(3.0));
         listener.transformPose(this->map_frame_id, this->pose, this->pose);
         listener.transformVector(this->base_frame_id, this->velocity, this->velocity);
     }
-    catch (tf::TransformException ex) {
+    catch (tf::TransformException ex)
+    {
         ROS_ERROR("%s", ex.what());
         return;
     }

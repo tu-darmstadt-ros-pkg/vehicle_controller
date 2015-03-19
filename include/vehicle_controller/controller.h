@@ -155,4 +155,4 @@ private:
   std::string vehicle_type;
 };
 
-#endif // MONSTERTRUCK_CONTROLLER_H
+#endif // VEHICLE_CONTROLLER_H
