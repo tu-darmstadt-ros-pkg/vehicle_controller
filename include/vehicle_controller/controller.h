@@ -6,8 +6,8 @@
 #include <geometry_msgs/Vector3Stamped.h>
 #include <geometry_msgs/Twist.h>
 #include <nav_msgs/Path.h>
-// #include <monstertruck_msgs/MotionCommand.h>
-// #include <monstertruck_msgs/SetAlternativeTolerance.h>
+#include <monstertruck_msgs/MotionCommand.h>
+#include <monstertruck_msgs/SetAlternativeTolerance.h>
 #include <std_msgs/Float32.h>
 
 #include <hector_move_base_msgs/MoveBaseActionGeneric.h>
