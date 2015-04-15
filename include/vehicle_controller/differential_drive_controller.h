@@ -32,6 +32,7 @@
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
 #include "vehicle_control_interface.h"
+#include <algorithm>
 
 class DifferentialDriveController: public VehicleControlInterface
 {
@@ -48,7 +49,11 @@ class DifferentialDriveController: public VehicleControlInterface
 
       params.getParam("wheel_separation", wheel_separation_);
 
-      max_angular_rate_ = max_speed_ / (wheel_separation_ * 0.5);
+      params.getParam("max_angular_rate", max_angular_rate_);
+      // alternative to a fixed param would be the physically possible rate:
+      //       max_angular_rate_ = max_speed_ / (wheel_separation_ * 0.5);
+      // However, this turned out to be way to fast for the robot on the
+      // oil site platform.
     }
 
     virtual void executeTwist(const geometry_msgs::Twist& inc_twist)
@@ -101,11 +106,7 @@ class DifferentialDriveController: public VehicleControlInterface
       double angular_rate = twist.angular.z;
 
       //Limit angular rate to be achievable
-      if (angular_rate > max_angular_rate_){
-        angular_rate = max_angular_rate_;
-      }else if (angular_rate < -max_angular_rate_){
-        angular_rate = -max_angular_rate_;
-      }
+      angular_rate = std::max(-max_angular_rate_, std::min(max_angular_rate_, angular_rate));
 
       //Calculate the speed reduction factor that we need to apply to be able to achieve desired angular rate.
       double speed_reduction_factor = (max_speed_ - fabs(angular_rate) * (wheel_separation_ * 0.5)) / max_speed_;
