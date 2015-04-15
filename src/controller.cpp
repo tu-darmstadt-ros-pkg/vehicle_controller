@@ -559,7 +559,7 @@ void Controller::update()
 #endif
 
 #ifdef END_TWIST
-            if(goal_angle_error_ < goal_angle_tolerance / 2.0) // change?!
+            if(goal_angle_error_ < goal_angle_tolerance / 2.0)
             {
 #endif
                 stop();
