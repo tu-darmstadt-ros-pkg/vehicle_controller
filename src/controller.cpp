@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <sstream>
 
+#define END_TWIST
+
 static double angular_norm(double diff)
 {
     static const double M_2PI = 2.0 * M_PI;
@@ -557,7 +559,7 @@ void Controller::update()
 #endif
 
 #ifdef END_TWIST
-            if(goal_angle_error_ < goal_position_tolerance)
+            if(goal_angle_error_ < goal_angle_tolerance / 2.0) // change?!
             {
 #endif
                 stop();
