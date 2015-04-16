@@ -16,7 +16,7 @@
 #include <algorithm>
 #include <sstream>
 
-#define END_TWIST
+// #define END_TWIST
 
 static double angular_norm(double diff)
 {
@@ -642,7 +642,10 @@ void Controller::update()
     float sign = legs[current].backward ? -1.0 : 1.0;
     float speed = sign * legs[current].speed;
 
-    this->vehicle_control_interface_->executeMotionCommand(relative_angle, orientation_error, motion_control_setup.carrot_distance, speed );
+    double signed_carrot_distance_2_robot = sign * euclideanDistance(carrotPose.pose.position, pose.pose.position);
+    ROS_INFO("[PD INFO] e_carrot =  %f", signed_carrot_distance_2_robot);
+    this->vehicle_control_interface_->executeMotionCommand(relative_angle, orientation_error, motion_control_setup.carrot_distance,
+                                                           speed, signed_carrot_distance_2_robot, dt);
 
     // check if vehicle is blocked
     if (check_if_blocked && dt > 0.0) { // @ TODO : PM suggest change td > 0.0 to !isDtInvalid()
