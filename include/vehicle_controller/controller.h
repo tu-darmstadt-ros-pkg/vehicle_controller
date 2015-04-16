@@ -153,6 +153,16 @@ private:
   boost::shared_ptr<VehicleControlInterface> vehicle_control_interface_;
 
   std::string vehicle_type;
+
+  inline void invalidateDt()
+  {
+      dt = 0.0;
+  }
+
+  inline bool isDtInvalid()
+  {
+      return dt == 0.0;
+  }
 };
 
 #endif // VEHICLE_CONTROLLER_H

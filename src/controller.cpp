@@ -149,7 +149,8 @@ bool Controller::configure()
 void Controller::stateCallback(const nav_msgs::Odometry& state)
 {
     dt = (state.header.stamp - this->pose.header.stamp).toSec();
-    if (dt < 0.0 || dt > 1.0) dt = 0.0;
+    if (dt < 0.0 || dt > 1.0)
+        invalidateDt();
 
     this->pose.header = state.header;
     this->pose.pose = state.pose.pose;
@@ -644,7 +645,7 @@ void Controller::update()
     this->vehicle_control_interface_->executeMotionCommand(relative_angle, orientation_error, motion_control_setup.carrot_distance, speed );
 
     // check if vehicle is blocked
-    if (check_if_blocked && dt > 0.0) {
+    if (check_if_blocked && dt > 0.0) { // @ TODO : PM suggest change td > 0.0 to !isDtInvalid()
         double current_velocity_error = 0.0;
         current_velocity_error = (motion_control_setup.current_velocity - vehicle_control_interface_->getCommandedSpeed()) / std::max(fabs(vehicle_control_interface_->getCommandedSpeed()), 0.1);
         if (vehicle_control_interface_->getCommandedSpeed() > 0) {

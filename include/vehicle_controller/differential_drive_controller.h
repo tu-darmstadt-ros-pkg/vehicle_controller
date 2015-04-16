@@ -63,6 +63,32 @@ class DifferentialDriveController: public VehicleControlInterface
       cmdVelRawPublisher_.publish(twist);
     }
 
+    virtual void executePDControlledMotionCommand(double e_angle, double e_position, double dt)
+    {
+        static const double KP_ANGLE = 1.0;
+        static const double KD_ANGLE = 1.0;
+        static const double KP_POSITION = 1.0;
+        static const double KD_POSITION = 1.0;
+
+        static double previous_e_angle = e_angle;
+        static double previous_e_position = e_position;
+
+        double de_angle_dt    = (e_angle - previous_e_angle) / dt; //? uncontinuity @ orientation_error vs relative_angle switch
+        double de_position_dt = (e_position - previous_e_position) / dt;
+
+        double speed = KP_POSITION * e_position + KD_POSITION * de_position_dt;
+        double z_twist = KP_ANGLE * e_angle + KD_ANGLE * de_angle_dt;
+
+        twist.linear.x = speed;
+        twist.angular.z = z_twist;
+
+        this->limitTwist(twist);
+        cmdVelRawPublisher_.publish(twist);
+
+        previous_e_angle = e_angle;
+        previous_e_position = e_position;
+    }
+
     virtual void executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error, double carrot_distance, double speed)
     {
       float sign = speed < 0.0 ? -1.0 : 1.0;
