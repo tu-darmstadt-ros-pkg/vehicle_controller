@@ -31,6 +31,7 @@
 
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
+#include <monstertruck_msgs/Pdout.h>
 #include "vehicle_control_interface.h"
 #include <algorithm>
 #include <fstream>
@@ -44,6 +45,7 @@ class DifferentialDriveController: public VehicleControlInterface
 
       ros::NodeHandle nh;
       cmdVelRawPublisher_ = nh.advertise<geometry_msgs::Twist>("cmd_vel_raw", 1);
+      pdoutPublisher_ = nh.advertise<monstertruck_msgs::Pdout>("pdout", 1);
 
       // Get max speed, to calc max angular rate
       params.getParam("max_speed", max_speed_);
@@ -100,6 +102,17 @@ class DifferentialDriveController: public VehicleControlInterface
 //           << z_twist / M_PI * 180 << "," << twist.angular.z / M_PI * 180
 //           << std::endl;
 
+        monstertruck_msgs::Pdout pdout;
+        pdout.dt = dt;
+        pdout.e_position = e_position;
+        pdout.e_angle = e_angle;
+        pdout.de_position_dt = de_position_dt;
+        pdout.de_angle_dt = de_angle_dt;
+        pdout.speed = speed;
+        pdout.z_twist_deg = z_twist / M_PI * 180;
+        pdout.speed_real = twist.linear.x;
+        pdout.z_twist_deg_real = twist.angular.z / M_PI * 180;
+        pdoutPublisher_.publish(pdout);
 
         previous_e_angle = e_angle;
         previous_e_position = e_position;
@@ -175,6 +188,7 @@ class DifferentialDriveController: public VehicleControlInterface
 
   protected:
     ros::Publisher cmdVelRawPublisher_;
+    ros::Publisher pdoutPublisher_;
 
 
     geometry_msgs::Twist twist;
