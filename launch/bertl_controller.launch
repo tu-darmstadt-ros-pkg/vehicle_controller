@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+
+<launch>
+  <node pkg="vehicle_controller" type="controller_node" name="vehicle_controller" output="screen">
+    
+    <param name="frame_id" value="map" />
+    
+    <param name="carrot_distance" value="0.25" />
+    <param name="speed" value="1.18" />
+    <param name="max_controller_speed" value="0.25" />
+    <param name="max_joystick_speed" value="2.00" />
+    <param name="min_speed" value="0.0" />
+    <param name="check_if_blocked" value="false" />
+    <param name="velocity_blocked_limit" value="0.5" />
+    <param name="velocity_blocked_time" value="3.0" />
+
+    <param name="vehicle_type" value="tracked" />
+
+    <param name="vehicle_control_type" value="differential_steering"/>
+    <param name="goal_position_tolerance" value="0.1" />
+    <param name="goal_angle_tolerance" value="0.087266463" />
+    
+    <param name="wheel_separation" value="0.34" />
+  </node>
+</launch>
+
+
