@@ -112,6 +112,7 @@ bool Controller::configure()
     drivetoSubscriber   = nh.subscribe("driveto", 10, &Controller::drivetoCallback, this);
     drivepathSubscriber = nh.subscribe("drivepath", 10, &Controller::drivepathCallback, this);
     cmd_velSubscriber   = nh.subscribe("cmd_vel", 10, &Controller::cmd_velCallback, this);
+    cmd_velTeleopSubscriber = nh.subscribe("cmd_vel_teleop", 10, &Controller::cmd_velTeleopCallback, this);
     speedSubscriber     = nh.subscribe("speed", 10, &Controller::speedCallback, this);
 
 
@@ -394,6 +395,20 @@ void Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
     }
 
     vehicle_control_interface_->executeTwist(velocity);
+}
+
+void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
+{
+    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
+    reset();
+
+    if (velocity.linear.x == 0.0) {
+        state = INACTIVE;
+    } else {
+        state = VELOCITY;
+    }
+
+    vehicle_control_interface_->executeUnlimitedTwist(velocity);
 }
 
 void Controller::speedCallback(const std_msgs::Float32& speed) {

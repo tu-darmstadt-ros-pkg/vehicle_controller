@@ -48,7 +48,8 @@ class DifferentialDriveController: public VehicleControlInterface
       pdoutPublisher_ = nh.advertise<monstertruck_msgs::Pdout>("pdout", 1);
 
       // Get max speed, to calc max angular rate
-      params.getParam("max_speed", max_speed_);
+      params.getParam("max_controller_speed", max_controller_speed_);
+      params.getParam("max_unlimited_speed", max_unlimited_speed_);
 
       params.getParam("wheel_separation", wheel_separation_);
 
@@ -60,10 +61,17 @@ class DifferentialDriveController: public VehicleControlInterface
 
     }
 
+    virtual void executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist)
+    {
+        twist = inc_twist;
+        this->limitTwist(twist, max_unlimited_speed_);
+        cmdVelRawPublisher_.publish(twist);
+    }
+
     virtual void executeTwist(const geometry_msgs::Twist& inc_twist)
     {
       twist = inc_twist;
-      this->limitTwist(twist);
+      this->limitTwist(twist, max_controller_speed_);
       cmdVelRawPublisher_.publish(twist);
     }
 
@@ -87,7 +95,7 @@ class DifferentialDriveController: public VehicleControlInterface
         twist.linear.x = speed;
         twist.angular.z = z_twist;
 
-        this->limitTwist(twist);
+        this->limitTwist(twist, max_controller_speed_);
         cmdVelRawPublisher_.publish(twist);
 
 //        ROS_INFO("[PD INFO] e = (%f %f), c = (%f %f), cl = (%f %f)",
@@ -141,7 +149,7 @@ class DifferentialDriveController: public VehicleControlInterface
         twist.angular.z = carrot_relative_angle / carrot_distance * 1.5;
       }
 
-      this->limitTwist(twist);
+      this->limitTwist(twist, max_controller_speed_);
       ROS_INFO("[MC INFO] cl = (%f %f)", twist.linear.x, twist.angular.z / M_PI * 180);
 
       cmdVelRawPublisher_.publish(twist);
@@ -164,7 +172,7 @@ class DifferentialDriveController: public VehicleControlInterface
       return "Differential Drive Controller";
     }
 
-    void limitTwist(geometry_msgs::Twist& twist)
+    void limitTwist(geometry_msgs::Twist& twist, double max_speed)
     {
       float speed = twist.linear.x;
 
@@ -176,9 +184,10 @@ class DifferentialDriveController: public VehicleControlInterface
       angular_rate = std::max(-max_angular_rate_, std::min(max_angular_rate_, angular_rate));
 
       //Calculate the speed reduction factor that we need to apply to be able to achieve desired angular rate.
-      double speed_reduction_factor = (max_speed_ - fabs(angular_rate) * (wheel_separation_ * 0.5)) / max_speed_;
+      double speed_reduction_factor = (max_speed - fabs(angular_rate) * (wheel_separation_ * 0.5)) / max_speed;
 
-      if (fabs(speed) > fabs(speed_reduction_factor) * max_speed_){
+      if (fabs(speed) > fabs(speed_reduction_factor) * max_speed)
+      {
         speed = speed * fabs(speed_reduction_factor);
       }
 
@@ -195,7 +204,8 @@ class DifferentialDriveController: public VehicleControlInterface
 
     MotionParameters* mp_;
 
-    double max_speed_;
+    double max_controller_speed_;
+    double max_unlimited_speed_;
     double max_angular_rate_;
     double wheel_separation_;
 };

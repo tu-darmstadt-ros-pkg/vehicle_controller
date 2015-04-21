@@ -46,6 +46,11 @@ class FourWheelSteerController: public VehicleControlInterface
       params.getParam("max_steeringangle", max_steeringangle);
     }
 
+    virtual void executeUnlimitedTwist(const geometry_msgs::Twist& velocity)
+    {
+        executeTwist(velocity);
+    }
+
     virtual void executeTwist(const geometry_msgs::Twist& velocity)
     {
       float backward = (velocity.linear.x < 0) ? -1.0 : 1.0;

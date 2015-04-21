@@ -62,6 +62,7 @@ protected:
   virtual void drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&);
   virtual void drivepathCallback(const ros::MessageEvent<nav_msgs::Path>&);
   virtual void cmd_velCallback(const geometry_msgs::Twist&);
+  virtual void cmd_velTeleopCallback(const geometry_msgs::Twist&);
   virtual void speedCallback(const std_msgs::Float32&);
   virtual bool alternativeTolerancesService(monstertruck_msgs::SetAlternativeTolerance::Request& req, monstertruck_msgs::SetAlternativeTolerance::Response& res);
 
@@ -82,6 +83,7 @@ private:
   ros::Subscriber drivetoSubscriber;
   ros::Subscriber drivepathSubscriber;
   ros::Subscriber cmd_velSubscriber;
+  ros::Subscriber cmd_velTeleopSubscriber;
   ros::Subscriber speedSubscriber;
 
   ros::Publisher carrotPosePublisher;
