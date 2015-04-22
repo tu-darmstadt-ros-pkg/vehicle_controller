@@ -504,13 +504,14 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
     }
 
-    leg.backward = fabs(angular_norm(leg.course - leg.p1.orientation)) > M_PI_2;
-    if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0 && pose.orientation.y == 0 && pose.orientation.z == 0.0) {
-        leg.p2.orientation = !leg.backward ? leg.course : angular_norm(leg.course + M_PI);
-    } else {
+//    leg.backward = fabs(angular_norm(leg.course - leg.p1.orientation)) > M_PI_2;
+//    if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0 && pose.orientation.y == 0 && pose.orientation.z == 0.0) {
+//        leg.p2.orientation = !leg.backward ? leg.course : angular_norm(leg.course + M_PI);
+//    } else {
+        leg.backward = false;
         quaternion2angles(pose.orientation, angles);
         leg.p2.orientation = angles[0];
-    }
+//    }
 
     leg.speed = motion_control_setup.current_speed;
     leg.length2 = (leg.p2.x-leg.p1.x)*(leg.p2.x-leg.p1.x) + (leg.p2.y-leg.p1.y)*(leg.p2.y-leg.p1.y);
@@ -661,6 +662,7 @@ void Controller::update()
     float speed = sign * legs[current].speed;
 
     double signed_carrot_distance_2_robot = sign * euclideanDistance(carrotPose.pose.position, pose.pose.position);
+    ROS_INFO("signed carrot distance 2 robot = %f, sign = %f, backward = %d", signed_carrot_distance_2_robot, sign, legs[current].backward ? 1 : 0);
     this->vehicle_control_interface_->executeMotionCommand(relative_angle, orientation_error, motion_control_setup.carrot_distance,
                                                            speed, signed_carrot_distance_2_robot, dt);
 
