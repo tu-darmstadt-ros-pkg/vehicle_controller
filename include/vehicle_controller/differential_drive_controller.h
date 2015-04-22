@@ -80,7 +80,7 @@ class DifferentialDriveController: public VehicleControlInterface
     void executePDControlledMotionCommand(double e_angle, double e_position, double dt)
     {
         static const double KP_ANGLE = 4.0;
-        static const double KD_ANGLE = 0.80;
+        static const double KD_ANGLE = 0.50;
         static const double KP_POSITION = 0.5;
         static const double KD_POSITION = 0.0; //0.5;
 
@@ -109,13 +109,13 @@ class DifferentialDriveController: public VehicleControlInterface
 //                 e_position, e_angle / M_PI * 180, speed, z_twist / M_PI * 180,
 //                 twist.linear.x, twist.angular.z / M_PI * 180);
 
-//        std::fstream fs;
-//        fs.open ("pd_tracker.csv", std::fstream::out | std::fstream::app);
-//        fs << dt << "," << e_position << "," <<  de_position_dt << ","
-//           << e_angle << "," << de_angle_dt << ","
-//           << speed << "," << twist.linear.x << ","
-//           << z_twist / M_PI * 180 << "," << twist.angular.z / M_PI * 180
-//           << std::endl;
+        std::fstream fs;
+        fs.open ("pd_tracker.csv", std::fstream::out | std::fstream::app);
+        fs << dt << "," << e_position << "," <<  de_position_dt << ","
+           << e_angle << "," << de_angle_dt << ","
+           << speed << "," << twist.linear.x << ","
+           << z_twist / M_PI * 180 << "," << twist.angular.z / M_PI * 180
+           << std::endl;
 
         monstertruck_msgs::Pdout pdout;
         pdout.dt = dt;
