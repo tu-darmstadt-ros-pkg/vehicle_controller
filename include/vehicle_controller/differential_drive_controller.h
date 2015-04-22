@@ -81,7 +81,7 @@ class DifferentialDriveController: public VehicleControlInterface
     {
         static const double KP_ANGLE = 2.25;
         static const double KD_ANGLE = 0.52;
-        static const double KP_POSITION = 1.0;
+        static const double KP_POSITION = 0.5;
         static const double KD_POSITION = 0.0; //0.5;
 
         static double previous_e_angle = e_angle;
@@ -95,6 +95,12 @@ class DifferentialDriveController: public VehicleControlInterface
 
         twist.linear.x = speed;
         twist.angular.z = z_twist;
+
+        if(fabs(e_angle) > M_PI_4 && e_position < 0.0)
+        {
+            twist.linear.x = 0.0;
+            twist.angular.z = -twist.angular.z;
+        }
 
         this->limitTwist(twist, max_controller_speed_, max_controller_angular_rate_);
         cmdVelRawPublisher_.publish(twist);
@@ -132,6 +138,8 @@ class DifferentialDriveController: public VehicleControlInterface
                                       double signed_carrot_distance_2_robot, double dt)
     {
         double e_angle = speed < 0 ? carrot_orientation_error : carrot_relative_angle;
+        // ROS_INFO("s -e e = %f %f %f", speed, carrot_orientation_error, carrot_relative_angle);
+
         // executePDControlledMotionCommand()
         executePDControlledMotionCommand(e_angle, signed_carrot_distance_2_robot, dt);
         // executeMotionCommand(carrot_relative_angle, carrot_orientation_error, carrot_distance, speed);
@@ -187,6 +195,7 @@ class DifferentialDriveController: public VehicleControlInterface
       //Calculate the speed reduction factor that we need to apply to be able to achieve desired angular rate.
       double speed_reduction_factor = (max_speed - fabs(angular_rate) * (wheel_separation_ * 0.5)) / max_speed;
 
+      ROS_INFO("speed_reduction_factor = %f", speed_reduction_factor);
       if (fabs(speed) > fabs(speed_reduction_factor) * max_speed)
       {
         speed = speed * fabs(speed_reduction_factor);

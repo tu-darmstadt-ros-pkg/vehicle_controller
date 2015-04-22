@@ -504,14 +504,17 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
     }
 
-//    leg.backward = fabs(angular_norm(leg.course - leg.p1.orientation)) > M_PI_2;
-//    if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0 && pose.orientation.y == 0 && pose.orientation.z == 0.0) {
-//        leg.p2.orientation = !leg.backward ? leg.course : angular_norm(leg.course + M_PI);
-//    } else {
-        leg.backward = false;
+    leg.backward = fabs(angular_norm(leg.course - leg.p1.orientation)) > M_PI_2;
+    if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0 && pose.orientation.y == 0 && pose.orientation.z == 0.0) {
+        leg.p2.orientation = !leg.backward ? leg.course : angular_norm(leg.course + M_PI);
+    } else {
+//        leg.backward = fabs(angular_norm(leg.course - leg.p1.orientation)) > M_PI_2;
         quaternion2angles(pose.orientation, angles);
         leg.p2.orientation = angles[0];
-//    }
+    }
+    // PM
+    // leg.p2.orientation = angles[0];
+
 
     leg.speed = motion_control_setup.current_speed;
     leg.length2 = (leg.p2.x-leg.p1.x)*(leg.p2.x-leg.p1.x) + (leg.p2.y-leg.p1.y)*(leg.p2.y-leg.p1.y);
@@ -640,7 +643,7 @@ void Controller::update()
     if (carrot_waypoint == (legs.size()-1) ){
         carrot.orientation = legs[carrot_waypoint].p1.orientation + std::min(carrot_percent, 1.0f) * angular_norm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
     }else{
-        carrot.orientation = legs[carrot_waypoint].p1.orientation + carrot_percent * angular_norm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
+        carrot.orientation = legs[carrot_waypoint].p1.orientation + /* carrot_percent * */ 1.0f * angular_norm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
     }
 
     if (carrotPosePublisher) {
