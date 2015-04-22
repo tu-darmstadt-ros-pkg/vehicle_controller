@@ -37,7 +37,10 @@ Controller::Controller(const std::string& ns)
     motion_control_setup.carrot_distance = 1.0;
     motion_control_setup.current_speed = 0.0;
     motion_control_setup.min_speed = 0.1;
-    motion_control_setup.max_speed = 1.0;
+    motion_control_setup.max_controller_speed_ = 0.25;
+    motion_control_setup.max_unlimited_speed_ = 2.0;
+    motion_control_setup.max_unlimited_angular_rate_ = 1.0;
+    motion_control_setup.max_controller_angular_rate_ =  0.4;
     motion_control_setup.inclination_speed_reduction_factor = 0.5 / (30 * M_PI/180.0); // 0.5 per 30 degrees
     motion_control_setup.inclination_speed_reduction_time_constant = 0.3;
     map_frame_id = "nav";
@@ -75,8 +78,6 @@ bool Controller::configure()
     ros::NodeHandle params("~");
     params.getParam("carrot_distance", motion_control_setup.carrot_distance);
     params.getParam("min_speed", motion_control_setup.min_speed);
-    params.getParam("max_speed", motion_control_setup.max_speed);
-    params.getParam("speed", motion_control_setup.current_speed);
     params.getParam("frame_id", map_frame_id);
     params.getParam("base_frame_id", base_frame_id);
     params.getParam("camera_control", camera_control);
@@ -412,7 +413,7 @@ void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 }
 
 void Controller::speedCallback(const std_msgs::Float32& speed) {
-    motion_control_setup.current_speed = speed.data;
+    motion_control_setup.max_controller_speed_ = speed.data;
 }
 
 bool Controller::alternativeTolerancesService(monstertruck_msgs::SetAlternativeTolerance::Request& req,
@@ -751,11 +752,11 @@ void Controller::limitSpeed(float &speed) {
     float inclination_max_speed = std::max(fabs(speed) * (1.0 - motion_control_setup.current_inclination * motion_control_setup.inclination_speed_reduction_factor), 0.0);
 
     if (speed > 0.0) {
-        if (speed > motion_control_setup.max_speed) speed = motion_control_setup.max_speed;
+        if (speed > motion_control_setup.max_controller_speed_) speed = motion_control_setup.max_controller_speed_;
         if (speed > inclination_max_speed) speed = inclination_max_speed;
         if (speed < motion_control_setup.min_speed) speed = motion_control_setup.min_speed;
     } else if (speed < 0.0) {
-        if (speed < -motion_control_setup.max_speed) speed = -motion_control_setup.max_speed;
+        if (speed < -motion_control_setup.max_controller_speed_) speed = -motion_control_setup.max_controller_speed_;
         if (speed < -inclination_max_speed) speed = -inclination_max_speed;
         if (speed > -motion_control_setup.min_speed) speed = -motion_control_setup.min_speed;
     }

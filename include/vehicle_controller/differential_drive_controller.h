@@ -57,13 +57,13 @@ class DifferentialDriveController: public VehicleControlInterface
         pdoutPublisher_ = nh.advertise<monstertruck_msgs::Pdout>("pdout", 1);
 
         // Get max speed, to calc max angular rate
-        params.getParam("max_controller_speed", max_controller_speed_);
-        params.getParam("max_unlimited_speed", max_unlimited_speed_);
+        params.getParam("max_controller_speed", mp_->max_controller_speed_);
+        params.getParam("max_unlimited_speed", mp_->max_unlimited_speed_);
 
         params.getParam("wheel_separation", wheel_separation_);
 
-        params.getParam("max_controller_angular_rate", max_controller_angular_rate_);
-        params.getParam("max_unlimited_angular_rate", max_unlimited_angular_rate_);
+        params.getParam("max_controller_angular_rate", mp_->max_controller_angular_rate_);
+        params.getParam("max_unlimited_angular_rate", mp_->max_unlimited_angular_rate_);
         // alternative to a fixed param would be the physically possible rate:
         //       max_angular_rate_ = max_speed_ / (wheel_separation_ * 0.5);
         // However, this turned out to be way to fast for the robot on the
@@ -90,14 +90,14 @@ class DifferentialDriveController: public VehicleControlInterface
     virtual void executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist)
     {
         twist = inc_twist;
-        this->limitTwist(twist, max_unlimited_speed_, max_unlimited_angular_rate_);
+        this->limitTwist(twist, mp_->max_unlimited_speed_, mp_->max_unlimited_angular_rate_);
         cmdVelRawPublisher_.publish(twist);
     }
 
     virtual void executeTwist(const geometry_msgs::Twist& inc_twist)
     {
       twist = inc_twist;
-      this->limitTwist(twist, max_controller_speed_, max_controller_angular_rate_);
+      this->limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
       cmdVelRawPublisher_.publish(twist);
     }
 
@@ -122,7 +122,7 @@ class DifferentialDriveController: public VehicleControlInterface
             twist.angular.z = -twist.angular.z;
         }
 
-        this->limitTwist(twist, max_controller_speed_, max_controller_angular_rate_);
+        this->limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
         cmdVelRawPublisher_.publish(twist);
 
 //        ROS_INFO("[PD INFO] e = (%f %f), c = (%f %f), cl = (%f %f)",
@@ -178,7 +178,7 @@ class DifferentialDriveController: public VehicleControlInterface
         twist.angular.z = carrot_relative_angle / carrot_distance * 1.5;
       }
 
-      this->limitTwist(twist, max_controller_speed_, max_controller_angular_rate_);
+      this->limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
       ROS_INFO("[MC INFO] cl = (%f %f)", twist.linear.x, twist.angular.z / M_PI * 180);
 
       cmdVelRawPublisher_.publish(twist);
@@ -238,11 +238,6 @@ class DifferentialDriveController: public VehicleControlInterface
     double KD_ANGLE_ = 0.50;
     double KP_POSITION_ = 0.5;
     double KD_POSITION_ = 0.0; //0.5;
-
-    double max_controller_speed_;
-    double max_unlimited_speed_;
-    double max_controller_angular_rate_;
-    double max_unlimited_angular_rate_;
     double wheel_separation_;
 
     dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig> * dr_server_;
