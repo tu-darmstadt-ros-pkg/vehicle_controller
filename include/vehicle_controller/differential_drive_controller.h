@@ -195,7 +195,6 @@ class DifferentialDriveController: public VehicleControlInterface
       //Calculate the speed reduction factor that we need to apply to be able to achieve desired angular rate.
       double speed_reduction_factor = (max_speed - fabs(angular_rate) * (wheel_separation_ * 0.5)) / max_speed;
 
-      ROS_INFO("speed_reduction_factor = %f", speed_reduction_factor);
       if (fabs(speed) > fabs(speed_reduction_factor) * max_speed)
       {
         speed = speed * fabs(speed_reduction_factor);
