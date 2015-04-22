@@ -79,8 +79,8 @@ class DifferentialDriveController: public VehicleControlInterface
 
     void executePDControlledMotionCommand(double e_angle, double e_position, double dt)
     {
-        static const double KP_ANGLE = 2.25;
-        static const double KD_ANGLE = 0.52;
+        static const double KP_ANGLE = 4.0;
+        static const double KD_ANGLE = 0.80;
         static const double KP_POSITION = 0.5;
         static const double KD_POSITION = 0.0; //0.5;
 
