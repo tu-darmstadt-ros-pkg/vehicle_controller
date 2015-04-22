@@ -119,7 +119,7 @@ class DifferentialDriveController: public VehicleControlInterface
         if(fabs(e_angle) > M_PI_4 && e_position < 0.0)
         {
             twist.linear.x = 0.0;
-            twist.angular.z = -twist.angular.z;
+            // twist.angular.z = -twist.angular.z;
         }
 
         this->limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
@@ -161,6 +161,9 @@ class DifferentialDriveController: public VehicleControlInterface
         // ROS_INFO("s -e e = %f %f %f", speed, carrot_orientation_error, carrot_relative_angle);
 
         // executePDControlledMotionCommand()
+        if(signed_carrot_distance_2_robot < 0 && fabs(e_angle) > M_PI_4)
+            e_angle = carrot_relative_angle;
+
         executePDControlledMotionCommand(e_angle, signed_carrot_distance_2_robot, dt);
         // executeMotionCommand(carrot_relative_angle, carrot_orientation_error, carrot_distance, speed);
     }
