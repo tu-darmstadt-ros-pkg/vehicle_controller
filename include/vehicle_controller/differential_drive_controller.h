@@ -235,7 +235,7 @@ class DifferentialDriveController: public VehicleControlInterface
       float t = mp_->max_unlimited_speed_;
       float speedAbsUL = std::min(std::max(0.0f, m * std::abs(angular_rate) + t), max_speed);
 
-      ROS_INFO("angular rate = %f, speed limit = %f", angular_rate, speedAbsUL);
+//      ROS_INFO("angular rate = %f, speed limit = %f", angular_rate, speedAbsUL);
 
       speed = std::max(std::min(speed, speedAbsUL), -speedAbsUL);
       twist.linear.x = speed;

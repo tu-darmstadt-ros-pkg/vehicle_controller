@@ -715,10 +715,16 @@ void Controller::update()
             double a0[3];
             double a1[3];
             quaternion2angles(pose_history_[i - 1].pose.orientation, a0);
-            quaternion2angles(pose_history_[i].pose.orientation, a0);
+            quaternion2angles(pose_history_[i].pose.orientation, a1);
 
             double e_ang = std::min(std::abs(constrainAngle_mpi_pi(a0[0]) - constrainAngle_mpi_pi(a1[0])),
-                                    std::abs(constrainAngle_0_2pi(a0[0]) - constrainAngle_0_2pi(a1[0])));
+                                    std::abs(constrainAngle_0_2pi(a0[0]) - constrainAngle_0_2pi(a1[0])))
+                            / (pose_history_[i].header.stamp - pose_history_[i - 1].header.stamp).toSec();
+
+//            ROS_INFO("ang 0->1 a = %f %f, ang 0->1 b = %f %f",
+//                     constrainAngle_mpi_pi(a0[0]), constrainAngle_mpi_pi(a1[0]),
+//                     constrainAngle_0_2pi(a0[0]), constrainAngle_0_2pi(a1[0])
+//                    );
 
             acc_ang += e_ang;
             acc_lin += e_lin;
@@ -727,6 +733,8 @@ void Controller::update()
         }
         acc_lin /= POSE_HISTORY_SIZE;
         acc_ang /= POSE_HISTORY_SIZE;
+//        ROS_INFO("acc = %f, max = %f", acc_ang, max_ang);
+
 
         if(acc_lin < linear_speed_blocked_ && max_lin < linear_speed_blocked_
         && acc_ang < angular_speed_blocked_ && max_ang < angular_speed_blocked_)
