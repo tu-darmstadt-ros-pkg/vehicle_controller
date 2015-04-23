@@ -213,13 +213,13 @@ class DifferentialDriveController: public VehicleControlInterface
       return "Differential Drive Controller";
     }
 
-    void limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate)
+    void limitTwist(geometry_msgs::Twist& twist, float max_speed, float max_angular_rate)
     {
       float speed = twist.linear.x;
 
       mp_->limitSpeed(speed);
 
-      double angular_rate = twist.angular.z;
+      float angular_rate = twist.angular.z;
 
       //Limit angular rate to be achievable
       angular_rate = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate));
@@ -231,14 +231,13 @@ class DifferentialDriveController: public VehicleControlInterface
 //        speed = speed * fabs(speed_reduction_factor);
 //      }
 
-      double m = (0.12 - mp_->max_unlimited_speed_) / 0.4;
-      double t = mp_->max_unlimited_speed_;
-      double speedAbsUL = std::min(std::max(0, m * angular_rate + t), max_speed);
+      float m = (0.12 - mp_->max_unlimited_speed_) / 0.4;
+      float t = mp_->max_unlimited_speed_;
+      float speedAbsUL = std::min(std::max(0.0f, m * std::abs(angular_rate) + t), max_speed);
 
+      ROS_INFO("angular rate = %f, speed limit = %f", angular_rate, speedAbsUL);
 
-      speed = std::max(max_speed, (0.25 - 0.12) *
-                       d(mp_->max_unlimited_angular_rate_ - angular_rate) / (0.4 - 0.05))
-
+      speed = std::max(std::min(speed, speedAbsUL), -speedAbsUL);
       twist.linear.x = speed;
       twist.angular.z = angular_rate;
     }
