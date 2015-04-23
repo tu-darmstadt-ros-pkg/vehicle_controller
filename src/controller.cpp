@@ -698,8 +698,6 @@ void Controller::update()
         }
         acc /= POSE_HISTORY_SIZE;
 
-        ROS_INFO("acc. speed = %f, max = %f", acc, max);
-
         if(acc < velocity_blocked_percentage_ * motion_control_setup.max_controller_speed_
         && max < velocity_blocked_percentage_ * motion_control_setup.max_controller_speed_)
         {

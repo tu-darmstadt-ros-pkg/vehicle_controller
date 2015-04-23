@@ -239,10 +239,10 @@ class DifferentialDriveController: public VehicleControlInterface
     MotionParameters* mp_;
 
   private:
-    double KP_ANGLE_ = 2.0;
-    double KD_ANGLE_ = 0.50;
-    double KP_POSITION_ = 0.5;
-    double KD_POSITION_ = 0.0; //0.5;
+    double KP_ANGLE_;
+    double KD_ANGLE_;
+    double KP_POSITION_;
+    double KD_POSITION_; //0.5;
     double wheel_separation_;
 
     dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig> * dr_server_;
