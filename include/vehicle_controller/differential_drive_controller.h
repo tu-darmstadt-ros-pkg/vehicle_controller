@@ -225,12 +225,19 @@ class DifferentialDriveController: public VehicleControlInterface
       angular_rate = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate));
 
       //Calculate the speed reduction factor that we need to apply to be able to achieve desired angular rate.
-      double speed_reduction_factor = (max_speed - fabs(angular_rate) * (wheel_separation_ * 0.5)) / max_speed;
+//      double speed_reduction_factor = (max_speed - fabs(angular_rate) * (wheel_separation_ * 0.5)) / max_speed;
+//      if (fabs(speed) > fabs(speed_reduction_factor) * max_speed)
+//      {
+//        speed = speed * fabs(speed_reduction_factor);
+//      }
 
-      if (fabs(speed) > fabs(speed_reduction_factor) * max_speed)
-      {
-        speed = speed * fabs(speed_reduction_factor);
-      }
+      double m = (0.12 - mp_->max_unlimited_speed_) / 0.4;
+      double t = mp_->max_unlimited_speed_;
+      double speedAbsUL = std::min(std::max(0, m * angular_rate + t), max_speed);
+
+
+      speed = std::max(max_speed, (0.25 - 0.12) *
+                       d(mp_->max_unlimited_angular_rate_ - angular_rate) / (0.4 - 0.05))
 
       twist.linear.x = speed;
       twist.angular.z = angular_rate;
