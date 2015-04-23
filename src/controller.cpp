@@ -670,7 +670,7 @@ void Controller::update()
                                                            speed, signed_carrot_distance_2_robot, dt);
 
 
-    int const POSE_HISTORY_SIZE = 30;
+    int const POSE_HISTORY_SIZE = 50;
 
     if(pose_history_.size() < POSE_HISTORY_SIZE)
     {
