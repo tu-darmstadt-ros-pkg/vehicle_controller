@@ -18,6 +18,20 @@
 
 // #define END_TWIST
 
+double constrainAngle_0_2pi(double x){
+    x = fmod(x, 2.0 * M_PI);
+    if (x < 0)
+        x += 2.0 * M_PI;
+    return x;
+}
+
+double constrainAngle_mpi_pi(double x){
+    x = fmod(x + M_PI, 2.0 * M_PI);
+    if (x < 0)
+        x += 2.0 * M_PI;
+    return x - M_PI;
+}
+
 static double angular_norm(double diff)
 {
     static const double M_2PI = 2.0 * M_PI;
@@ -703,7 +717,8 @@ void Controller::update()
             quaternion2angles(pose_history_[i - 1].pose.orientation, a0);
             quaternion2angles(pose_history_[i].pose.orientation, a0);
 
-            double e_ang = angular_norm(a1[0] - a0[0]);
+            double e_ang = std::min(std::abs(constrainAngle_mpi_pi(a0[0]) - constrainAngle_mpi_pi(a1[0])),
+                                    std::abs(constrainAngle_0_2pi(a0[0]) - constrainAngle_0_2pi(a1[0])));
 
             acc_ang += e_ang;
             acc_lin += e_lin;
