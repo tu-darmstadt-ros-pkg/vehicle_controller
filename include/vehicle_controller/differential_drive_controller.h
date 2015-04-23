@@ -118,7 +118,7 @@ class DifferentialDriveController: public VehicleControlInterface
 //        double EPS = 0.05;
 //        double speed = (e_position > 0 ? 1.0 : -1.0 ) * mp_->max_controller_speed_;
 //        if(fabs(e_position) < 0.05)
-        speed = KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;
+        double speed = KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;
 
         double z_twist = KP_ANGLE_ * e_angle + KD_ANGLE_ * de_angle_dt;
 
