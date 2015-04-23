@@ -143,7 +143,7 @@ private:
   //double current_inclination;
   double velocity_error;
   double velocity_blocked_time;
-  double velocity_blocked_limit;
+  double velocity_blocked_percentage_;
 
   double goal_position_tolerance;
   double goal_angle_tolerance;
@@ -165,6 +165,8 @@ private:
   {
       return dt == 0.0;
   }
+
+  std::deque< geometry_msgs::PoseStamped > pose_history_;
 };
 
 #endif // VEHICLE_CONTROLLER_H

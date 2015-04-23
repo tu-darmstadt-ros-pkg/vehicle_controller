@@ -35,9 +35,11 @@
 #include "vehicle_control_interface.h"
 #include <algorithm>
 #include <fstream>
+#include <queue>
 
 #include <dynamic_reconfigure/server.h>
 #include <vehicle_controller/PdParamsConfig.h>
+
 
 class DifferentialDriveController: public VehicleControlInterface
 {

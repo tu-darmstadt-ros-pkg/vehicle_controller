@@ -52,7 +52,7 @@ Controller::Controller(const std::string& ns)
 
     check_if_blocked = true;
     velocity_blocked_time = 5.0;
-    velocity_blocked_limit = 0.2;
+    velocity_blocked_percentage_ = 0.2;
 
     motion_control_setup.current_velocity = 0.0;
     motion_control_setup.current_inclination = 0.0;
@@ -85,7 +85,7 @@ bool Controller::configure()
     params.getParam("camera_lookat_height", camera_lookat_height);
     params.getParam("check_if_blocked", check_if_blocked);
     params.getParam("velocity_blocked_time", velocity_blocked_time);
-    params.getParam("velocity_blocked_limit", velocity_blocked_limit);
+    params.getParam("velocity_blocked_percentage", velocity_blocked_percentage_);
     params.getParam("inclination_speed_reduction_factor", motion_control_setup.inclination_speed_reduction_factor);
     params.getParam("inclination_speed_reduction_time_constant", motion_control_setup.inclination_speed_reduction_time_constant);
     params.getParam("goal_position_tolerance", goal_position_tolerance);
@@ -669,8 +669,50 @@ void Controller::update()
     this->vehicle_control_interface_->executeMotionCommand(relative_angle, orientation_error, motion_control_setup.carrot_distance,
                                                            speed, signed_carrot_distance_2_robot, dt);
 
+
+    int const POSE_HISTORY_SIZE = 30;
+
+    if(pose_history_.size() < POSE_HISTORY_SIZE)
+    {
+        pose_history_.push_back(pose);
+    }
+    else
+    {
+        pose_history_.push_back(pose);
+        pose_history_.pop_front();
+    }
+
+
     // check if vehicle is blocked
-    if (check_if_blocked && dt > 0.0) { // @ TODO : PM suggest change td > 0.0 to !isDtInvalid()
+    if (check_if_blocked && dt > 0.0 && pose_history_.size() >= POSE_HISTORY_SIZE)
+    // @ TODO : PM suggest change td > 0.0 to !isDtInvalid()
+    {
+        double acc = 0.0;
+        double max = 0.0;
+        for(unsigned i = 1; i < pose_history_.size(); i++)
+        {
+            double e = euclideanDistance(pose_history_[i].pose.position, pose_history_[i - 1].pose.position)
+                       / (pose_history_[i].header.stamp - pose_history_[i - 1].header.stamp).toSec();
+            acc += e;
+            max = std::max(max, e);
+        }
+        acc /= POSE_HISTORY_SIZE;
+
+        ROS_INFO("acc. speed = %f, max = %f", acc, max);
+
+        if(acc < velocity_blocked_percentage_ * motion_control_setup.max_controller_speed_
+        && max < velocity_blocked_percentage_ * motion_control_setup.max_controller_speed_)
+        {
+            ROS_WARN("I think I am blocked! Terminating current drive goal...");
+            state = INACTIVE;
+            stop();
+
+            pose_history_.clear();
+
+            publishActionResult(actionlib_msgs::GoalStatus::ABORTED, "blocked");
+        }
+
+        /*
         double current_velocity_error = 0.0;
         current_velocity_error = (motion_control_setup.current_velocity - vehicle_control_interface_->getCommandedSpeed()) / std::max(fabs(vehicle_control_interface_->getCommandedSpeed()), 0.1);
         if (vehicle_control_interface_->getCommandedSpeed() > 0) {
@@ -698,7 +740,7 @@ void Controller::update()
             stop();
 
             publishActionResult(actionlib_msgs::GoalStatus::ABORTED, "blocked");
-        }
+        }*/
     }
 
     // camera control
