@@ -92,7 +92,16 @@ class DifferentialDriveController: public VehicleControlInterface
     virtual void executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist)
     {
         twist = inc_twist;
-        this->limitTwist(twist, mp_->max_unlimited_speed_, mp_->max_unlimited_angular_rate_);
+
+        float speed = twist.linear.x;
+        mp_->limitSpeed(speed);
+        float angular_rate = twist.angular.z;
+        angular_rate = std::max<float>(-mp_->max_unlimited_angular_rate_, std::min<float>(mp_->max_unlimited_angular_rate_, angular_rate));
+        speed = std::max<float>(-mp_->max_unlimited_speed_, std::min<float>(speed, mp_->max_unlimited_speed_));
+
+        twist.linear.x = speed;
+        twist.angular.z = angular_rate;
+
         cmdVelRawPublisher_.publish(twist);
     }
 
@@ -218,24 +227,13 @@ class DifferentialDriveController: public VehicleControlInterface
       float speed = twist.linear.x;
 
       mp_->limitSpeed(speed);
-
       float angular_rate = twist.angular.z;
-
-      //Limit angular rate to be achievable
-      angular_rate = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate));
-
-      //Calculate the speed reduction factor that we need to apply to be able to achieve desired angular rate.
-//      double speed_reduction_factor = (max_speed - fabs(angular_rate) * (wheel_separation_ * 0.5)) / max_speed;
-//      if (fabs(speed) > fabs(speed_reduction_factor) * max_speed)
-//      {
-//        speed = speed * fabs(speed_reduction_factor);
-//      }
+      angular_rate = std::max<float>(-mp_->max_unlimited_angular_rate_,
+                                     std::min<float>(mp_->max_unlimited_angular_rate_, angular_rate));
 
       float m = (0.12 - mp_->max_unlimited_speed_) / 0.4;
       float t = mp_->max_unlimited_speed_;
       float speedAbsUL = std::min(std::max(0.0f, m * std::abs(angular_rate) + t), max_speed);
-
-//      ROS_INFO("angular rate = %f, speed limit = %f", angular_rate, speedAbsUL);
 
       speed = std::max(std::min(speed, speedAbsUL), -speedAbsUL);
       twist.linear.x = speed;
