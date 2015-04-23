@@ -52,7 +52,8 @@ Controller::Controller(const std::string& ns)
 
     check_if_blocked = true;
     velocity_blocked_time = 5.0;
-    velocity_blocked_percentage_ = 0.2;
+    linear_speed_blocked_ = 0.05;
+    angular_speed_blocked_ = 0.05;
 
     motion_control_setup.current_velocity = 0.0;
     motion_control_setup.current_inclination = 0.0;
@@ -85,7 +86,8 @@ bool Controller::configure()
     params.getParam("camera_lookat_height", camera_lookat_height);
     params.getParam("check_if_blocked", check_if_blocked);
     params.getParam("velocity_blocked_time", velocity_blocked_time);
-    params.getParam("velocity_blocked_percentage", velocity_blocked_percentage_);
+    params.getParam("linear_speed_blocked", linear_speed_blocked_);
+    params.getParam("angular_speed_blocked", angular_speed_blocked_);
     params.getParam("inclination_speed_reduction_factor", motion_control_setup.inclination_speed_reduction_factor);
     params.getParam("inclination_speed_reduction_time_constant", motion_control_setup.inclination_speed_reduction_time_constant);
     params.getParam("goal_position_tolerance", goal_position_tolerance);
@@ -687,19 +689,32 @@ void Controller::update()
     if (check_if_blocked && dt > 0.0 && pose_history_.size() >= POSE_HISTORY_SIZE)
     // @ TODO : PM suggest change td > 0.0 to !isDtInvalid()
     {
-        double acc = 0.0;
-        double max = 0.0;
+        double acc_lin = 0.0;
+        double max_lin = 0.0;
+        double acc_ang = 0.0;
+        double max_ang = 0.0;
         for(unsigned i = 1; i < pose_history_.size(); i++)
         {
-            double e = euclideanDistance(pose_history_[i].pose.position, pose_history_[i - 1].pose.position)
+            double e_lin = euclideanDistance(pose_history_[i].pose.position, pose_history_[i - 1].pose.position)
                        / (pose_history_[i].header.stamp - pose_history_[i - 1].header.stamp).toSec();
-            acc += e;
-            max = std::max(max, e);
-        }
-        acc /= POSE_HISTORY_SIZE;
 
-        if(acc < velocity_blocked_percentage_ * motion_control_setup.max_controller_speed_
-        && max < velocity_blocked_percentage_ * motion_control_setup.max_controller_speed_)
+            double a0[3];
+            double a1[3];
+            quaternion2angles(pose_history_[i - 1].pose.orientation, a0);
+            quaternion2angles(pose_history_[i].pose.orientation, a0);
+
+            double e_ang = angular_norm(a1[0] - a0[0]);
+
+            acc_ang += e_ang;
+            acc_lin += e_lin;
+            max_ang = std::max(max_ang, e_ang);
+            max_lin = std::max(max_lin, e_lin);
+        }
+        acc_lin /= POSE_HISTORY_SIZE;
+        acc_ang /= POSE_HISTORY_SIZE;
+
+        if(acc_lin < linear_speed_blocked_ && max_lin < linear_speed_blocked_
+        && acc_ang < angular_speed_blocked_ && max_ang < angular_speed_blocked_)
         {
             ROS_WARN("I think I am blocked! Terminating current drive goal...");
             state = INACTIVE;

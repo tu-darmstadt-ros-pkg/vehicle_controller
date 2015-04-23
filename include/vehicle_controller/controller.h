@@ -143,7 +143,8 @@ private:
   //double current_inclination;
   double velocity_error;
   double velocity_blocked_time;
-  double velocity_blocked_percentage_;
+  double linear_speed_blocked_;
+  double angular_speed_blocked_;
 
   double goal_position_tolerance;
   double goal_angle_tolerance;

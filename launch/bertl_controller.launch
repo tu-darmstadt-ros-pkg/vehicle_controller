@@ -12,7 +12,8 @@
     <param name="max_controller_angular_rate" value="0.4" />
     <param name="min_speed" value="0.0" />
     <param name="check_if_blocked" value="true" />
-    <param name="velocity_blocked_percentage" value="0.2" />
+    <param name="linear_speed_blocked" value="0.05" />
+    <param name="angular_speed_blocked" value="0.05" />
     <param name="velocity_blocked_time" value="3.0" />
 
     <param name="vehicle_type" value="tracked" />
