@@ -6,10 +6,10 @@
     <param name="frame_id" value="map" />
     
     <param name="carrot_distance" value="0.3" />
-    <param name="max_controller_speed" value="0.25" />
+    <param name="max_controller_speed" value="0.4" />
     <param name="max_unlimited_speed" value="2.00" />
-    <param name="max_unlimited_angular_rate" value="0.25" />
-    <param name="max_controller_angular_rate" value="0.1" />
+    <param name="max_unlimited_angular_rate" value="0.4" />
+    <param name="max_controller_angular_rate" value="0.25" />
     <param name="min_speed" value="0.0" />
     <param name="check_if_blocked" value="true" />
     <param name="linear_speed_blocked" value="0.05" />
