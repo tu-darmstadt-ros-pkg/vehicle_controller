@@ -733,13 +733,13 @@ void Controller::update()
         }
         acc_lin /= POSE_HISTORY_SIZE;
         acc_ang /= POSE_HISTORY_SIZE;
-//        ROS_INFO("acc = %f, max = %f", acc_ang, max_ang);
+        ROS_DEBUG("[vehicle_controller] acc = %f, max = %f", acc_ang, max_ang);
 
 
         if(acc_lin < linear_speed_blocked_ && max_lin < linear_speed_blocked_
         && acc_ang < angular_speed_blocked_ && max_ang < angular_speed_blocked_)
         {
-            ROS_WARN("I think I am blocked! Terminating current drive goal...");
+            ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal...");
             state = INACTIVE;
             stop();
 

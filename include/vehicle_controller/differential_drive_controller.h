@@ -236,6 +236,10 @@ class DifferentialDriveController: public VehicleControlInterface
       float speedAbsUL = std::min(std::max(0.0f, m * std::abs(angular_rate) + t), max_speed);
 
       speed = std::max(std::min(speed, speedAbsUL), -speedAbsUL);
+
+      angular_rate = std::max<float>(-max_angular_rate,
+                                     std::min<float>(max_angular_rate, angular_rate));
+
       twist.linear.x = speed;
       twist.angular.z = angular_rate;
     }
