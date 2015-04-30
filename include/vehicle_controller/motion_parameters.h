@@ -33,8 +33,8 @@ class MotionParameters
 {
   public:
 
-    void limitSpeed(float &speed) {
-      float inclination_max_speed = std::max(fabs(speed) * (1.0 - current_inclination * inclination_speed_reduction_factor), 0.0);
+    void limitSpeed(double &speed) {
+      double inclination_max_speed = std::max(fabs(speed) * (1.0 - current_inclination * inclination_speed_reduction_factor), 0.0);
 
       if (speed > 0.0) {
         if (speed > max_controller_speed_) speed = max_controller_speed_;

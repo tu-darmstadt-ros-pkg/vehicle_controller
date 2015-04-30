@@ -44,205 +44,37 @@
 class DifferentialDriveController: public VehicleControlInterface
 {
   public:
-    virtual ~DifferentialDriveController()
-    {
-        if(dr_server_)
-            delete dr_server_;
-    }
+    virtual ~DifferentialDriveController();
 
-    virtual void configure(ros::NodeHandle& params, MotionParameters* mp)
-    {
-        mp_ = mp;
+    virtual void configure(ros::NodeHandle& params, MotionParameters* mp);
 
-        ros::NodeHandle nh;
-        cmdVelRawPublisher_ = nh.advertise<geometry_msgs::Twist>("cmd_vel_raw", 1);
-        pdoutPublisher_ = nh.advertise<monstertruck_msgs::Pdout>("pdout", 1);
+    void pdGainCallback(vehicle_controller::PdParamsConfig & config, uint32_t level);
 
-        // Get max speed, to calc max angular rate
-        params.getParam("max_controller_speed", mp_->max_controller_speed_);
-        params.getParam("max_unlimited_speed", mp_->max_unlimited_speed_);
+    virtual void executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist);
 
-        params.getParam("wheel_separation", wheel_separation_);
+    virtual void executeTwist(const geometry_msgs::Twist& inc_twist);
 
-        params.getParam("max_controller_angular_rate", mp_->max_controller_angular_rate_);
-        params.getParam("max_unlimited_angular_rate", mp_->max_unlimited_angular_rate_);
-        // alternative to a fixed param would be the physically possible rate:
-        //       max_angular_rate_ = max_speed_ / (wheel_separation_ * 0.5);
-        // However, this turned out to be way to fast for the robot on the
-        // oil site platform.
-
-        KP_ANGLE_ = 2.0;
-        KD_ANGLE_ = 0.5;
-        KP_POSITION_ = 0.5;
-        KD_POSITION_ = 0.0;
-
-        dr_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>;
-        dr_server_->setCallback(boost::bind(&DifferentialDriveController::pdGainCallback, this, _1, _2));
-    }
-
-    void pdGainCallback(vehicle_controller::PdParamsConfig & config, uint32_t level)
-    {
-        ROS_INFO("Reconfiguring vehicle controller.");
-        KP_ANGLE_ = config.angle_p_gain;
-        KD_ANGLE_ = config.angle_d_gain;
-        KP_POSITION_ = config.position_p_gain;
-        KD_POSITION_ = config.position_d_gain;
-    }
-
-    virtual void executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist)
-    {
-        twist = inc_twist;
-
-        float speed = twist.linear.x;
-        mp_->limitSpeed(speed);
-        float angular_rate = twist.angular.z;
-        angular_rate = std::max<float>(-mp_->max_unlimited_angular_rate_, std::min<float>(mp_->max_unlimited_angular_rate_, angular_rate));
-        speed = std::max<float>(-mp_->max_unlimited_speed_, std::min<float>(speed, mp_->max_unlimited_speed_));
-
-        twist.linear.x = speed;
-        twist.angular.z = angular_rate;
-
-        cmdVelRawPublisher_.publish(twist);
-    }
-
-    virtual void executeTwist(const geometry_msgs::Twist& inc_twist)
-    {
-      twist = inc_twist;
-      this->limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
-      cmdVelRawPublisher_.publish(twist);
-    }
-
-
-    void executePDControlledMotionCommand(double e_angle, double e_position, double dt)
-    {
-        static double previous_e_angle = e_angle;
-        static double previous_e_position = e_position;
-
-        double de_angle_dt    = (e_angle - previous_e_angle) / dt; //? uncontinuity @ orientation_error vs relative_angle switch
-        double de_position_dt = (e_position - previous_e_position) / dt;
-
-        // double speed = KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;
-
-
-//        double EPS = 0.05;
-//        double speed = (e_position > 0 ? 1.0 : -1.0 ) * mp_->max_controller_speed_;
-//        if(fabs(e_position) < 0.05)
-        double speed = KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;
-
-        double z_twist = KP_ANGLE_ * e_angle + KD_ANGLE_ * de_angle_dt;
-
-        twist.linear.x = speed;
-        twist.angular.z = z_twist;
-
-        if(fabs(e_angle) > M_PI_4 && e_position < 0.0)
-        {
-            twist.linear.x = 0.0;
-            // twist.angular.z = -twist.angular.z;
-        }
-
-        this->limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
-        cmdVelRawPublisher_.publish(twist);
-
-//        ROS_INFO("[PD INFO] e = (%f %f), c = (%f %f), cl = (%f %f)",
-//                 e_position, e_angle / M_PI * 180, speed, z_twist / M_PI * 180,
-//                 twist.linear.x, twist.angular.z / M_PI * 180);
-
-//        std::fstream fs;
-//        fs.open ("pd_tracker.csv", std::fstream::out | std::fstream::app);
-//        fs << dt << "," << e_position << "," <<  de_position_dt << ","
-//           << e_angle << "," << de_angle_dt << ","
-//           << speed << "," << twist.linear.x << ","
-//           << z_twist / M_PI * 180 << "," << twist.angular.z / M_PI * 180
-//           << std::endl;
-
-        monstertruck_msgs::Pdout pdout;
-        pdout.dt = dt;
-        pdout.e_position = e_position;
-        pdout.e_angle = e_angle;
-        pdout.de_position_dt = de_position_dt;
-        pdout.de_angle_dt = de_angle_dt;
-        pdout.speed = speed;
-        pdout.z_twist_deg = z_twist / M_PI * 180;
-        pdout.speed_real = twist.linear.x;
-        pdout.z_twist_deg_real = twist.angular.z / M_PI * 180;
-        pdoutPublisher_.publish(pdout);
-
-        previous_e_angle = e_angle;
-        previous_e_position = e_position;
-    }
+    void executePDControlledMotionCommand(double e_angle, double e_position, double dt);
 
     virtual void executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error,
                                       double carrot_distance, double speed,
-                                      double signed_carrot_distance_2_robot, double dt)
-    {
-        double e_angle = speed < 0 ? carrot_orientation_error : carrot_relative_angle;
-        // ROS_INFO("s -e e = %f %f %f", speed, carrot_orientation_error, carrot_relative_angle);
+                                      double signed_carrot_distance_2_robot, double dt);
 
-        // executePDControlledMotionCommand()
-        if(signed_carrot_distance_2_robot < 0 && fabs(e_angle) > M_PI_4)
-            e_angle = carrot_relative_angle;
+    virtual void executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error, double carrot_distance, double speed);
 
-        executePDControlledMotionCommand(e_angle, signed_carrot_distance_2_robot, dt);
-        // executeMotionCommand(carrot_relative_angle, carrot_orientation_error, carrot_distance, speed);
-    }
+    virtual void stop();
 
-
-    virtual void executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error, double carrot_distance, double speed)
-    {
-      float sign = speed < 0.0 ? -1.0 : 1.0;
-
-      twist.linear.x = speed;
-
-      if (sign < 0){
-        twist.angular.z = carrot_orientation_error / carrot_distance * 1.5 * 0.25;
-      }else{
-        twist.angular.z = carrot_relative_angle / carrot_distance * 1.5;
-      }
-
-      this->limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
-      ROS_INFO("[MC INFO] cl = (%f %f)", twist.linear.x, twist.angular.z / M_PI * 180);
-
-      cmdVelRawPublisher_.publish(twist);
-    }
-
-    virtual void stop()
-    {
-      twist.angular.z = 0.0;
-      twist.linear.x = 0.0;
-      cmdVelRawPublisher_.publish(twist);
-    }
-
-    virtual double getCommandedSpeed() const
+    inline virtual double getCommandedSpeed() const
     {
       return twist.linear.x;
     }
 
-    virtual std::string getName()
+    inline virtual std::string getName()
     {
       return "Differential Drive Controller";
     }
 
-    void limitTwist(geometry_msgs::Twist& twist, float max_speed, float max_angular_rate)
-    {
-      float speed = twist.linear.x;
-
-      mp_->limitSpeed(speed);
-      float angular_rate = twist.angular.z;
-      angular_rate = std::max<float>(-mp_->max_unlimited_angular_rate_,
-                                     std::min<float>(mp_->max_unlimited_angular_rate_, angular_rate));
-
-      float m = (0.12 - mp_->max_unlimited_speed_) / 0.4;
-      float t = mp_->max_unlimited_speed_;
-      float speedAbsUL = std::min(std::max(0.0f, m * std::abs(angular_rate) + t), max_speed);
-
-      speed = std::max(std::min(speed, speedAbsUL), -speedAbsUL);
-
-      angular_rate = std::max<float>(-max_angular_rate,
-                                     std::min<float>(max_angular_rate, angular_rate));
-
-      twist.linear.x = speed;
-      twist.angular.z = angular_rate;
-    }
+    void limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate);
 
   protected:
     ros::Publisher cmdVelRawPublisher_;
