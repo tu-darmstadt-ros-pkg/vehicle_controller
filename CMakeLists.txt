@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(vehicle_controller)
 
-find_package(catkin REQUIRED COMPONENTS tf nav_msgs geometry_msgs cmake_modules hector_move_base_msgs monstertruck_msgs)
+find_package(catkin REQUIRED COMPONENTS tf dynamic_reconfigure nav_msgs geometry_msgs cmake_modules hector_move_base_msgs monstertruck_msgs)
 
 find_package(Eigen REQUIRED)
 include_directories(${EIGEN_INCLUDE_DIRS} include)
@@ -20,6 +20,10 @@ add_definitions(${EIGEN_DEFINITIONS})
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 
+generate_dynamic_reconfigure_options(
+  cfg/pd_params.cfg
+)
+
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES test
@@ -30,6 +34,7 @@ catkin_package(
 ###########
 ## Build ##
 ###########
+
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 add_subdirectory(src)
@@ -112,5 +117,4 @@ add_subdirectory(src)
 ###set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 ### # set the default path for built libraries to the "lib" directory
 ###set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
-
-
+add_dependencies(controller_node ${PROJECT_NAME}_gencfg)

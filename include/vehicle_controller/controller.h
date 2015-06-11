@@ -62,6 +62,7 @@ protected:
   virtual void drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&);
   virtual void drivepathCallback(const ros::MessageEvent<nav_msgs::Path>&);
   virtual void cmd_velCallback(const geometry_msgs::Twist&);
+  virtual void cmd_velTeleopCallback(const geometry_msgs::Twist&);
   virtual void speedCallback(const std_msgs::Float32&);
   virtual bool alternativeTolerancesService(monstertruck_msgs::SetAlternativeTolerance::Request& req, monstertruck_msgs::SetAlternativeTolerance::Response& res);
 
@@ -82,6 +83,7 @@ private:
   ros::Subscriber drivetoSubscriber;
   ros::Subscriber drivepathSubscriber;
   ros::Subscriber cmd_velSubscriber;
+  ros::Subscriber cmd_velTeleopSubscriber;
   ros::Subscriber speedSubscriber;
 
   ros::Publisher carrotPosePublisher;
@@ -141,7 +143,8 @@ private:
   //double current_inclination;
   double velocity_error;
   double velocity_blocked_time;
-  double velocity_blocked_limit;
+  double linear_speed_blocked_;
+  double angular_speed_blocked_;
 
   double goal_position_tolerance;
   double goal_angle_tolerance;
@@ -163,6 +166,8 @@ private:
   {
       return dt == 0.0;
   }
+
+  std::deque< geometry_msgs::PoseStamped > pose_history_;
 };
 
 #endif // VEHICLE_CONTROLLER_H

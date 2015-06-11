@@ -46,10 +46,15 @@ class FourWheelSteerController: public VehicleControlInterface
       params.getParam("max_steeringangle", max_steeringangle);
     }
 
+    virtual void executeUnlimitedTwist(const geometry_msgs::Twist& velocity)
+    {
+        executeTwist(velocity);
+    }
+
     virtual void executeTwist(const geometry_msgs::Twist& velocity)
     {
-      float backward = (velocity.linear.x < 0) ? -1.0 : 1.0;
-      float speed = backward * sqrt(velocity.linear.x*velocity.linear.x + velocity.linear.y*velocity.linear.y);
+      double backward = (velocity.linear.x < 0) ? -1.0 : 1.0;
+      double speed = backward * sqrt(velocity.linear.x*velocity.linear.x + velocity.linear.y*velocity.linear.y);
       mp_->limitSpeed(speed);
 
       float kappa = velocity.angular.z * speed;
@@ -83,12 +88,13 @@ class FourWheelSteerController: public VehicleControlInterface
       return "Four Wheel Steering Controller";
     }
 
-    void setDriveCommand(float speed, float kappa, float tan_gamma) {
+    void setDriveCommand(double speed, double kappa, double tan_gamma) {
 
       float B = 0.16; // half wheel distance (front - rear)
 
+      mp_->limitSpeed(speed);
       drive.speed = speed;
-      mp_->limitSpeed(drive.speed);
+
 
       if (drive.speed != 0.0) {
         float max_kappa = tan(max_steeringangle) / B;
