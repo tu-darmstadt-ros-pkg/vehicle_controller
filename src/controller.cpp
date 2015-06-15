@@ -677,7 +677,7 @@ void Controller::update()
     double relative_angle = angular_norm(beta - angles[0]);
     double orientation_error = angular_norm(-beta + angles[0]); // angular_norm(carrot.orientation - angles[0]);
 
-    ROS_INFO("[PD INFO] DeltaRobot DeltaSteering1 backward CarrotOrient = %f  %f  %f  %f", beta, relative_angle, legs[current].backward ? -1.0 : 1.0, carrot.orientation);
+//    ROS_INFO("[PD INFO] DeltaRobot DeltaSteering1 backward CarrotOrient = %f  %f  %f  %f", beta, relative_angle, legs[current].backward ? -1.0 : 1.0, carrot.orientation);
 
     float sign = legs[current].backward ? -1.0 : 1.0;
     float speed = sign * legs[current].speed;
