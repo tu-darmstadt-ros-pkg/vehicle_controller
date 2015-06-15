@@ -54,7 +54,7 @@ class DifferentialDriveController: public VehicleControlInterface
 
     virtual void executeTwist(const geometry_msgs::Twist& inc_twist);
 
-    void executePDControlledMotionCommand(double e_angle, double e_position, double dt);
+    void executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed);
 
     virtual void executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error,
                                       double carrot_distance, double speed,
@@ -89,7 +89,7 @@ class DifferentialDriveController: public VehicleControlInterface
     double KP_ANGLE_;
     double KD_ANGLE_;
     double KP_POSITION_;
-    double KD_POSITION_; //0.5;
+    double KD_POSITION_;
     double wheel_separation_;
 
     dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig> * dr_server_;

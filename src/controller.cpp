@@ -521,7 +521,7 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
     }
 
-    leg.backward = fabs(angular_norm(leg.course - leg.p1.orientation)) > M_PI_2;
+    leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
     if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0 && pose.orientation.y == 0 && pose.orientation.z == 0.0) {
         leg.p2.orientation = !leg.backward ? leg.course : angular_norm(leg.course + M_PI);
     } else {
@@ -673,11 +673,12 @@ void Controller::update()
     }
 
     // calculate steering angle
-    double relative_angle = angular_norm(atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x) - angles[0]);
-
     double beta = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
+    double relative_angle = angular_norm(beta - angles[0]);
     double orientation_error = angular_norm(-beta + angles[0]); // angular_norm(carrot.orientation - angles[0]);
-    // ROS_INFO("[PD INFO] a  b  b-a  prev = %f  %f  %f  %f", angles[0], beta, angular_norm(angular_norm(-beta + angles[0])), angular_norm(carrot.orientation - angles[0]));
+
+    ROS_INFO("[PD INFO] DeltaRobot DeltaSteering1 backward CarrotOrient = %f  %f  %f  %f", beta, relative_angle, legs[current].backward ? -1.0 : 1.0, carrot.orientation);
+
     float sign = legs[current].backward ? -1.0 : 1.0;
     float speed = sign * legs[current].speed;
 
@@ -839,7 +840,6 @@ void Controller::limitSpeed(float &speed) {
         if (speed > -motion_control_setup.min_speed) speed = -motion_control_setup.min_speed;
     }
 }
-
 
 void Controller::stop()
 {
