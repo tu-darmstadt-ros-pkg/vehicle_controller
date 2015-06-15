@@ -17,12 +17,10 @@ Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths)
 
 }
 
-
 float Pathsmoother3D::gaussianWeight(float t0, float t1)
 {
   return exp(-pow(t0 - t1, 2) / (2.0 *  pow(PATH_SMOOTHNESS,2)));
 }
-
 
 vector<float> Pathsmoother3D::computeAccumulatedDistances(deque_vec3 const & positions)
 {
@@ -32,8 +30,9 @@ vector<float> Pathsmoother3D::computeAccumulatedDistances(deque_vec3 const & pos
   return result;
 }
 
-
-void Pathsmoother3D::smooth(deque_vec3 const & in_path, quat const & in_start_orientation, quat const & in_end_orientation, vector_vec3 & out_smooth_positions,
+void Pathsmoother3D::smooth(deque_vec3 const & in_path,
+                            quat const & in_start_orientation, quat const & in_end_orientation,
+                            vector_vec3 & out_smooth_positions,
                             vector_quat & out_smooth_orientations, bool forbid_reverse_path)
 {
     // Missing
@@ -51,6 +50,7 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path, quat const & in_start_or
         if(in_path.size() >= 2 && smoothed_positions.size() >= in_path.size())
 
         {
+#ifdef OLD_CRITERION_FOR_REVERSE_PATHS
             bool distC = distances.back() < 1.5;
 
             // Assume global COSY = COSY in position[0], current direction of looking = (1,0,0)
@@ -67,7 +67,6 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path, quat const & in_start_or
             vec3 end_vec = (in_end_orientation * start_vec).normalized();
             double end_path_projection = end_path_delta.dot(end_vec);
 
-
             bool startC = start_path_projection > 0;
             bool endC = end_path_projection > 0;
 
@@ -81,7 +80,13 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path, quat const & in_start_or
             {
                 ROS_INFO("REVERSE! dist = %d, start = %d, end = %d", distC, startC, endC);
             }
-
+#else
+            vec3 start_path_delta = (smoothed_positions[0] - smoothed_positions[1]).normalized();
+            double start_projection = start_path_delta.dot(in_start_orientation * local_robot_direction);
+            reverse = start_path_delta.dot(in_start_orientation * local_robot_direction) > 0.0;
+            if(reverse)
+                ROS_INFO("REVERSE! start_projection = %f", start_projection);
+#endif
         }
     }
 
@@ -164,23 +169,6 @@ vector_quat Pathsmoother3D::computeSmoothedOrientations(std::vector<float> const
                 // q.setFromTwoVectors(smoothed_positions[i] - smoothed_positions[i - 1], smoothed_positions[i + 1] - smoothed_positions[i]);
                 q.setFromTwoVectors(local_robot_direction, smoothed_positions[i + 1] - smoothed_positions[i]);
                 smoothed_orientations.push_back(q);
-
-//                Quaternion q1;
-//                q1.w = q.w();
-//                q1.x = q.x();
-//                q1.y = q.y();
-//                q1.z = q.z();
-//                double angles1[3];
-//                quaternion2angles(q1, angles1);
-//                Quaternion q2;
-//                double angles2[3];
-//                angles2[0] = atan2((smoothed_positions[i - 1](1) - smoothed_positions[i](1)) / SMOOTHED_PATH_DISCRETIZATION,
-//                                   (smoothed_positions[i - 1](0) - smoothed_positions[i](0)) / SMOOTHED_PATH_DISCRETIZATION);
-//                angles2[1] = 0;
-//                angles2[2] = 0;
-//                angles2quaternion(angles2, q2);
-//                ROS_INFO("%f = Z = %f | %f = Y = %f | %f = X = %f",
-//                         angles1[0], angles2[0], angles1[1], angles2[1], angles1[2], angles2[2]);
             }
             else if(i == smoothed_positions.size() - 1)
             {
@@ -203,7 +191,7 @@ vector_quat Pathsmoother3D::computeSmoothedOrientations(std::vector<float> const
             {
                 quat q;
                 // q.setFromTwoVectors(smoothed_positions[i - 1] - smoothed_positions[i], smoothed_positions[i] - smoothed_positions[i + 1]);
-                q.setFromTwoVectors(vec3(1,0,0), smoothed_positions[i] - smoothed_positions[i + 1]);
+                q.setFromTwoVectors(local_robot_direction, smoothed_positions[i] - smoothed_positions[i + 1]);
                 smoothed_orientations.push_back(q);
             }
             else if(i == smoothed_positions.size() - 1)

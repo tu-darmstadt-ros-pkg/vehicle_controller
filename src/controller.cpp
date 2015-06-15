@@ -303,17 +303,15 @@ bool Controller::drivepath(const nav_msgs::Path& path)
         path_to_be_smoothed = path_to_be_smoothed && lu < d && d < lo;
         sstr << " " << d << ":" << (lu < d && d < lo ? "T" : "F");
     }
-    //ROS_INFO("%s\n",sstr.str().c_str());
 
-    if(path_to_be_smoothed) //
-    //  if(false) //
+    if(path_to_be_smoothed)
     {
         std::vector<geometry_msgs::Pose> smoothedPoses;
         this->start = transformedPath[0];
         this->start.orientation = this->pose.pose.orientation;
 
         // bool allow_reverse = vehicle_type == "tracked";
-        bool allow_reverse = false;
+        bool allow_reverse = true;
         Pathsmoother3D ps3d(allow_reverse);
 
         deque_vec3 in_path;
@@ -428,14 +426,14 @@ void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
     vehicle_control_interface_->executeUnlimitedTwist(velocity);
 }
 
-void Controller::speedCallback(const std_msgs::Float32& speed) {
+void Controller::speedCallback(const std_msgs::Float32& speed)
+{
     motion_control_setup.max_controller_speed_ = speed.data;
 }
 
 bool Controller::alternativeTolerancesService(monstertruck_msgs::SetAlternativeTolerance::Request& req,
                                               monstertruck_msgs::SetAlternativeTolerance::Response& res)
 {
-    ROS_DEBUG("[monstertruck_controller]: tolerance service");
     this->alternative_tolerance_goalID.reset(new actionlib_msgs::GoalID(req.goalID));
     alternative_goal_position_tolerance = req.linearTolerance;
     alternative_angle_tolerance = req.angularTolerance;
@@ -501,19 +499,31 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
     leg.p2.x = pose.position.x;
     leg.p2.y = pose.position.y;
 
-    if (legs.size() == 0) {
+    if (legs.size() == 0)
+    {
         leg.p1.x = start.position.x;
         leg.p1.y = start.position.y;
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
 
-        if (start.orientation.w == 0.0 && start.orientation.x == 0.0 && start.orientation.y == 0 && start.orientation.z == 0.0) {
+        if(start.orientation.w == 0.0 && start.orientation.x == 0.0
+        && start.orientation.y == 0.0 && start.orientation.z == 0.0)
+        {
+            ROS_INFO("[move_base] [vehicle_controller] start quaternion is emtpty.");
             leg.p1.orientation = leg.course;
-        } else {
+        }
+        else
+        {
+            ROS_INFO("[move_base] [vehicle_controller] get angle from start quaternion.");
             quaternion2angles(start.orientation, angles);
             leg.p1.orientation = angles[0];
         }
 
-    } else {
+        ROS_INFO("[move_base] [vehicle_controller] course = %f", leg.course);
+        ROS_INFO("[move_base] [vehicle_controller] start orientation = %f", leg.p1.orientation);
+
+    }
+    else
+    {
         const Leg& last = legs.back();
         leg.p1.x = last.p2.x;
         leg.p1.y = last.p2.y;
@@ -522,28 +532,23 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
     }
 
     leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
-    if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0 && pose.orientation.y == 0 && pose.orientation.z == 0.0) {
-        leg.p2.orientation = !leg.backward ? leg.course : angular_norm(leg.course + M_PI);
-    } else {
+    if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0 && pose.orientation.y == 0 && pose.orientation.z == 0.0)
+    {
+        leg.p2.orientation = leg.backward ? angular_norm(leg.course + M_PI) : leg.course;
+    }
+    else
+    {
 //        leg.backward = fabs(angular_norm(leg.course - leg.p1.orientation)) > M_PI_2;
         quaternion2angles(pose.orientation, angles);
         leg.p2.orientation = angles[0];
     }
-    // PM
-    // leg.p2.orientation = angles[0];
-
 
     leg.speed = motion_control_setup.current_speed;
     leg.length2 = (leg.p2.x-leg.p1.x)*(leg.p2.x-leg.p1.x) + (leg.p2.y-leg.p1.y)*(leg.p2.y-leg.p1.y);
     leg.length = sqrt(leg.length2);
-    leg.percent = 0.0;
+    leg.percent = 0.0f;
 
-    //  std::cout << "Leg " << legs.size() << ":" << std::endl;
-    //  std::cout << "  length:    " << leg.length << std::endl;
-    //  std::cout << "  course:    " << (leg.course*180.0/M_PI) << std::endl;
-    //  std::cout << "  direction: " << (leg.backward ? "backward" : "forward") << std::endl;
-
-    if (leg.length2 == 0.0) return;
+    if (leg.length2 == 0.0f) return;
     legs.push_back(leg);
 }
 
