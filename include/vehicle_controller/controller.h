@@ -72,7 +72,6 @@ protected:
   virtual void publishActionResult(actionlib_msgs::GoalStatus::_status_type, const std::string& text = std::string());
 
   void addLeg(geometry_msgs::Pose const&);
-  void limitSpeed(float &speed);
   void setDriveCommand(float speed, float kappa, float tan_gamma);
 
 private:

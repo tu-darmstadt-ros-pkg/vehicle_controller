@@ -735,11 +735,6 @@ void Controller::update()
                                     std::abs(constrainAngle_0_2pi(a0[0]) - constrainAngle_0_2pi(a1[0])))
                             / (pose_history_[i].header.stamp - pose_history_[i - 1].header.stamp).toSec();
 
-//            ROS_INFO("ang 0->1 a = %f %f, ang 0->1 b = %f %f",
-//                     constrainAngle_mpi_pi(a0[0]), constrainAngle_mpi_pi(a1[0]),
-//                     constrainAngle_0_2pi(a0[0]), constrainAngle_0_2pi(a1[0])
-//                    );
-
             acc_ang += e_ang;
             acc_lin += e_lin;
             max_ang = std::max(max_ang, e_ang);
@@ -837,20 +832,6 @@ void Controller::update()
             //      lookat_msg.point.z = camera_lookat_height;
 
         }
-    }
-}
-
-void Controller::limitSpeed(float &speed) {
-    float inclination_max_speed = std::max(fabs(speed) * (1.0 - motion_control_setup.current_inclination * motion_control_setup.inclination_speed_reduction_factor), 0.0);
-
-    if (speed > 0.0) {
-        if (speed > motion_control_setup.max_controller_speed_) speed = motion_control_setup.max_controller_speed_;
-        if (speed > inclination_max_speed) speed = inclination_max_speed;
-        if (speed < motion_control_setup.min_speed) speed = motion_control_setup.min_speed;
-    } else if (speed < 0.0) {
-        if (speed < -motion_control_setup.max_controller_speed_) speed = -motion_control_setup.max_controller_speed_;
-        if (speed < -inclination_max_speed) speed = -inclination_max_speed;
-        if (speed > -motion_control_setup.min_speed) speed = -motion_control_setup.min_speed;
     }
 }
 

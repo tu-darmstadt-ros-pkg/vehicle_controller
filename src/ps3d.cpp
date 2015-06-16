@@ -51,14 +51,12 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path,
         {
 #ifdef OLD_CRITERION_FOR_REVERSE_PATHS
             bool distC = distances.back() < 1.5;
-
             // Assume global COSY = COSY in position[0], current direction of looking = (1,0,0)
             // given: smoothed_positions[0] in WORLD COORDINATES
             // given: rotation at position 0
             // searched: direction the robot is looking in LOCAL COORDINATES
 
             vec3 start_vec(1,0,0);
-
             vec3 start_path_delta = (smoothed_positions[0] - smoothed_positions[1]).normalized();
             double start_path_projection = start_path_delta.dot(in_start_orientation * start_vec);
 
@@ -76,9 +74,7 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path,
             std::cout << "end_vec = " << end_vec.transpose() << std::endl;
 
             if(reverse)
-            {
                 ROS_INFO("REVERSE! dist = %d, start = %d, end = %d", distC, startC, endC);
-            }
 #else
             vec3 start_path_delta = (smoothed_positions[0] - smoothed_positions[1]).normalized();
             double start_projection = start_path_delta.dot(in_start_orientation * local_robot_direction);
