@@ -7,8 +7,8 @@
 using std::vector;
 
 Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths)
-    : SMOOTHED_PATH_DISCRETIZATION(0.05),// Hector best practice
-      PATH_SMOOTHNESS(0.125), // Hector best practice
+    : SMOOTHED_PATH_DISCRETIZATION(0.05), // Hector best practice
+      PATH_SMOOTHNESS(0.125),             // Hector best practice
       // SMOOTHED_PATH_DISCRETIZATION(0.04),
       // PATH_SMOOTHNESS(2.0),
       allow_reverse_paths(allow_reverse_paths),
@@ -48,7 +48,6 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path,
     if(allow_reverse_paths && !forbid_reverse_path)
     {
         if(in_path.size() >= 2 && smoothed_positions.size() >= in_path.size())
-
         {
 #ifdef OLD_CRITERION_FOR_REVERSE_PATHS
             bool distC = distances.back() < 1.5;
@@ -91,7 +90,6 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path,
     }
 
     smoothed_orientations = computeSmoothedOrientations(distances, in_path, smoothed_positions, in_end_orientation, in_start_orientation, reverse);
-
     out_smooth_positions = smoothed_positions;
     out_smooth_orientations = smoothed_orientations;
 }
@@ -166,18 +164,13 @@ vector_quat Pathsmoother3D::computeSmoothedOrientations(std::vector<float> const
             if(0 < i && i < smoothed_positions.size() - 1)
             {
                 quat q;
-                // q.setFromTwoVectors(smoothed_positions[i] - smoothed_positions[i - 1], smoothed_positions[i + 1] - smoothed_positions[i]);
                 q.setFromTwoVectors(local_robot_direction, smoothed_positions[i + 1] - smoothed_positions[i]);
                 smoothed_orientations.push_back(q);
             }
             else if(i == smoothed_positions.size() - 1)
-            {
                 smoothed_orientations.push_back(end_orientation);
-            }
-            else
-            {
+            else // i == 0
                 smoothed_orientations.push_back(start_orientation);
-            }
         }
     }
     else
@@ -190,18 +183,13 @@ vector_quat Pathsmoother3D::computeSmoothedOrientations(std::vector<float> const
             if(0 < i && i < smoothed_positions.size() - 1)
             {
                 quat q;
-                // q.setFromTwoVectors(smoothed_positions[i - 1] - smoothed_positions[i], smoothed_positions[i] - smoothed_positions[i + 1]);
                 q.setFromTwoVectors(local_robot_direction, smoothed_positions[i] - smoothed_positions[i + 1]);
                 smoothed_orientations.push_back(q);
             }
             else if(i == smoothed_positions.size() - 1)
-            {
                 smoothed_orientations.push_back(end_orientation);
-            }
-            else
-            {
+            else // i == 0
                 smoothed_orientations.push_back(start_orientation);
-            }
         }
     }
     return smoothed_orientations;

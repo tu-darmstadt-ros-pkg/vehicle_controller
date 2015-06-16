@@ -293,8 +293,8 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     // <=> path is output of exploration planner
     //     and hence, the points lie in the centers
     //     of neighbouring grid cells.
-    float lu = 0.05 - 1e-5;
-    float lo = sqrt(2.0) * 0.05 + 1e-5;
+    double lu = 0.05 - 1e-5;
+    double lo = std::sqrt(2.0) * 0.05 + 1e-5;
     bool path_to_be_smoothed = path.poses.size() > 2;
     std::stringstream sstr;
     for(unsigned i = 1; path_to_be_smoothed && i < transformedPath.size() - 1; ++i)
@@ -332,6 +332,22 @@ bool Controller::drivepath(const nav_msgs::Path& path)
                                     this->pose.pose.orientation.y, this->pose.pose.orientation.z);
         in_end_orientation = quat(transformedPath.back().orientation.w, transformedPath.back().orientation.x,
                                   transformedPath.back().orientation.y, transformedPath.back().orientation.z);
+
+
+        if(in_path.size() >= 3)
+        {
+            // HACKY fix for (at ARGOS) undesired feature in exploration planner.
+            // Now, does not contain deviating point at very last position, but extrapolates
+            // from previous point
+
+            vec3 last_dir = in_path[in_path.size() - 1] - in_path[in_path.size() - 2];
+            vec3 ref_dir  = in_path[in_path.size() - 2] - in_path[in_path.size() - 3];
+
+            vec3 new_last_dir = ref_dir.normalized().dot(last_dir) * ref_dir.normalized();
+
+            in_path.back() = in_path[in_path.size() - 2] + new_last_dir;
+        }
+
 
         ps3d.smooth(in_path, in_start_orientation, in_end_orientation, out_smoothed_positions, out_smoothed_orientations, false);
 
@@ -508,19 +524,13 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         if(start.orientation.w == 0.0 && start.orientation.x == 0.0
         && start.orientation.y == 0.0 && start.orientation.z == 0.0)
         {
-            ROS_INFO("[move_base] [vehicle_controller] start quaternion is emtpty.");
             leg.p1.orientation = leg.course;
         }
         else
         {
-            ROS_INFO("[move_base] [vehicle_controller] get angle from start quaternion.");
             quaternion2angles(start.orientation, angles);
             leg.p1.orientation = angles[0];
         }
-
-        ROS_INFO("[move_base] [vehicle_controller] course = %f", leg.course);
-        ROS_INFO("[move_base] [vehicle_controller] start orientation = %f", leg.p1.orientation);
-
     }
     else
     {
@@ -538,7 +548,6 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
     }
     else
     {
-//        leg.backward = fabs(angular_norm(leg.course - leg.p1.orientation)) > M_PI_2;
         quaternion2angles(pose.orientation, angles);
         leg.p2.orientation = angles[0];
     }
@@ -668,11 +677,12 @@ void Controller::update()
         carrot.orientation = legs[carrot_waypoint].p1.orientation + /* carrot_percent * */ 1.0f * angular_norm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
     }
 
-    if (carrotPosePublisher) {
+    if (carrotPosePublisher)
+    {
         carrotPose.header = pose.header;
         carrotPose.pose.position.x = carrot.x;
         carrotPose.pose.position.y = carrot.y;
-        double ypr[3] = { carrot.orientation, 0, 0 };
+        double ypr[3] = { carrot.orientation, 0.0, 0.0 };
         angles2quaternion(ypr, carrotPose.pose.orientation);
         carrotPosePublisher.publish(carrotPose);
     }
@@ -681,8 +691,6 @@ void Controller::update()
     double beta = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
     double relative_angle = angular_norm(beta - angles[0]);
     double orientation_error = angular_norm(-beta + angles[0]); // angular_norm(carrot.orientation - angles[0]);
-
-//    ROS_INFO("[PD INFO] DeltaRobot DeltaSteering1 backward CarrotOrient = %f  %f  %f  %f", beta, relative_angle, legs[current].backward ? -1.0 : 1.0, carrot.orientation);
 
     float sign = legs[current].backward ? -1.0 : 1.0;
     float speed = sign * legs[current].speed;

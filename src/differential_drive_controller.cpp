@@ -69,11 +69,6 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     static double previous_e_angle = e_angle;
     static double previous_e_position = e_position;
 
-    if(e_angle > M_PI + 1e-2 || e_angle < -M_PI -1e-2)
-    {
-        ROS_ERROR("[PD Controller] Invalid angle commanded");
-    }
-
     // Assumption: e_angle lies in [M_PI_2, M_PI]
 
     if(e_angle > M_PI_2)
@@ -89,8 +84,6 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
 
     if(fabs(speed) > fabs(cmded_speed))
         speed = (speed < 0 ? -1.0 : 1.0) * fabs(cmded_speed);
-    if(cmded_speed == 0.0)
-        speed = 0.0; // ?
 
     twist.linear.x = speed;
     twist.angular.z = z_twist;
@@ -118,6 +111,18 @@ void DifferentialDriveController::executeMotionCommand(double carrot_relative_an
                                   double signed_carrot_distance_2_robot, double dt)
 {
     double e_angle = carrot_relative_angle; // speed < 0 ? carrot_orientation_error : carrot_relative_angle;
+
+    if(e_angle > M_PI + 1e-2 || e_angle < -M_PI -1e-2)
+    {
+        ROS_ERROR("[vehicle_controller] [differential_drive_controller] Invalid angle was given.");
+    }
+
+    if(speed == 0.0)
+    {
+        ROS_WARN("[vehicle_controller] [differential_drive_controller] Commanded speed is 0");
+        speed = 0.0;
+    }
+
     executePDControlledMotionCommand(e_angle, signed_carrot_distance_2_robot, dt, speed);
 }
 
