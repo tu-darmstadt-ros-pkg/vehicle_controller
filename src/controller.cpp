@@ -345,7 +345,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
         nav_msgs::Path path2publish;
         path2publish.header.frame_id = map_frame_id;
         path2publish.header.stamp = ros::Time::now();
-        std::transform(smooth_path.begin(), smooth_path.end(), std::back_inserter(path2publish),
+        std::transform(smooth_path.begin(), smooth_path.end(), std::back_inserter(path2publish.poses),
                        [path2publish](geometry_msgs::Pose const & pose)
                        {
                             geometry_msgs::PoseStamped ps;
