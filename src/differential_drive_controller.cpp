@@ -115,11 +115,11 @@ void DifferentialDriveController::executeMotionCommand(double carrot_relative_an
     double e_angle = carrot_relative_angle; // speed < 0 ? carrot_orientation_error : carrot_relative_angle;
     if(e_angle > M_PI + 1e-2 || e_angle < -M_PI -1e-2)
     {
-        ROS_ERROR("[vehicle_controller] [differential_drive_controller] Invalid angle was given.");
+        ROS_WARN("[vehicle_controller] [differential_drive_controller] Invalid angle was given.");
     }
     if(speed == 0.0)
     {
-        ROS_WARN("[vehicle_controller] [differential_drive_controller] Commanded speed is 0");
+        ROS_INFO("[vehicle_controller] [differential_drive_controller] Commanded speed is 0");
         speed = 0.0;
     }
     executePDControlledMotionCommand(e_angle, signed_carrot_distance_2_robot, dt, speed);

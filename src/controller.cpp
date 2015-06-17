@@ -19,14 +19,16 @@
 
 // #define END_TWIST
 
-double constrainAngle_0_2pi(double x){
+double constrainAngle_0_2pi(double x)
+{
     x = fmod(x, 2.0 * M_PI);
     if (x < 0)
         x += 2.0 * M_PI;
     return x;
 }
 
-double constrainAngle_mpi_pi(double x){
+double constrainAngle_mpi_pi(double x)
+{
     x = fmod(x + M_PI, 2.0 * M_PI);
     if (x < 0)
         x += 2.0 * M_PI;
@@ -598,6 +600,8 @@ void Controller::update()
     // Check if alternative tolerance is set by Service
     if (alternative_tolerance_goalID && goalID && (alternative_tolerance_goalID->id == goalID->id)) {
         ROS_DEBUG("[monstertruck_controller]: goalIDs are equal, using alternative tolerance.");
+        ROS_INFO("[vehicle_controller] using tolerances = %f deg %f",
+                 alternative_angle_tolerance * 180.0 / M_PI, alternative_goal_position_tolerance);
         linear_tolerance_for_current_path = alternative_goal_position_tolerance;
         angular_tolerance_for_current_path = alternative_angle_tolerance;
     }
@@ -605,8 +609,9 @@ void Controller::update()
     // Check if goal has been reached based an goal_position_tolerance/goal_angle_tolerance
     double goal_position_error = sqrt(pow(legs.back().p2.x - pose.pose.position.x, 2) + pow(legs.back().p2.y - pose.pose.position.y, 2));
     double goal_angle_error_   = angular_norm(legs.back().p2.orientation - angles[0]);
-    if (goal_position_error < linear_tolerance_for_current_path && goal_angle_error_ < angular_tolerance_for_current_path) {
-        ROS_INFO("Current position and orientation are within goal tolerance.");
+    if (goal_position_error < linear_tolerance_for_current_path && std::abs(goal_angle_error_) < angular_tolerance_for_current_path)
+    {
+        ROS_INFO("[vehicle_controller] Current position and orientation are within goal tolerance.");
         current = legs.size();
         // reached goal point handled by the following loop
     }
@@ -614,38 +619,30 @@ void Controller::update()
     // calculate projection
     while(1)
     {
-        if (current == legs.size()) {
-            state = INACTIVE;
-            ROS_INFO("Reached goal point!");
+        if (current == legs.size())
+        {
+            ROS_INFO("[vehicle_controller] Reached goal point position!");
 
-#ifdef END_TWIST
-            double angles[3];
-            quaternion2angles(pose.pose.orientation, angles);
-            double goal_angle_error_   = angular_norm(legs.back().p2.orientation - angles[0]);
-#endif
+            goal_angle_error_ = constrainAngle_mpi_pi(goal_angle_error_);
 
-#ifdef END_TWIST
-            if(goal_angle_error_ < goal_angle_tolerance / 2.0)
+            if(std::abs(goal_angle_error_) < angular_tolerance_for_current_path)
             {
-#endif
+                state = INACTIVE;
+
+                ROS_INFO("[vehicle_controller] Reached goal point orientation!");
+
                 stop();
                 publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
                 return;
-#ifdef END_TWIST
             }
             else
             {
-                geometry_msgs::Twist twist;
-                twist.angular.x = 0;
-                twist.angular.y = 0;
-                twist.angular.z = 0.5;
-                twist.linear.x = 0;
-                twist.linear.y = 0;
-                twist.linear.z = 0;
-                this->vehicle_control_interface_->executeTwist(twist);
+                this->vehicle_control_interface_->executeMotionCommand(goal_angle_error_, goal_angle_error_,
+                                                                       motion_control_setup.carrot_distance,
+                                                                       0.0, 0.0, dt);
                 return;
             }
-#endif
+
         }
 
         legs[current].percent = ((pose.pose.position.x - legs[current].p1.x) * (legs[current].p2.x - legs[current].p1.x)
@@ -664,18 +661,24 @@ void Controller::update()
     float carrot_percent = legs[current].percent;
     float carrot_remaining = motion_control_setup.carrot_distance;
 
-    while(carrot_waypoint < legs.size()) {
-        if (carrot_remaining <= (1.0f - carrot_percent) * legs[carrot_waypoint].length) {
+    while(carrot_waypoint < legs.size())
+    {
+        if (carrot_remaining <= (1.0f - carrot_percent) * legs[carrot_waypoint].length)
+        {
             carrot_percent += carrot_remaining / legs[carrot_waypoint].length;
             break;
         }
 
         carrot_remaining -= (1.0f - carrot_percent) * legs[carrot_waypoint].length;
-        if (carrot_waypoint+1 < legs.size() && legs[carrot_waypoint].backward == legs[carrot_waypoint+1].backward) {
+        if (carrot_waypoint + 1 < legs.size()
+        && legs[carrot_waypoint].backward == legs[carrot_waypoint + 1].backward)
+        {
             ROS_DEBUG("Carrot reached waypoint %d", carrot_waypoint);
             carrot_percent = 0.0f;
             carrot_waypoint++;
-        } else {
+        }
+        else
+        {
             ROS_DEBUG("Carrot reached last waypoint or change of direction");
             carrot_percent = 1.0f + carrot_remaining / legs[carrot_waypoint].length;
             break;
@@ -704,11 +707,10 @@ void Controller::update()
 
     // calculate steering angle
     double beta = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
-    double relative_angle = angular_norm(beta - angles[0]);
-    double orientation_error = angular_norm(-beta + angles[0]); // angular_norm(carrot.orientation - angles[0]);
-
-    float sign = legs[current].backward ? -1.0 : 1.0;
-    float speed = sign * legs[current].speed;
+    double relative_angle    = angular_norm( beta - angles[0]);
+    double orientation_error = angular_norm(-beta + angles[0]);
+    double sign  = legs[current].backward ? -1.0 : 1.0;
+    double speed = sign * legs[current].speed;
 
     double signed_carrot_distance_2_robot = sign * euclideanDistance(carrotPose.pose.position, pose.pose.position);
     this->vehicle_control_interface_->executeMotionCommand(relative_angle, orientation_error, motion_control_setup.carrot_distance,
@@ -716,7 +718,6 @@ void Controller::update()
 
 
     int const POSE_HISTORY_SIZE = 50;
-
     if(pose_history_.size() < POSE_HISTORY_SIZE)
     {
         pose_history_.push_back(pose);
@@ -763,7 +764,7 @@ void Controller::update()
         if(acc_lin < linear_speed_blocked_ && max_lin < linear_speed_blocked_
         && acc_ang < angular_speed_blocked_ && max_ang < angular_speed_blocked_)
         {
-            ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal...");
+            ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal.");
             state = INACTIVE;
             stop();
 
