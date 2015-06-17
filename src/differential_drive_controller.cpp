@@ -91,6 +91,8 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     cmdVelRawPublisher_.publish(twist);
 
     monstertruck_msgs::Pdout pdout;
+    pdout.header.frame_id = "world";
+    pdout.header.stamp = ros::Time::now();
     pdout.dt = dt;
     pdout.e_position = e_position;
     pdout.e_angle = e_angle;
@@ -167,3 +169,4 @@ void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double
     twist.linear.x = speed;
     twist.angular.z = angular_rate;
 }
+
