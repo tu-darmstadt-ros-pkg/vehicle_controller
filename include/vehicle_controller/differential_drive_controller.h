@@ -79,18 +79,14 @@ class DifferentialDriveController: public VehicleControlInterface
   protected:
     ros::Publisher cmdVelRawPublisher_;
     ros::Publisher pdoutPublisher_;
-
-
     geometry_msgs::Twist twist;
-
     MotionParameters* mp_;
 
   private:
-    double KP_ANGLE_;
-    double KD_ANGLE_;
-    double KP_POSITION_;
-    double KD_POSITION_;
+
     double wheel_separation_;
+
+
 
     dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig> * dr_server_;
 };

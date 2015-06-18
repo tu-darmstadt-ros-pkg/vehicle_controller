@@ -52,7 +52,6 @@ Controller::Controller(const std::string& ns)
     , state(INACTIVE)
 {
     motion_control_setup.carrot_distance = 1.0;
-    motion_control_setup.current_speed = 0.0;
     motion_control_setup.min_speed = 0.1;
     motion_control_setup.max_controller_speed_ = 0.25;
     motion_control_setup.max_unlimited_speed_ = 2.0;
@@ -569,7 +568,7 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.p2.orientation = angles[0];
     }
 
-    leg.speed = motion_control_setup.current_speed;
+    leg.speed = motion_control_setup.DESIRED_SPEED_;
     leg.length2 = (leg.p2.x-leg.p1.x)*(leg.p2.x-leg.p1.x) + (leg.p2.y-leg.p1.y)*(leg.p2.y-leg.p1.y);
     leg.length = sqrt(leg.length2);
     leg.percent = 0.0f;
@@ -642,7 +641,6 @@ void Controller::update()
                                                                        0.0, 0.0, dt);
                 return;
             }
-
         }
 
         legs[current].percent = ((pose.pose.position.x - legs[current].p1.x) * (legs[current].p2.x - legs[current].p1.x)

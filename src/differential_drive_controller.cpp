@@ -23,12 +23,12 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
     params.getParam("wheel_separation", wheel_separation_);
     params.getParam("max_controller_angular_rate", mp_->max_controller_angular_rate_);
     params.getParam("max_unlimited_angular_rate", mp_->max_unlimited_angular_rate_);
-    params.getParam("speed", mp_->current_speed);
 
-    KP_ANGLE_    = 2.0;
-    KD_ANGLE_    = 0.5;
-    KP_POSITION_ = 0.5;
-    KD_POSITION_ = 0.0;
+    mp_->KP_ANGLE_    = 2.0;
+    mp_->KD_ANGLE_    = 0.5;
+    mp_->KP_POSITION_ = 0.5;
+    mp_->KD_POSITION_ = 0.0;
+    mp_->DESIRED_SPEED_ = 0.075;
 
     dr_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>;
     dr_server_->setCallback(boost::bind(&DifferentialDriveController::pdGainCallback, this, _1, _2));
@@ -36,10 +36,11 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
 
 void DifferentialDriveController::pdGainCallback(vehicle_controller::PdParamsConfig & config, uint32_t level)
 {
-    KP_ANGLE_ = config.angle_p_gain;
-    KD_ANGLE_ = config.angle_d_gain;
-    KP_POSITION_ = config.position_p_gain;
-    KD_POSITION_ = config.position_d_gain;
+    mp_->KP_ANGLE_ = config.angle_p_gain;
+    mp_->KD_ANGLE_ = config.angle_d_gain;
+    mp_->KP_POSITION_ = config.position_p_gain;
+    mp_->KD_POSITION_ = config.position_d_gain;
+    mp_->DESIRED_SPEED_ = config.speed;
 }
 
 void DifferentialDriveController::executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist)
@@ -79,8 +80,8 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     double de_angle_dt    = (e_angle - previous_e_angle) / dt; // causes discontinuity @ orientation_error vs relative_angle switch
     double de_position_dt = (e_position - previous_e_position) / dt;
 
-    double speed = KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;
-    double z_twist = KP_ANGLE_ * e_angle + KD_ANGLE_ * de_angle_dt;
+    double speed   = mp_->KP_POSITION_ * e_position + mp_->KD_POSITION_ * de_position_dt;
+    double z_twist = mp_->KP_ANGLE_ * e_angle + mp_->KD_ANGLE_ * de_angle_dt;
 
     if(fabs(speed) > fabs(cmded_speed))
         speed = (speed < 0 ? -1.0 : 1.0) * fabs(cmded_speed);

@@ -47,11 +47,15 @@ class MotionParameters
       }
     }
 
+    double KP_ANGLE_;
+    double KD_ANGLE_;
+    double KP_POSITION_;
+    double KD_POSITION_;
+    double DESIRED_SPEED_;
 
 
     double carrot_distance;
     double min_speed;
-    double current_speed;
     //double max_speed;
     //double max_steeringangle;
     double inclination_speed_reduction_factor;
