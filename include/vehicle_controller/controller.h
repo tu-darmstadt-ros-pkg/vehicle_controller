@@ -53,6 +53,7 @@ public:
   bool pathToBeSmoothed(const std::deque<geometry_msgs::Pose> &transformed_path);
   bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
   geometry_msgs::Pose createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation);
+  bool hasReachedFinalOrientation(double goal_angle_error, double tol);
 
 protected:
   virtual bool configure();

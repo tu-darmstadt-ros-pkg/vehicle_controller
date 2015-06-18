@@ -587,6 +587,13 @@ void Controller::reset()
     legs.clear();
 }
 
+bool Controller::hasReachedFinalOrientation(double goal_angle_error, double tol)
+{
+    /// for symmetric robot!
+    return std::abs(goal_angle_error) < tol || std::abs(goal_angle_error - M_PI) < tol || std::abs(goal_angle_error + M_PI) < tol;
+}
+
+
 void Controller::update()
 {
     if (state < DRIVETO) return;
@@ -610,7 +617,8 @@ void Controller::update()
     // Check if goal has been reached based an goal_position_tolerance/goal_angle_tolerance
     double goal_position_error = sqrt(pow(legs.back().p2.x - pose.pose.position.x, 2) + pow(legs.back().p2.y - pose.pose.position.y, 2));
     double goal_angle_error_   = constrainAngle_mpi_pi(legs.back().p2.orientation - angles[0]);
-    if (goal_position_error < linear_tolerance_for_current_path && std::abs(goal_angle_error_) < angular_tolerance_for_current_path)
+    if (goal_position_error < linear_tolerance_for_current_path
+    &&  hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path))
     {
         ROS_INFO("[vehicle_controller] Current position and orientation are within goal tolerance.");
         current = legs.size();
@@ -623,9 +631,11 @@ void Controller::update()
         if (current == legs.size())
         {            
             goal_angle_error_ = constrainAngle_mpi_pi(goal_angle_error_);
-            ROS_INFO("[vehicle_controller] Reached goal point position. angle error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI, angular_tolerance_for_current_path * 180.0 / M_PI);
-            if(final_twist_trials > motion_control_setup.FINAL_TWIST_TRIALS_MAX_ ||
-               std::abs(goal_angle_error_) < angular_tolerance_for_current_path || !motion_control_setup.USE_FINAL_TWIST_)
+            ROS_INFO("[vehicle_controller] Reached goal point position. angle error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI,
+                     angular_tolerance_for_current_path * 180.0 / M_PI);
+            if(final_twist_trials > motion_control_setup.FINAL_TWIST_TRIALS_MAX_
+            || hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path)
+            || !motion_control_setup.USE_FINAL_TWIST_)
             {
                 state = INACTIVE;
                 ROS_INFO("[vehicle_controller] Reached goal point orientation! error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI, angular_tolerance_for_current_path * 180.0 / M_PI);
