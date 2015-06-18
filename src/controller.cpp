@@ -607,7 +607,7 @@ void Controller::update()
 
     // Check if goal has been reached based an goal_position_tolerance/goal_angle_tolerance
     double goal_position_error = sqrt(pow(legs.back().p2.x - pose.pose.position.x, 2) + pow(legs.back().p2.y - pose.pose.position.y, 2));
-    double goal_angle_error_   = angular_norm(legs.back().p2.orientation - angles[0]);
+    double goal_angle_error_   = constrainAngle_mpi_pi(legs.back().p2.orientation - angles[0]);
     if (goal_position_error < linear_tolerance_for_current_path && std::abs(goal_angle_error_) < angular_tolerance_for_current_path)
     {
         ROS_INFO("[vehicle_controller] Current position and orientation are within goal tolerance.");
@@ -619,17 +619,17 @@ void Controller::update()
     while(1)
     {
         if (current == legs.size())
-        {
-            ROS_INFO("[vehicle_controller] Reached goal point position!");
+        {            
 
-            goal_angle_error_ = constrainAngle_mpi_pi(goal_angle_error_);
+	    goal_angle_error_ = constrainAngle_mpi_pi(goal_angle_error_);
+            ROS_INFO("[vehicle_controller] Reached goal point position. angle error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI, angular_tolerance_for_current_path * 180.0 / M_PI);
+
 
             if(std::abs(goal_angle_error_) < angular_tolerance_for_current_path || !motion_control_setup.USE_FINAL_TWIST_)
             {
                 state = INACTIVE;
 
                 ROS_INFO("[vehicle_controller] Reached goal point orientation! error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI, angular_tolerance_for_current_path * 180.0 / M_PI);
-
                 stop();
                 publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
                 return;
