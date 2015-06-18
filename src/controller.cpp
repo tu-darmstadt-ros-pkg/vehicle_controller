@@ -624,7 +624,7 @@ void Controller::update()
 
             goal_angle_error_ = constrainAngle_mpi_pi(goal_angle_error_);
 
-            if(std::abs(goal_angle_error_) < angular_tolerance_for_current_path)
+            if(std::abs(goal_angle_error_) < angular_tolerance_for_current_path || !motion_control_setup.USE_FINAL_TWIST_)
             {
                 state = INACTIVE;
 

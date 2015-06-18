@@ -32,8 +32,8 @@
 class MotionParameters
 {
   public:
-
-    void limitSpeed(double &speed) {
+    void limitSpeed(double &speed)
+    {
       double inclination_max_speed = std::max(fabs(speed) * (1.0 - current_inclination * inclination_speed_reduction_factor), 0.0);
 
       if (speed > 0.0) {
@@ -52,7 +52,7 @@ class MotionParameters
     double KP_POSITION_;
     double KD_POSITION_;
     double DESIRED_SPEED_;
-
+    bool USE_FINAL_TWIST_;
 
     double carrot_distance;
     double min_speed;

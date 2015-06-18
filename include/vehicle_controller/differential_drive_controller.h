@@ -86,8 +86,12 @@ class DifferentialDriveController: public VehicleControlInterface
 
     double wheel_separation_;
 
-
-
+    //
+    // TODO
+    // This is a weird design error. The dr_server_ belongs to the MotionParameters object
+    // or the controller itself but definitely not in this class
+    // This has to be fixed!!!
+    //
     dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig> * dr_server_;
 };
 
