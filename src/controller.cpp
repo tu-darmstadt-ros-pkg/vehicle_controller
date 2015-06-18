@@ -229,6 +229,8 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal)
     state = DRIVETO;
 
     ROS_INFO("Received new goal point (x = %.2f, y = %.2f)", goal_transformed.pose.position.x, goal_transformed.pose.position.y);
+
+    final_twist_trials = 0;
     publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
     return true;
 }
@@ -620,22 +622,21 @@ void Controller::update()
     {
         if (current == legs.size())
         {            
-
-	    goal_angle_error_ = constrainAngle_mpi_pi(goal_angle_error_);
+            goal_angle_error_ = constrainAngle_mpi_pi(goal_angle_error_);
             ROS_INFO("[vehicle_controller] Reached goal point position. angle error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI, angular_tolerance_for_current_path * 180.0 / M_PI);
-
-
-            if(std::abs(goal_angle_error_) < angular_tolerance_for_current_path || !motion_control_setup.USE_FINAL_TWIST_)
+            if(final_twist_trials > motion_control_setup.FINAL_TWIST_TRIALS_MAX_ ||
+               std::abs(goal_angle_error_) < angular_tolerance_for_current_path || !motion_control_setup.USE_FINAL_TWIST_)
             {
                 state = INACTIVE;
-
                 ROS_INFO("[vehicle_controller] Reached goal point orientation! error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI, angular_tolerance_for_current_path * 180.0 / M_PI);
+                final_twist_trials = 0;
                 stop();
                 publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
                 return;
             }
             else
             {
+                final_twist_trials++;
                 ROS_INFO("[vehicle_controller] Performing final twist.");
                 this->vehicle_control_interface_->executeMotionCommand(goal_angle_error_, goal_angle_error_,
                                                                        motion_control_setup.carrot_distance,

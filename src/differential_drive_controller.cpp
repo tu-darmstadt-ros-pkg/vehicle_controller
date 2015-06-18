@@ -30,6 +30,7 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
     mp_->KD_POSITION_ = 0.0;
     mp_->DESIRED_SPEED_ = 0.075;
     mp_->USE_FINAL_TWIST_ = true;
+    mp_->FINAL_TWIST_TRIALS_MAX_ = 200;
 
     dr_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>;
     dr_server_->setCallback(boost::bind(&DifferentialDriveController::pdGainCallback, this, _1, _2));
@@ -43,13 +44,15 @@ void DifferentialDriveController::pdGainCallback(vehicle_controller::PdParamsCon
     // or the controller itself but definitely not in this class
     // This has to be fixed!!!
     //
-    // PS: I am sorry for this, but it's 2h30 am and only one training day left for ARGOS challenge! (Paul)
+    // PS: I am sorry for this, but it's 2h30 am and only one training day left for ARGOS challenge!
+    //    (Paul, in case you want to blame someone)
     mp_->KP_ANGLE_ = config.angle_p_gain;
     mp_->KD_ANGLE_ = config.angle_d_gain;
     mp_->KP_POSITION_ = config.position_p_gain;
     mp_->KD_POSITION_ = config.position_d_gain;
     mp_->DESIRED_SPEED_ = config.speed;
     mp_->USE_FINAL_TWIST_ = config.use_final_twist;
+    mp_->FINAL_TWIST_TRIALS_MAX_ = config.final_twist_trials_max;
 }
 
 void DifferentialDriveController::executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist)

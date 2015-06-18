@@ -53,6 +53,7 @@ class MotionParameters
     double KD_POSITION_;
     double DESIRED_SPEED_;
     bool USE_FINAL_TWIST_;
+    int FINAL_TWIST_TRIALS_MAX_;
 
     double carrot_distance;
     double min_speed;
@@ -66,6 +67,7 @@ class MotionParameters
     double max_unlimited_speed_;
     double max_controller_angular_rate_;
     double max_unlimited_angular_rate_;
+
 };
 
 #endif

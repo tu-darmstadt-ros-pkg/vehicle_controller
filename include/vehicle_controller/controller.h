@@ -152,6 +152,8 @@ private:
 
   std::string vehicle_type;
 
+  int final_twist_trials;
+
   inline void invalidateDt()
   {
       dt = 0.0;
