@@ -628,7 +628,7 @@ void Controller::update()
             {
                 state = INACTIVE;
 
-                ROS_INFO("[vehicle_controller] Reached goal point orientation!");
+                ROS_INFO("[vehicle_controller] Reached goal point orientation! error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI, angular_tolerance_for_current_path * 180.0 / M_PI);
 
                 stop();
                 publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
@@ -636,6 +636,7 @@ void Controller::update()
             }
             else
             {
+                ROS_INFO("[vehicle_controller] Performing final twist.");
                 this->vehicle_control_interface_->executeMotionCommand(goal_angle_error_, goal_angle_error_,
                                                                        motion_control_setup.carrot_distance,
                                                                        0.0, 0.0, dt);
