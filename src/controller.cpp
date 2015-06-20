@@ -35,7 +35,7 @@ double constrainAngle_mpi_pi(double x)
     return x - M_PI;
 }
 
-static double angular_norm(double diff)
+static double angularNorm(double diff)
 {
     static const double M_2PI = 2.0 * M_PI;
     diff -= floor(diff/M_2PI + .5)*M_2PI;
@@ -562,7 +562,7 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
     leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
     if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0 && pose.orientation.y == 0 && pose.orientation.z == 0.0)
     {
-        leg.p2.orientation = leg.backward ? angular_norm(leg.course + M_PI) : leg.course;
+        leg.p2.orientation = leg.backward ? angularNorm(leg.course + M_PI) : leg.course;
     }
     else
     {
@@ -586,13 +586,6 @@ void Controller::reset()
     dt = 0.0;
     legs.clear();
 }
-
-bool Controller::hasReachedFinalOrientation(double goal_angle_error, double tol)
-{
-    /// for symmetric robot!
-    return std::abs(goal_angle_error) < tol || std::abs(goal_angle_error - M_PI) < tol || std::abs(goal_angle_error + M_PI) < tol;
-}
-
 
 void Controller::update()
 {
@@ -618,7 +611,7 @@ void Controller::update()
     double goal_position_error = sqrt(pow(legs.back().p2.x - pose.pose.position.x, 2) + pow(legs.back().p2.y - pose.pose.position.y, 2));
     double goal_angle_error_   = constrainAngle_mpi_pi(legs.back().p2.orientation - angles[0]);
     if (goal_position_error < linear_tolerance_for_current_path
-    &&  hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path))
+    &&  vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path))
     {
         ROS_INFO("[vehicle_controller] Current position and orientation are within goal tolerance.");
         current = legs.size();
@@ -634,7 +627,7 @@ void Controller::update()
             ROS_INFO("[vehicle_controller] Reached goal point position. angle error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI,
                      angular_tolerance_for_current_path * 180.0 / M_PI);
             if(final_twist_trials > motion_control_setup.FINAL_TWIST_TRIALS_MAX_
-            || hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path)
+            || vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path)
             || !motion_control_setup.USE_FINAL_TWIST_)
             {
                 state = INACTIVE;
@@ -700,9 +693,9 @@ void Controller::update()
     // carrot.orientation = legs[carrot_waypoint].p1.orientation + std::min(carrot_percent, 1.0f) * angular_norm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
 
     if (carrot_waypoint == (legs.size()-1) ){
-        carrot.orientation = legs[carrot_waypoint].p1.orientation + std::min(carrot_percent, 1.0f) * angular_norm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
+        carrot.orientation = legs[carrot_waypoint].p1.orientation + std::min(carrot_percent, 1.0f) * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
     }else{
-        carrot.orientation = legs[carrot_waypoint].p1.orientation + /* carrot_percent * */ 1.0f * angular_norm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
+        carrot.orientation = legs[carrot_waypoint].p1.orientation + /* carrot_percent * */ 1.0f * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
     }
 
     if (carrotPosePublisher)
@@ -717,8 +710,8 @@ void Controller::update()
 
     // calculate steering angle
     double beta = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
-    double relative_angle    = angular_norm( beta - angles[0]);
-    double orientation_error = angular_norm(-beta + angles[0]);
+    double relative_angle    = angularNorm( beta - angles[0]);
+    double orientation_error = angularNorm(-beta + angles[0]);
     double sign  = legs[current].backward ? -1.0 : 1.0;
     double speed = sign * legs[current].speed;
 
@@ -827,7 +820,7 @@ void Controller::update()
             lookat.orientation = legs[lookat_waypoint].p2.orientation;
 
             float distance = sqrt((pose.pose.position.x - lookat.x)*(pose.pose.position.x - lookat.x) + (pose.pose.position.y - lookat.y)*(pose.pose.position.y - lookat.y));
-            double relative_angle = angular_norm(atan2(lookat.y - pose.pose.position.y, lookat.x - pose.pose.position.x) - angles[0]);
+            double relative_angle = angularNorm(atan2(lookat.y - pose.pose.position.y, lookat.x - pose.pose.position.x) - angles[0]);
 
             if (distance >= camera_lookat_distance && relative_angle >= -M_PI/2 && relative_angle <= M_PI/2) {
                 found_lookat_position = true;
