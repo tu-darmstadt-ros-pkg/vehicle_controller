@@ -166,17 +166,17 @@ void DifferentialDriveController::stop()
 void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate)
 {
     double speed = twist.linear.x;
+    double angular_rate = twist.angular.z;
 
     mp_->limitSpeed(speed);
-    double angular_rate = twist.angular.z;
+    speed        = std::max(-mp_->max_unlimited_speed_, std::min(mp_->max_unlimited_speed_, speed));
     angular_rate = std::max(-mp_->max_unlimited_angular_rate_, std::min(mp_->max_unlimited_angular_rate_, angular_rate));
 
     double m = (0.12 - mp_->max_unlimited_speed_) / 0.4;
     double t = mp_->max_unlimited_speed_;
     double speedAbsUL = std::min(std::max(0.0, m * std::abs(angular_rate) + t), max_speed);
 
-    speed = std::max(std::min(speed, speedAbsUL), -speedAbsUL);
-
+    speed = std::max(-speedAbsUL, std::min(speed, speedAbsUL));
     angular_rate = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate));
 
     twist.linear.x = speed;
