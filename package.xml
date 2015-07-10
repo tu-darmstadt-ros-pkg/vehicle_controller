@@ -1,0 +1,28 @@
+<package>
+  <name>vehicle_controller</name>
+  <version>0.0.1</version>
+  <description>Controls the vehicle.</description>
+  <maintainer email="kohlbrecher@sim.tu-darmstadt.de">Stefan Kohlbrecher</maintainer>
+  <license>BSD</license>
+  <author email="kohlbrecher@sim.tu-darmstadt.de">Stefan Kohlbrecher</author>
+
+  <!-- Dependencies which this package needs to build itself. -->
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <!-- Dependencies needed to compile this package. -->
+  <build_depend>tf</build_depend>
+  <build_depend>hector_move_base_msgs</build_depend>
+  <build_depend>monstertruck_msgs</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>cmake_modules</build_depend>
+  <build_depend>dynamic_reconfigure</build_depend>
+
+  <!-- Dependencies needed after this package is compiled. -->
+  <run_depend>tf</run_depend>
+  <run_depend>hector_move_base_msgs</run_depend>
+  <run_depend>monstertruck_msgs</run_depend>
+  <run_depend>nav_msgs</run_depend>
+  <run_depend>geometry_msgs</run_depend>
+  <run_depend>dynamic_reconfigure</run_depend>
+</package>

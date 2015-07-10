@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+
+<launch>
+  
+  <include file="$(find hector_launch)/launch/navigation.launch" />
+  
+  <node pkg="hector_exploration_planner_test" type="pose_with_cov_to_tf_node" name="pose_with_cov_to_tf_node" output="screen"/>
+   
+  <node name="map_server" pkg="map_server" type="map_server" args="$(find hector_exploration_planner_test)/maps/RCGO2011_Hector_Mission5_2.yaml" />
+</launch>
+
