@@ -5,8 +5,8 @@
   <maintainer email="kohlbrecher@sim.tu-darmstadt.de">Stefan Kohlbrecher</maintainer>
   <license>BSD</license>
   
-  <author email="manns.tu-darmstadt.de">Paul Manns</maintainer>
-  <author email="meyer@fsr.tu-darmstadt.de">Johannes Meyer</maintainer>
+  <author email="manns@sim.tu-darmstadt.de">Paul Manns</author>
+  <author email="meyer@fsr.tu-darmstadt.de">Johannes Meyer</author>
   <author email="kohlbrecher@sim.tu-darmstadt.de">Stefan Kohlbrecher</author>
 
   <!-- Dependencies which this package needs to build itself. -->
