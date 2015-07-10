@@ -4,6 +4,9 @@
   <description>Controls the vehicle.</description>
   <maintainer email="kohlbrecher@sim.tu-darmstadt.de">Stefan Kohlbrecher</maintainer>
   <license>BSD</license>
+  
+  <author email="manns.tu-darmstadt.de">Paul Manns</maintainer>
+  <author email="meyer@fsr.tu-darmstadt.de">Johannes Meyer</maintainer>
   <author email="kohlbrecher@sim.tu-darmstadt.de">Stefan Kohlbrecher</author>
 
   <!-- Dependencies which this package needs to build itself. -->
