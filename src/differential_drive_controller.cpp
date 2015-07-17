@@ -36,6 +36,7 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
     KP_POSITION_ = 0.5;
     KD_POSITION_ = 0.0;
     SPEED_ = 0.1;
+    SPEED_REDUCTION_GAIN_ = 2.0;
 
     dr_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>;
     dr_server_->setCallback(boost::bind(&DifferentialDriveController::pdGainCallback, this, _1, _2));
@@ -48,6 +49,7 @@ void DifferentialDriveController::pdGainCallback(vehicle_controller::PdParamsCon
     KP_POSITION_ = config.position_p_gain;
     KD_POSITION_ = config.position_d_gain;
     SPEED_ = config.speed;
+    SPEED_REDUCTION_GAIN_ = config.speed_reduction_gain;
 }
 
 void DifferentialDriveController::executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist)
@@ -160,7 +162,9 @@ void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double
 
     double m = -mp_->max_controller_speed_ / mp_->max_controller_angular_rate_;
     double t = mp_->max_controller_speed_;
-    double speedAbsUL = std::min(std::max(0.0, m * std::abs(angular_rate) + t), max_speed);
+    double speedAbsUL = std::min(std::max(0.0, m * std::abs(angular_rate) * SPEED_REDUCTION_GAIN_ + t), max_speed);
+
+    ROS_INFO("[vehicle_controller] ABS MAX SPEED = %f", speedAbsUL);
 
     speed = std::max(-speedAbsUL, std::min(speed, speedAbsUL));
     angular_rate = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate));

@@ -92,6 +92,7 @@ class DifferentialDriveController: public VehicleControlInterface
     double KD_POSITION_; //0.5;
     double wheel_separation_;
     double SPEED_;
+    double SPEED_REDUCTION_GAIN_;
 
     dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig> * dr_server_;
 };
