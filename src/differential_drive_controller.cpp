@@ -35,6 +35,7 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
     KD_ANGLE_ = 0.5;
     KP_POSITION_ = 0.5;
     KD_POSITION_ = 0.0;
+    SPEED_ = 0.1;
 
     dr_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>;
     dr_server_->setCallback(boost::bind(&DifferentialDriveController::pdGainCallback, this, _1, _2));
@@ -46,6 +47,7 @@ void DifferentialDriveController::pdGainCallback(vehicle_controller::PdParamsCon
     KD_ANGLE_ = config.angle_d_gain;
     KP_POSITION_ = config.position_p_gain;
     KD_POSITION_ = config.position_d_gain;
+    SPEED_ = config.speed;
 }
 
 void DifferentialDriveController::executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist)
@@ -76,42 +78,25 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     static double previous_e_angle = e_angle;
     static double previous_e_position = e_position;
 
+    // Assumption: Angle lies in -PI,PI
+
     double de_angle_dt    = (e_angle - previous_e_angle) / dt; // causes discontinuity @ orientation_error vs relative_angle switch
     double de_position_dt = (e_position - previous_e_position) / dt;
 
-    // double speed = KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;
-    // double EPS = 0.05;
-    // double speed = (e_position > 0 ? 1.0 : -1.0 ) * mp_->max_controller_speed_;
-    // if(fabs(e_position) < 0.05)
-
-    double speed = KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;
+    double speed   = KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;
     double z_twist = KP_ANGLE_ * e_angle + KD_ANGLE_ * de_angle_dt;
+
+    if(fabs(speed) > fabs(SPEED_))
+        speed = (speed < 0 ? -1.0 : 1.0) * fabs(SPEED_);
 
     twist.linear.x = speed;
     twist.angular.z = z_twist;
-
-    if(fabs(e_angle) > M_PI_4 && e_position < 0.0)
-    {
-        twist.linear.x = 0.0;
-        // twist.angular.z = -twist.angular.z;
-    }
-
     this->limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
     cmdVelRawPublisher_.publish(twist);
 
-//        ROS_INFO("[PD INFO] e = (%f %f), c = (%f %f), cl = (%f %f)",
-//                 e_position, e_angle / M_PI * 180, speed, z_twist / M_PI * 180,
-//                 twist.linear.x, twist.angular.z / M_PI * 180);
-
-//        std::fstream fs;
-//        fs.open ("pd_tracker.csv", std::fstream::out | std::fstream::app);
-//        fs << dt << "," << e_position << "," <<  de_position_dt << ","
-//           << e_angle << "," << de_angle_dt << ","
-//           << speed << "," << twist.linear.x << ","
-//           << z_twist / M_PI * 180 << "," << twist.angular.z / M_PI * 180
-//           << std::endl;
-
     monstertruck_msgs::Pdout pdout;
+    pdout.header.frame_id = "world";
+    pdout.header.stamp = ros::Time::now();
     pdout.dt = dt;
     pdout.e_position = e_position;
     pdout.e_angle = e_angle;
@@ -131,10 +116,10 @@ void DifferentialDriveController::executeMotionCommand(double carrot_relative_an
                                   double carrot_distance, double speed,
                                   double signed_carrot_distance_2_robot, double dt)
 {
-    double e_angle = speed < 0 ? carrot_orientation_error : carrot_relative_angle;
-
-    if(signed_carrot_distance_2_robot < 0 && fabs(e_angle) > M_PI_4)
-        e_angle = carrot_relative_angle;
+//    double e_angle = speed < 0 ? carrot_orientation_error : carrot_relative_angle;
+//    if(signed_carrot_distance_2_robot < 0 && fabs(e_angle) > M_PI_4)
+//        e_angle = carrot_relative_angle;
+    double e_angle = carrot_relative_angle;
     executePDControlledMotionCommand(e_angle, signed_carrot_distance_2_robot, dt);
     // executeMotionCommand(carrot_relative_angle, carrot_orientation_error, carrot_distance, speed);
 }
@@ -169,11 +154,12 @@ void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double
     double angular_rate = twist.angular.z;
 
     mp_->limitSpeed(speed);
+
     speed        = std::max(-mp_->max_unlimited_speed_, std::min(mp_->max_unlimited_speed_, speed));
     angular_rate = std::max(-mp_->max_unlimited_angular_rate_, std::min(mp_->max_unlimited_angular_rate_, angular_rate));
 
-    double m = (0.12 - mp_->max_unlimited_speed_) / 0.4;
-    double t = mp_->max_unlimited_speed_;
+    double m = -mp_->max_controller_speed_ / mp_->max_controller_angular_rate_;
+    double t = mp_->max_controller_speed_;
     double speedAbsUL = std::min(std::max(0.0, m * std::abs(angular_rate) + t), max_speed);
 
     speed = std::max(-speedAbsUL, std::min(speed, speedAbsUL));
@@ -182,3 +168,4 @@ void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double
     twist.linear.x = speed;
     twist.angular.z = angular_rate;
 }
+
