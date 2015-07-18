@@ -91,6 +91,9 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     if(fabs(speed) > fabs(SPEED_))
         speed = (speed < 0 ? -1.0 : 1.0) * fabs(SPEED_);
 
+    if(std::abs(z_twist) > M_PI / 4)
+        speed = 0.0;
+
     twist.linear.x = speed;
     twist.angular.z = z_twist;
     this->limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
@@ -162,7 +165,7 @@ void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double
     speed        = std::max(-mp_->max_unlimited_speed_, std::min(mp_->max_unlimited_speed_, speed));
     angular_rate = std::max(-mp_->max_unlimited_angular_rate_, std::min(mp_->max_unlimited_angular_rate_, angular_rate));
 
-    double m = -mp_->max_controller_speed_ / mp_->max_controller_angular_rate_;
+    double m = 0.0; // -mp_->max_controller_speed_ / mp_->max_controller_angular_rate_;
     double t = mp_->max_controller_speed_;
     double speedAbsUL = std::min(std::max(0.0, m * std::abs(angular_rate) * SPEED_REDUCTION_GAIN_ + t), max_speed);
 
