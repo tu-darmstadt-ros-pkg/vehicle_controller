@@ -93,6 +93,7 @@ private:
   ros::Publisher diagnosticsPublisher;
 
   ros::Publisher pathPosePublisher;
+  ros::Publisher autonomy_level_pub_;
 
   // action interface
   ros::Subscriber actionSubscriber;
