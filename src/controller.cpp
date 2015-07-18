@@ -8,6 +8,7 @@
 
 #include <geometry_msgs/PointStamped.h>
 #include <std_msgs/Float32.h>
+#include <std_msgs/String.h>
 
 #include <hector_move_base_msgs/move_base_action.h>
 #include <vehicle_controller/four_wheel_steer_controller.h>
@@ -139,6 +140,7 @@ bool Controller::configure()
     pathPosePublisher = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
 
     diagnosticsPublisher = params.advertise<std_msgs::Float32>("velocity_error", 1, true);
+    autonomy_level_pub_ = nh.advertise<std_msgs::String>("/autonomy_level", 30);
 
     // action interface
     ros::NodeHandle action_nh("controller");
@@ -418,6 +420,10 @@ void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 {
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
     reset();
+
+    std_msgs::String autonomy_level;
+    autonomy_level.data = "teleop";
+    autonomy_level_pub_.publish(autonomy_level);
 
     if (velocity.linear.x == 0.0) {
         state = INACTIVE;
