@@ -462,26 +462,25 @@ void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGener
     }
 
     hector_move_base_msgs::MoveBaseGoalPtr goal_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBaseGoal>(action);
-    if (goal_action) {
+    if (goal_action)
+    {
         driveto(goal_action->target_pose);
-        drivepathPublisher.publish(empty_path); // publish empty path
+        drivepathPublisher.publish(empty_path);
     }
 }
 
 void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal& goal_action)
 {
-    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new goal");
+    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new goal.");
     this->goalID.reset(new actionlib_msgs::GoalID(goal_action.goal_id));
-
     driveto(goal_action.goal.target_pose);
-    drivepathPublisher.publish(empty_path); // publish empty path
+    drivepathPublisher.publish(empty_path);
 }
 
 void Controller::actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath& path_action)
 {
-    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new path");
+    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new path.");
     this->goalID.reset(new actionlib_msgs::GoalID(path_action.goal_id));
-
     drivepath(path_action.goal.target_path);
     drivepathPublisher.publish(path_action.goal.target_path);
 }
@@ -833,7 +832,8 @@ void Controller::stop()
 {
     this->vehicle_control_interface_->stop();
     drivepathPublisher.publish(empty_path);
-    if (camera_control) cameraOrientationPublisher.publish(cameraDefaultOrientation);
+    if (camera_control)
+        cameraOrientationPublisher.publish(cameraDefaultOrientation);
 }
 
 void Controller::cleanup()
