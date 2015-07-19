@@ -35,7 +35,6 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
     KD_ANGLE_ = 0.5;
     KP_POSITION_ = 0.5;
     KD_POSITION_ = 0.0;
-    SPEED_ = 0.1;
     SPEED_REDUCTION_GAIN_ = 2.0;
 
     dr_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>;
@@ -48,7 +47,7 @@ void DifferentialDriveController::pdGainCallback(vehicle_controller::PdParamsCon
     KD_ANGLE_ = config.angle_d_gain;
     KP_POSITION_ = config.position_p_gain;
     KD_POSITION_ = config.position_d_gain;
-    SPEED_ = config.speed;
+    mp_->current_speed = config.speed;
     SPEED_REDUCTION_GAIN_ = config.speed_reduction_gain;
     mp_->USE_FINAL_TWIST_ = config.use_final_twist;
     mp_->FINAL_TWIST_TRIALS_MAX_ = config.final_twist_trials_max;
@@ -57,15 +56,10 @@ void DifferentialDriveController::pdGainCallback(vehicle_controller::PdParamsCon
 void DifferentialDriveController::executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist)
 {
     twist = inc_twist;
-
-    double speed = twist.linear.x;
-    double angular_rate = twist.angular.z;
-    angular_rate = std::max<double>(-mp_->max_unlimited_angular_rate_, std::min<double>(mp_->max_unlimited_angular_rate_, angular_rate));
-    speed = std::max(-mp_->max_unlimited_speed_, std::min(speed, mp_->max_unlimited_speed_));
-
-    twist.linear.x = speed;
-    twist.angular.z = angular_rate;
-
+    twist.angular.z = std::max(-mp_->max_unlimited_angular_rate_,
+                               std::min(mp_->max_unlimited_angular_rate_, twist.angular.z));
+    twist.linear.x  = std::max(-mp_->max_unlimited_speed_,
+                               std::min(mp_->max_unlimited_speed_, twist.linear.x));
     cmdVelRawPublisher_.publish(twist);
 }
 
@@ -89,11 +83,8 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     double speed   = KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;
     double z_twist = KP_ANGLE_ * e_angle + KD_ANGLE_ * de_angle_dt;
 
-    if(fabs(speed) > fabs(SPEED_))
-        speed = (speed < 0 ? -1.0 : 1.0) * fabs(SPEED_);
-
-//    if(std::abs(z_twist) > M_PI / 4)
-//        speed = 0.0;
+    if(fabs(speed) > fabs(mp_->current_speed))
+        speed = (speed < 0 ? -1.0 : 1.0) * fabs(mp_->current_speed);
 
     twist.linear.x = speed;
     twist.angular.z = z_twist;

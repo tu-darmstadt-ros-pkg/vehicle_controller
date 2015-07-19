@@ -58,6 +58,7 @@ Controller::Controller(const std::string& ns)
     motion_control_setup.max_unlimited_speed_ = 2.0;
     motion_control_setup.max_unlimited_angular_rate_ = 1.0;
     motion_control_setup.max_controller_angular_rate_ =  0.4;
+    motion_control_setup.current_speed = 0.18;
     motion_control_setup.inclination_speed_reduction_factor = 0.5 / (30 * M_PI/180.0); // 0.5 per 30 degrees
     motion_control_setup.inclination_speed_reduction_time_constant = 0.3;
     map_frame_id = "nav";
@@ -72,7 +73,6 @@ Controller::Controller(const std::string& ns)
     linear_speed_blocked_ = 0.05;
     angular_speed_blocked_ = 0.05;
 
-    motion_control_setup.current_velocity = 0.0;
     motion_control_setup.current_inclination = 0.0;
     velocity_error = 0.0;
 
@@ -192,7 +192,6 @@ void Controller::stateCallback(const nav_msgs::Odometry& state)
         return;
     }
 
-    motion_control_setup.current_velocity = this->velocity.vector.x;
     double inclination = acos(this->pose.pose.orientation.w*this->pose.pose.orientation.w - this->pose.pose.orientation.x*this->pose.pose.orientation.x - this->pose.pose.orientation.y*this->pose.pose.orientation.y + this->pose.pose.orientation.z*this->pose.pose.orientation.z);
     if (inclination >= motion_control_setup.current_inclination)
         motion_control_setup.current_inclination = inclination;
@@ -437,7 +436,6 @@ void Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
     reset();
     state = velocity.linear.x == 0.0 ? INACTIVE : VELOCITY;
-
     vehicle_control_interface_->executeTwist(velocity);
 }
 
@@ -456,7 +454,7 @@ void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 
 void Controller::speedCallback(const std_msgs::Float32& speed)
 {
-    motion_control_setup.max_controller_speed_ = speed.data;
+    motion_control_setup.current_speed = speed.data;
 }
 
 bool Controller::alternativeTolerancesService(monstertruck_msgs::SetAlternativeTolerance::Request& req,

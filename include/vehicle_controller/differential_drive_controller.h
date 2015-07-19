@@ -23,7 +23,6 @@
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 */
 
 #ifndef DIFFERENTIAL_DRIVE_CONTROLLER_H
@@ -97,7 +96,6 @@ class DifferentialDriveController: public VehicleControlInterface
     double KP_POSITION_;
     double KD_POSITION_; //0.5;
     double wheel_separation_;
-    double SPEED_;
     double SPEED_REDUCTION_GAIN_;
 
     dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig> * dr_server_;
