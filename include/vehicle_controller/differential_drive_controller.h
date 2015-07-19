@@ -48,6 +48,12 @@ class DifferentialDriveController: public VehicleControlInterface
 
     virtual void configure(ros::NodeHandle& params, MotionParameters* mp);
 
+    inline virtual bool hasReachedFinalOrientation(double goal_angle_error, double tol)
+    {
+        /// for nonsymmetric robot!
+        return std::abs(goal_angle_error) < tol;
+    }
+
     void pdGainCallback(vehicle_controller::PdParamsConfig & config, uint32_t level);
 
     virtual void executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist);

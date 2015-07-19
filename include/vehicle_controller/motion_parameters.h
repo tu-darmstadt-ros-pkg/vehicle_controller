@@ -47,7 +47,8 @@ class MotionParameters
       }
     }
 
-
+    bool USE_FINAL_TWIST_;
+    int FINAL_TWIST_TRIALS_MAX_;
 
     double carrot_distance;
     double min_speed;

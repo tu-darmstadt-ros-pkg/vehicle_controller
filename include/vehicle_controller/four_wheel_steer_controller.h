@@ -118,6 +118,12 @@ class FourWheelSteerController: public VehicleControlInterface
       drivePublisher_.publish(drive);
     }
 
+    inline virtual bool hasReachedFinalOrientation(double goal_angle_error, double tol)
+    {
+        /// for nonsymmetric 4 wheel robot!
+        return std::abs(goal_angle_error) < tol;
+    }
+
   protected:
     ros::Publisher drivePublisher_;
 
