@@ -82,8 +82,8 @@ class DifferentialDriveController: public VehicleControlInterface
     void limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate);
 
   protected:
-    ros::Publisher cmdVelRawPublisher_;
-    ros::Publisher pdoutPublisher_;
+    ros::Publisher cmd_vel_raw_pub_;
+    ros::Publisher pdout_pub_;
 
 
     geometry_msgs::Twist twist;

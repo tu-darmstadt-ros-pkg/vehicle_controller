@@ -15,10 +15,7 @@
 
 #include <algorithm>
 #include <sstream>
-
 #include <functional>
-
-// #define END_TWIST
 
 double constrainAngle_0_2pi(double x)
 {
@@ -53,12 +50,12 @@ Controller::Controller(const std::string& ns)
 {
     motion_control_setup.carrot_distance = 1.0;
     motion_control_setup.min_speed = 0.1;
-    motion_control_setup.current_speed = 0.0;
+    motion_control_setup.commanded_speed = 0.0;
     motion_control_setup.max_controller_speed_ = 0.25;
     motion_control_setup.max_unlimited_speed_ = 2.0;
     motion_control_setup.max_unlimited_angular_rate_ = 1.0;
     motion_control_setup.max_controller_angular_rate_ =  0.4;
-    motion_control_setup.current_speed = 0.18;
+    motion_control_setup.commanded_speed = 0.18;
     motion_control_setup.inclination_speed_reduction_factor = 0.5 / (30 * M_PI/180.0); // 0.5 per 30 degrees
     motion_control_setup.inclination_speed_reduction_time_constant = 0.3;
     map_frame_id = "nav";
@@ -135,7 +132,6 @@ bool Controller::configure()
     cmd_velTeleopSubscriber = nh.subscribe("cmd_vel_teleop", 10, &Controller::cmd_velTeleopCallback, this);
     speedSubscriber     = nh.subscribe("speed", 10, &Controller::speedCallback, this);
 
-
     carrotPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("carrot", 1, true);
     drivepathPublisher  = nh.advertise<nav_msgs::Path>("drivepath", 1, true);
 
@@ -205,7 +201,7 @@ void Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStam
 {
     geometry_msgs::PoseStampedConstPtr goal = event.getConstMessage();
 
-    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new goal");
+    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received a new goal.");
     driveto(*goal);
 }
 
@@ -214,12 +210,14 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal)
     reset();
 
     geometry_msgs::PoseStamped goal_transformed;
-    try{
+    try
+    {
         listener.waitForTransform(this->map_frame_id, goal.header.frame_id, goal.header.stamp, ros::Duration(3.0));
         listener.transformPose(this->map_frame_id, goal, goal_transformed);
     }
-    catch (tf::TransformException ex) {
-        ROS_ERROR("%s", ex.what());
+    catch (tf::TransformException ex)
+    {
+        ROS_ERROR("[vehicle_controller] %s", ex.what());
         stop();
         publishActionResult(actionlib_msgs::GoalStatus::REJECTED);
         return false;
@@ -229,7 +227,7 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal)
     addLeg(goal_transformed.pose);
     state = DRIVETO;
 
-    ROS_INFO("Received new goal point (x = %.2f, y = %.2f)", goal_transformed.pose.position.x, goal_transformed.pose.position.y);
+    ROS_INFO("[vehicle_controller] Received new goal point (x = %.2f, y = %.2f)", goal_transformed.pose.position.x, goal_transformed.pose.position.y);
 
     final_twist_trials = 0;
     publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
@@ -321,20 +319,6 @@ bool Controller::drivepath(const nav_msgs::Path& path)
                                     this->pose.pose.orientation.y, this->pose.pose.orientation.z);
         in_end_orientation = quat(map_path.back().orientation.w, map_path.back().orientation.x,
                                   map_path.back().orientation.y, map_path.back().orientation.z);
-
-//        if(in_path.size() >= 3)
-//        {
-//            // HACKY fix for (at ARGOS) undesired feature in exploration planner.
-//            // Now, does not contain deviating point at very last position, but extrapolates
-//            // from previous point
-
-//            vec3 last_dir = in_path[in_path.size() - 1] - in_path[in_path.size() - 2];
-//            vec3 ref_dir  = in_path[in_path.size() - 2] - in_path[in_path.size() - 3];
-
-//            vec3 new_last_dir = ref_dir.normalized().dot(last_dir) * ref_dir.normalized();
-
-//            in_path.back() = in_path[in_path.size() - 2] + new_last_dir;
-//        }
 
         vector_vec3 out_smoothed_positions;
         vector_quat out_smoothed_orientations;
@@ -454,7 +438,7 @@ void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 
 void Controller::speedCallback(const std_msgs::Float32& speed)
 {
-    motion_control_setup.current_speed = speed.data;
+    motion_control_setup.commanded_speed = speed.data;
 }
 
 bool Controller::alternativeTolerancesService(monstertruck_msgs::SetAlternativeTolerance::Request& req,
@@ -564,7 +548,7 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.p2.orientation = angles[0];
     }
 
-    leg.speed = motion_control_setup.current_speed;
+    leg.speed = motion_control_setup.commanded_speed;
     leg.length2 = std::pow(leg.p2.x - leg.p1.x, 2) + std::pow(leg.p2.y - leg.p1.y, 2);
     leg.length = std::sqrt(leg.length2);
     leg.percent = 0.0;
@@ -844,21 +828,6 @@ void Controller::update()
         }
     }
 }
-
-void Controller::limitSpeed(float &speed) {
-    float inclination_max_speed = std::max(fabs(speed) * (1.0 - motion_control_setup.current_inclination * motion_control_setup.inclination_speed_reduction_factor), 0.0);
-
-    if (speed > 0.0) {
-        if (speed > motion_control_setup.max_controller_speed_) speed = motion_control_setup.max_controller_speed_;
-        if (speed > inclination_max_speed) speed = inclination_max_speed;
-        if (speed < motion_control_setup.min_speed) speed = motion_control_setup.min_speed;
-    } else if (speed < 0.0) {
-        if (speed < -motion_control_setup.max_controller_speed_) speed = -motion_control_setup.max_controller_speed_;
-        if (speed < -inclination_max_speed) speed = -inclination_max_speed;
-        if (speed > -motion_control_setup.min_speed) speed = -motion_control_setup.min_speed;
-    }
-}
-
 
 void Controller::stop()
 {

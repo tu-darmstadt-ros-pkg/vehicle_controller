@@ -53,7 +53,7 @@ class MotionParameters
 
     double carrot_distance;
     double min_speed;
-    double current_speed;
+    double commanded_speed;
     double inclination_speed_reduction_factor;
     double inclination_speed_reduction_time_constant;
     double current_inclination;
