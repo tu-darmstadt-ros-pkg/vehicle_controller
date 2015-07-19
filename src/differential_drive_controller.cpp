@@ -59,7 +59,6 @@ void DifferentialDriveController::executeUnlimitedTwist(const geometry_msgs::Twi
     twist = inc_twist;
 
     double speed = twist.linear.x;
-    mp_->limitSpeed(speed);
     double angular_rate = twist.angular.z;
     angular_rate = std::max<double>(-mp_->max_unlimited_angular_rate_, std::min<double>(mp_->max_unlimited_angular_rate_, angular_rate));
     speed = std::max(-mp_->max_unlimited_speed_, std::min(speed, mp_->max_unlimited_speed_));

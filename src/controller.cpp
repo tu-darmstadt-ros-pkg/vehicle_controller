@@ -49,8 +49,7 @@ float euclideanDistance(geometry_msgs::Point const & p0, geometry_msgs::Point co
 }
 
 Controller::Controller(const std::string& ns)
-    : nh(ns)
-    , state(INACTIVE)
+    : nh(ns), state(INACTIVE)
 {
     motion_control_setup.carrot_distance = 1.0;
     motion_control_setup.min_speed = 0.1;
@@ -437,12 +436,7 @@ void Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
 {
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
     reset();
-
-    if (velocity.linear.x == 0.0) {
-        state = INACTIVE;
-    } else {
-        state = VELOCITY;
-    }
+    state = velocity.linear.x == 0.0 ? INACTIVE : VELOCITY;
 
     vehicle_control_interface_->executeTwist(velocity);
 }
@@ -451,15 +445,11 @@ void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 {
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
     reset();
+    state = velocity.linear.x == 0.0 ? INACTIVE : VELOCITY;
 
     std_msgs::String autonomy_level;
     autonomy_level.data = "teleop";
     autonomy_level_pub_.publish(autonomy_level);
-
-    if (velocity.linear.x == 0.0)
-        state = INACTIVE;
-    else
-        state = VELOCITY;
 
     vehicle_control_interface_->executeUnlimitedTwist(velocity);
 }
@@ -565,7 +555,8 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
     }
 
     leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
-    if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0 && pose.orientation.y == 0 && pose.orientation.z == 0.0)
+    if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0
+    && pose.orientation.y == 0.0 && pose.orientation.z == 0.0)
     {
         leg.p2.orientation = leg.backward ? angularNorm(leg.course + M_PI) : leg.course;
     }
@@ -576,8 +567,8 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
     }
 
     leg.speed = motion_control_setup.current_speed;
-    leg.length2 = (leg.p2.x-leg.p1.x)*(leg.p2.x-leg.p1.x) + (leg.p2.y-leg.p1.y)*(leg.p2.y-leg.p1.y);
-    leg.length = sqrt(leg.length2);
+    leg.length2 = std::pow(leg.p2.x - leg.p1.x, 2) + std::pow(leg.p2.y - leg.p1.y, 2);
+    leg.length = std::sqrt(leg.length2);
     leg.percent = 0.0;
 
     if (leg.length2 == 0.0) return;
