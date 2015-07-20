@@ -85,7 +85,6 @@ class DifferentialDriveController: public VehicleControlInterface
     ros::Publisher cmd_vel_raw_pub_;
     ros::Publisher pdout_pub_;
 
-
     geometry_msgs::Twist twist;
 
     MotionParameters* mp_;
@@ -94,7 +93,7 @@ class DifferentialDriveController: public VehicleControlInterface
     double KP_ANGLE_;
     double KD_ANGLE_;
     double KP_POSITION_;
-    double KD_POSITION_; //0.5;
+    double KD_POSITION_;
     double wheel_separation_;
     double SPEED_REDUCTION_GAIN_;
 

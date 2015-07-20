@@ -70,12 +70,13 @@ void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_t
     cmd_vel_raw_pub_.publish(twist);
 }
 
+/**
+ * Assumption: Angle lies in -PI,PI
+ */
 void DifferentialDriveController::executePDControlledMotionCommand(double e_angle, double e_position, double dt)
 {
     static double previous_e_angle = e_angle;
     static double previous_e_position = e_position;
-
-    // Assumption: Angle lies in -PI,PI
 
     double de_angle_dt    = (e_angle - previous_e_angle) / dt; // causes discontinuity @ orientation_error vs relative_angle switch
     double de_position_dt = (e_position - previous_e_position) / dt;
