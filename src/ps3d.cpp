@@ -73,9 +73,9 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path, quat const & in_start_or
 
             reverse = distC && startC && endC;
 
-            std::cout << "spd = " << start_path_delta.transpose() << " | " << "(spd,start_vec) = " << start_path_projection << std::endl;
-            std::cout << "epd = " << end_path_delta.transpose() << " | " << "(epd,end_vec) = " << end_path_projection << std::endl;
-            std::cout << "end_vec = " << end_vec.transpose() << std::endl;
+//            std::cout << "spd = " << start_path_delta.transpose() << " | " << "(spd,start_vec) = " << start_path_projection << std::endl;
+//            std::cout << "epd = " << end_path_delta.transpose() << " | " << "(epd,end_vec) = " << end_path_projection << std::endl;
+//            std::cout << "end_vec = " << end_vec.transpose() << std::endl;
 
             if(reverse)
             {

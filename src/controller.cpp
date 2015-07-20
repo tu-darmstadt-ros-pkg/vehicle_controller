@@ -227,7 +227,8 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal)
     addLeg(goal_transformed.pose);
     state = DRIVETO;
 
-    ROS_INFO("[vehicle_controller] Received new goal point (x = %.2f, y = %.2f)", goal_transformed.pose.position.x, goal_transformed.pose.position.y);
+    ROS_INFO("[vehicle_controller] Received new goal point (x = %.2f, y = %.2f), backward = %d.",
+             goal_transformed.pose.position.x, goal_transformed.pose.position.y, legs.back().backward);
 
     final_twist_trials = 0;
     publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
@@ -547,9 +548,9 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.p2.orientation = angles[0];
     }
 
-    leg.speed = motion_control_setup.commanded_speed;
+    leg.speed   = motion_control_setup.commanded_speed;
     leg.length2 = std::pow(leg.p2.x - leg.p1.x, 2) + std::pow(leg.p2.y - leg.p1.y, 2);
-    leg.length = std::sqrt(leg.length2);
+    leg.length  = std::sqrt(leg.length2);
     leg.percent = 0.0;
 
     if (leg.length2 == 0.0) return;
@@ -715,40 +716,39 @@ void Controller::update()
         double max_ang = 0.0;
         for(unsigned i = 1; i < pose_history_.size(); i++)
         {
-            double e_lin = euclideanDistance(pose_history_[i].pose.position,
-                                             pose_history_[i - 1].pose.position)
-                       / (pose_history_[i].header.stamp - pose_history_[i - 1].header.stamp).toSec();
+            double diff_lin = euclideanDistance(pose_history_[i].pose.position,
+                                                pose_history_[0].pose.position);
 
             double a0[3];
             double a1[3];
-            quaternion2angles(pose_history_[i - 1].pose.orientation, a0);
+            quaternion2angles(pose_history_[0].pose.orientation, a0);
             quaternion2angles(pose_history_[i].pose.orientation, a1);
 
-            double e_ang = std::min(std::abs(constrainAngle_mpi_pi(a0[0]) - constrainAngle_mpi_pi(a1[0])),
-                                    std::abs(constrainAngle_0_2pi(a0[0]) - constrainAngle_0_2pi(a1[0])))
-                            / (pose_history_[i].header.stamp - pose_history_[i - 1].header.stamp).toSec();
+            double diff_ang = std::min(std::abs(constrainAngle_mpi_pi(a0[0]) - constrainAngle_mpi_pi(a1[0])),
+                                       std::abs(constrainAngle_0_2pi(a0[0]) - constrainAngle_0_2pi(a1[0])));
 
-            acc_ang += e_ang;
-            acc_lin += e_lin;
-            max_ang = std::max(max_ang, e_ang);
-            max_lin = std::max(max_lin, e_lin);
+            acc_ang += diff_ang;
+            acc_lin += diff_lin;
+            max_ang = std::max(max_ang, diff_ang);
+            max_lin = std::max(max_lin, diff_lin);
         }
-        acc_lin /= POSE_HISTORY_SIZE;
-        acc_ang /= POSE_HISTORY_SIZE;
-        ROS_INFO("[vehicle_controller] angular acc = %f, max = %f", acc_ang, max_ang);
-        ROS_INFO("[vehicle_controller] linear  acc = %f, max = %f", acc_lin, max_lin);
 
-        if(acc_lin < linear_speed_blocked_
-        && acc_ang < angular_speed_blocked_
-        && (max_lin < linear_speed_blocked_ || max_ang < angular_speed_blocked_))
+        double time_diff = (pose_history_.back().header.stamp - pose_history_.front().header.stamp).toSec();
+
+        if(max_ang < M_PI / 4 && max_lin / time_diff < 0.1 * motion_control_setup.commanded_speed)
         {
-            ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal...");
+            ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal.");
+            ROS_WARN("[vehicle_controller]   angular max = %f < %f", max_ang, M_PI_4);
+            ROS_WARN("[vehicle_controller]   linear max = %f < max = %f", max_lin / time_diff, 0.2 * motion_control_setup.commanded_speed);
+
             state = INACTIVE;
             stop();
-
             pose_history_.clear();
             publishActionResult(actionlib_msgs::GoalStatus::ABORTED, "blocked");
         }
+
+        acc_lin /= POSE_HISTORY_SIZE;
+        acc_ang /= POSE_HISTORY_SIZE;
 
         /*
         double current_velocity_error = 0.0;
