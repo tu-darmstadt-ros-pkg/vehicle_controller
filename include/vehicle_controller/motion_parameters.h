@@ -29,6 +29,8 @@
 #ifndef MOTION_PARAMETERS_H
 #define MOTION_PARAMETERS_H
 
+#include <string>
+
 class MotionParameters
 {
   public:
@@ -50,6 +52,11 @@ class MotionParameters
 
     bool USE_FINAL_TWIST_;
     int FINAL_TWIST_TRIALS_MAX_;
+
+    double flipper_low_position;
+    double flipper_switch_position;
+    double flipper_high_position;
+    std::string flipper_name;
 
     double carrot_distance;
     double min_speed;

@@ -51,6 +51,9 @@ void DifferentialDriveController::pdGainCallback(vehicle_controller::PdParamsCon
     SPEED_REDUCTION_GAIN_ = config.speed_reduction_gain;
     mp_->USE_FINAL_TWIST_ = config.use_final_twist;
     mp_->FINAL_TWIST_TRIALS_MAX_ = config.final_twist_trials_max;
+    mp_->flipper_low_position = config.flipper_low_position;
+    mp_->flipper_high_position = config.flipper_high_position;
+    mp_->flipper_switch_position = config.flipper_switch_position;
 }
 
 void DifferentialDriveController::executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist)

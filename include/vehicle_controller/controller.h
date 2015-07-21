@@ -9,6 +9,8 @@
 #include <monstertruck_msgs/MotionCommand.h>
 #include <monstertruck_msgs/SetAlternativeTolerance.h>
 #include <std_msgs/Float32.h>
+#include <std_msgs/Empty.h>
+#include <sensor_msgs/JointState.h>
 
 #include <hector_move_base_msgs/MoveBaseActionGeneric.h>
 #include <hector_move_base_msgs/MoveBaseActionGoal.h>
@@ -25,7 +27,9 @@
 class Controller {
 public:
   typedef enum { INACTIVE, VELOCITY, DRIVETO, DRIVEPATH } State;
-  typedef struct {
+
+  typedef struct
+  {
     float x;
     float y;
     float orientation;
@@ -67,6 +71,9 @@ protected:
   virtual void speedCallback(const std_msgs::Float32&);
   virtual bool alternativeTolerancesService(monstertruck_msgs::SetAlternativeTolerance::Request& req, monstertruck_msgs::SetAlternativeTolerance::Response& res);
 
+  void joint_statesCallback(sensor_msgs::JointStateConstPtr msg);
+  void cmd_flipper_toggleCallback(const std_msgs::Empty&);
+
   virtual void actionCallback(const hector_move_base_msgs::MoveBaseActionGeneric&);
   virtual void actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal&);
   virtual void actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath&);
@@ -89,6 +96,9 @@ private:
   ros::Subscriber cmd_velSubscriber;
   ros::Subscriber cmd_velTeleopSubscriber;
   ros::Subscriber speedSubscriber;
+  ros::Subscriber cmd_flipper_toggle_sub_;
+  ros::Subscriber joint_states_sub_;
+
 
   ros::Publisher carrotPosePublisher;
   ros::Publisher lookatPublisher;
@@ -98,6 +108,7 @@ private:
 
   ros::Publisher pathPosePublisher;
   ros::Publisher autonomy_level_pub_;
+  ros::Publisher jointstate_cmd_pub_;
 
   // action interface
   ros::Subscriber actionSubscriber;
@@ -121,6 +132,8 @@ private:
   geometry_msgs::Pose start;
   Legs legs;
 
+  double flipper_state;
+
   // parameters
   /*
   double carrot_distance;
@@ -132,7 +145,7 @@ private:
   double inclination_speed_reduction_time_constant;
   */
 
-  MotionParameters motion_control_setup;
+  MotionParameters mp_;
 
   std::string map_frame_id;
   std::string base_frame_id;
