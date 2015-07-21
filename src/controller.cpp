@@ -696,7 +696,7 @@ void Controller::update()
     this->vehicle_control_interface_->executeMotionCommand(relative_angle, orientation_error, motion_control_setup.carrot_distance,
                                                            speed, signed_carrot_distance_2_robot, dt);
 
-    int const POSE_HISTORY_SIZE = 75;
+    int const POSE_HISTORY_SIZE = 375;
 
     if(pose_history_.size() < POSE_HISTORY_SIZE)
     {
