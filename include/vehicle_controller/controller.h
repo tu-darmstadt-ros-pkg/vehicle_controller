@@ -173,8 +173,7 @@ private:
 
   boost::shared_ptr<VehicleControlInterface> vehicle_control_interface_;
 
-  std::string vehicle_type;
-
+  std::string vehicle_control_type;
   int final_twist_trials;
 
   inline void invalidateDt()

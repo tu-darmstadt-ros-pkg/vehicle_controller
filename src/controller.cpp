@@ -17,6 +17,13 @@
 #include <sstream>
 #include <functional>
 
+/// TODO:
+///   inverse trajectory recovery
+///   the robot has to be enabled temporarily to drive REVERSE
+///  It can't due to computation of angular error with carrot even if e pos < 0.
+/// maybe try following solution allow reverse control if goal is <0.5m away or so and only use in DRIVETO
+/// revert changes in hector_move_base as maybe not necessary anymore? if the upper line works
+
 double constrainAngle_0_2pi(double x)
 {
     x = fmod(x, 2.0 * M_PI);
@@ -107,12 +114,10 @@ bool Controller::configure()
     params.getParam("inclination_speed_reduction_time_constant", mp_.inclination_speed_reduction_time_constant);
     params.getParam("goal_position_tolerance", goal_position_tolerance);
     params.getParam("goal_angle_tolerance", goal_angle_tolerance);
-    params.getParam("vehicle_type", vehicle_type);
+    vehicle_control_type = "differential_steering";
+    params.getParam("vehicle_control_type", vehicle_control_type);
 
-    std::string vehicle_plugin = "differential_steering";
-    params.getParam("vehicle_control_type", vehicle_plugin);
-
-    if (vehicle_plugin == "differential_steering")
+    if (vehicle_control_type == "differential_steering")
     {
         this->vehicle_control_interface_.reset(new DifferentialDriveController());
     }
@@ -147,9 +152,9 @@ bool Controller::configure()
 
     // action interface
     ros::NodeHandle action_nh("controller");
-    actionSubscriber      = action_nh.subscribe("generic", 10, &Controller::actionCallback, this);
-    actionGoalSubscriber  = action_nh.subscribe("goal", 10, &Controller::actionGoalCallback, this);
-    actionPathSubscriber  = action_nh.subscribe("path", 10, &Controller::actionPathCallback, this);
+    actionSubscriber      = action_nh.subscribe("generic", 10, &Controller::actionCallback,     this);
+    actionGoalSubscriber  = action_nh.subscribe("goal",    10, &Controller::actionGoalCallback, this);
+    actionPathSubscriber  = action_nh.subscribe("path",    10, &Controller::actionPathCallback, this);
     actionResultPublisher = action_nh.advertise<hector_move_base_msgs::MoveBaseActionResult>("result", 1);
 
     // alternative_tolerances_service
@@ -298,7 +303,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     }
 
     if (path.poses.size() == 1) {
-        ROS_WARN("[vehicle_controller] Received path with only one pose, ignoring as this lead to crashes");
+        ROS_WARN("[vehicle_controller] Received path with only one pose, ignoring as this leads to crashes");
         stop();
         publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
         return false;
@@ -326,9 +331,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
         this->start = map_path[0];
         this->start.orientation = this->pose.pose.orientation;
 
-        // bool allow_reverse = vehicle_type == "tracked";
-        bool allow_reverse = true;
-        Pathsmoother3D ps3d(allow_reverse);
+        Pathsmoother3D ps3d(vehicle_control_type == "differential_steering");
 
         quat in_start_orientation;
         quat in_end_orientation;
@@ -479,7 +482,8 @@ void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGener
     this->goalID.reset(new actionlib_msgs::GoalID(action.goal_id));
 
     hector_move_base_msgs::MoveBasePathPtr path_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBasePath>(action);
-    if (path_action) {
+    if (path_action)
+    {
         drivepath(path_action->target_path);
         drivepathPublisher.publish(path_action->target_path);
     }
@@ -502,6 +506,7 @@ void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionG
 
 void Controller::actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath& path_action)
 {
+    ROS_INFO("PATH ACTION CALLBACK");
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new path.");
     this->goalID.reset(new actionlib_msgs::GoalID(path_action.goal_id));
     drivepath(path_action.goal.target_path);
@@ -715,6 +720,13 @@ void Controller::update()
     float speed = sign * legs[current].speed;
 
     double signed_carrot_distance_2_robot = sign * euclideanDistance(carrotPose.pose.position, pose.pose.position);
+    if(state == DRIVETO && goal_position_error < 0.6)
+    {
+        if(relative_angle > M_PI_2)
+            relative_angle = relative_angle - M_PI;
+        if(relative_angle < -M_PI_2)
+            relative_angle = M_PI + relative_angle;
+    }
     this->vehicle_control_interface_->executeMotionCommand(relative_angle, orientation_error, mp_.carrot_distance,
                                                            speed, signed_carrot_distance_2_robot, dt);
 
@@ -766,7 +778,8 @@ void Controller::update()
             state = INACTIVE;
             stop();
             pose_history_.clear();
-            publishActionResult(actionlib_msgs::GoalStatus::ABORTED, "blocked");
+            publishActionResult(actionlib_msgs::GoalStatus::ABORTED,
+                                vehicle_control_type == "differential_steering" ? "blocked_tracked" : "blocked");
         }
 
         acc_lin /= POSE_HISTORY_SIZE;
