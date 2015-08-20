@@ -17,43 +17,10 @@
 #include <sstream>
 #include <functional>
 
-/// TODO:
-///   inverse trajectory recovery
-///   the robot has to be enabled temporarily to drive REVERSE
-///  It can't due to computation of angular error with carrot even if e pos < 0.
-/// maybe try following solution allow reverse control if goal is <0.5m away or so and only use in DRIVETO
-/// revert changes in hector_move_base as maybe not necessary anymore? if the upper line works
-
-double constrainAngle_0_2pi(double x)
-{
-    x = fmod(x, 2.0 * M_PI);
-    if (x < 0)
-        x += 2.0 * M_PI;
-    return x;
-}
-
-double constrainAngle_mpi_pi(double x)
-{
-    x = fmod(x + M_PI, 2.0 * M_PI);
-    if (x < 0)
-        x += 2.0 * M_PI;
-    return x - M_PI;
-}
-
-static double angularNorm(double diff)
-{
-    static const double M_2PI = 2.0 * M_PI;
-    diff -= floor(diff/M_2PI + .5)*M_2PI;
-    return diff;
-}
-
-float euclideanDistance(geometry_msgs::Point const & p0, geometry_msgs::Point const & p1)
-{
-  return std::sqrt(std::pow(p1.x - p0.x, 2) + std::pow(p1.y - p0.y, 2) + pow(p1.z - p0.z, 2));
-}
+#include "utility.h"
 
 Controller::Controller(const std::string& ns)
-    : nh(ns), state(INACTIVE)
+    : stuck(StuckDetector(mp_)), nh(ns), state(INACTIVE)
 {
     mp_.carrot_distance = 1.0;
     mp_.min_speed = 0.1;
@@ -744,46 +711,38 @@ void Controller::update()
 
     if (check_if_blocked && !isDtInvalid() && pose_history_.size() >= POSE_HISTORY_SIZE)
     {
-        double acc_lin = 0.0;
-        double max_lin = 0.0;
-        double acc_ang = 0.0;
-        double max_ang = 0.0;
-        for(unsigned i = 1; i < pose_history_.size(); i++)
-        {
-            double diff_lin = euclideanDistance(pose_history_[i].pose.position,
-                                                pose_history_[0].pose.position);
+//        double acc_lin = 0.0;
+//        double max_lin = 0.0;
+//        double acc_ang = 0.0;
+//        double max_ang = 0.0;
+//        for(unsigned i = 1; i < pose_history_.size(); i++)
+//        {
+//            double diff_lin = euclideanDistance(pose_history_[i].pose.position,
+//                                                pose_history_[0].pose.position);
+//            double a0[3];
+//            double a1[3];
+//            quaternion2angles(pose_history_[0].pose.orientation, a0);
+//            quaternion2angles(pose_history_[i].pose.orientation, a1);
+//            double diff_ang = std::min(std::abs(constrainAngle_mpi_pi(a0[0]) - constrainAngle_mpi_pi(a1[0])),
+//                                       std::abs(constrainAngle_0_2pi(a0[0]) - constrainAngle_0_2pi(a1[0])));
+//            acc_ang += diff_ang;
+//            acc_lin += diff_lin;
+//            max_ang = std::max(max_ang, diff_ang);
+//            max_lin = std::max(max_lin, diff_lin);
+//        }
+//        double time_diff = (pose_history_.back().header.stamp - pose_history_.front().header.stamp).toSec();
 
-            double a0[3];
-            double a1[3];
-            quaternion2angles(pose_history_[0].pose.orientation, a0);
-            quaternion2angles(pose_history_[i].pose.orientation, a1);
-
-            double diff_ang = std::min(std::abs(constrainAngle_mpi_pi(a0[0]) - constrainAngle_mpi_pi(a1[0])),
-                                       std::abs(constrainAngle_0_2pi(a0[0]) - constrainAngle_0_2pi(a1[0])));
-
-            acc_ang += diff_ang;
-            acc_lin += diff_lin;
-            max_ang = std::max(max_ang, diff_ang);
-            max_lin = std::max(max_lin, diff_lin);
-        }
-
-        double time_diff = (pose_history_.back().header.stamp - pose_history_.front().header.stamp).toSec();
-
-        if(max_ang < M_PI / 4 && max_lin / time_diff < 0.1 * mp_.commanded_speed)
+        stuck.update(pose);
+        if(stuck())
         {
             ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal.");
-            ROS_WARN("[vehicle_controller]   angular max = %f < %f", max_ang, M_PI_4);
-            ROS_WARN("[vehicle_controller]   linear max = %f < max = %f", max_lin / time_diff, 0.2 * mp_.commanded_speed);
 
             state = INACTIVE;
             stop();
-            pose_history_.clear();
+            stuck.reset();
             publishActionResult(actionlib_msgs::GoalStatus::ABORTED,
                                 vehicle_control_type == "differential_steering" ? "blocked_tracked" : "blocked");
         }
-
-        acc_lin /= POSE_HISTORY_SIZE;
-        acc_ang /= POSE_HISTORY_SIZE;
 
         /*
         double current_velocity_error = 0.0;

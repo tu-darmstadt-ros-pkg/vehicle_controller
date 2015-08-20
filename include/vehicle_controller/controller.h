@@ -23,6 +23,7 @@
 #include <vehicle_controller/vehicle_control_interface.h>
 #include <vehicle_controller/motion_parameters.h>
 #include <vehicle_controller/ps3d.h>
+#include <vehicle_controller/stuck_detector.h>
 
 class Controller {
 public:
@@ -186,7 +187,9 @@ private:
       return dt <= 0.0;
   }
 
+  StuckDetector stuck;
   std::deque< geometry_msgs::PoseStamped > pose_history_;
+
 };
 
 #endif // VEHICLE_CONTROLLER_H

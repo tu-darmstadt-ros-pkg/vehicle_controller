@@ -1,4 +1,4 @@
 include_directories(${catkin_INCLUDE_DIRS} include)
-add_executable(controller_node controller.cpp ps3d.cpp differential_drive_controller.cpp)
+add_executable(controller_node controller.cpp ps3d.cpp differential_drive_controller.cpp stuck_detector.cpp)
 add_dependencies(controller_node dynamic_reconfigure monstertruck_msgs_generate_messages_cpp)
 target_link_libraries(controller_node ${catkin_LIBRARIES})
