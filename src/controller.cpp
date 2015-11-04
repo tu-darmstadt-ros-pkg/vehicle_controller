@@ -616,8 +616,7 @@ void Controller::update()
                 final_twist_trials++;
                 ROS_INFO("[vehicle_controller] Performing final twist.");
                 this->vehicle_control_interface_->executeMotionCommand(goal_angle_error_, goal_angle_error_,
-                                                                       mp_.carrot_distance,
-                                                                       0.0, 0.0, dt);
+                                                                       mp_.carrot_distance, 0.0, 0.0, dt);
                 return;
             }
         }
