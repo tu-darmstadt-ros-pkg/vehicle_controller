@@ -3,7 +3,7 @@
 #include "utility.h"
 
 
-StuckDetector::StuckDetector(MotionParameters const & mp) : mp(mp), DETECTION_WINDOW(15.0)
+StuckDetector::StuckDetector(MotionParameters const & mp, double detection_window) : mp(mp), DETECTION_WINDOW(detection_window)
 {
 
 }

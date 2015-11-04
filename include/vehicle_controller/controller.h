@@ -25,6 +25,8 @@
 #include <vehicle_controller/ps3d.h>
 #include <vehicle_controller/stuck_detector.h>
 
+#include <memory>
+
 class Controller {
 public:
   typedef enum { INACTIVE, VELOCITY, DRIVETO, DRIVEPATH } State;
@@ -187,9 +189,7 @@ private:
       return dt <= 0.0;
   }
 
-  StuckDetector stuck;
-  std::deque< geometry_msgs::PoseStamped > pose_history_;
-
+  std::unique_ptr<StuckDetector> stuck;
 };
 
 #endif // VEHICLE_CONTROLLER_H

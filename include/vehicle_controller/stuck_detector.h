@@ -20,7 +20,9 @@ protected:
     double elapsedSecs();
 
 public:
-    StuckDetector(MotionParameters const & mp);
+    static constexpr double DEFAULT_DETECTION_WINDOW = 15.0;
+
+    StuckDetector(MotionParameters const & mp, double detection_window = DEFAULT_DETECTION_WINDOW);
 
     double quat2ZAngle(geometry_msgs::Quaternion const & q);
 

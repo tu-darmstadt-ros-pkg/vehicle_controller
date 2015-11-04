@@ -20,7 +20,7 @@
 #include "utility.h"
 
 Controller::Controller(const std::string& ns)
-    : stuck(StuckDetector(mp_)), nh(ns), state(INACTIVE)
+    : stuck(new StuckDetector(mp_)), nh(ns), state(INACTIVE)
 {
     mp_.carrot_distance = 1.0;
     mp_.min_speed = 0.1;
@@ -83,6 +83,9 @@ bool Controller::configure()
     params.getParam("goal_angle_tolerance", goal_angle_tolerance);
     vehicle_control_type = "differential_steering";
     params.getParam("vehicle_control_type", vehicle_control_type);
+    double stuck_detection_window = StuckDetector::DEFAULT_DETECTION_WINDOW;
+    params.param("stuck_detection_window", stuck_detection_window, StuckDetector::DEFAULT_DETECTION_WINDOW);
+    stuck.reset(new StuckDetector(mp_, stuck_detection_window));
 
     if (vehicle_control_type == "differential_steering")
     {
@@ -92,7 +95,6 @@ bool Controller::configure()
     {
         this->vehicle_control_interface_.reset(new FourWheelSteerController());
     }
-
     this->vehicle_control_interface_->configure(params, &mp_);
 
 
@@ -135,7 +137,6 @@ bool Controller::configure()
         lookatPublisher = nh.advertise<geometry_msgs::PointStamped>("camera/look_at", 1);
         cameraOrientationPublisher.publish(cameraDefaultOrientation);
     }
-
     empty_path.header.frame_id = map_frame_id;
 
     return true;
@@ -697,82 +698,18 @@ void Controller::update()
     this->vehicle_control_interface_->executeMotionCommand(relative_angle, orientation_error, mp_.carrot_distance,
                                                            speed, signed_carrot_distance_2_robot, dt);
 
-    int const POSE_HISTORY_SIZE = 600;
-
-    if(pose_history_.size() < POSE_HISTORY_SIZE)
+    if (check_if_blocked && !isDtInvalid())
     {
-        pose_history_.push_back(pose);
-    }
-    else
-    {
-        pose_history_.push_back(pose);
-        pose_history_.pop_front();
-    }
-
-    if (check_if_blocked && !isDtInvalid() && pose_history_.size() >= POSE_HISTORY_SIZE)
-    {
-//        double acc_lin = 0.0;
-//        double max_lin = 0.0;
-//        double acc_ang = 0.0;
-//        double max_ang = 0.0;
-//        for(unsigned i = 1; i < pose_history_.size(); i++)
-//        {
-//            double diff_lin = euclideanDistance(pose_history_[i].pose.position,
-//                                                pose_history_[0].pose.position);
-//            double a0[3];
-//            double a1[3];
-//            quaternion2angles(pose_history_[0].pose.orientation, a0);
-//            quaternion2angles(pose_history_[i].pose.orientation, a1);
-//            double diff_ang = std::min(std::abs(constrainAngle_mpi_pi(a0[0]) - constrainAngle_mpi_pi(a1[0])),
-//                                       std::abs(constrainAngle_0_2pi(a0[0]) - constrainAngle_0_2pi(a1[0])));
-//            acc_ang += diff_ang;
-//            acc_lin += diff_lin;
-//            max_ang = std::max(max_ang, diff_ang);
-//            max_lin = std::max(max_lin, diff_lin);
-//        }
-//        double time_diff = (pose_history_.back().header.stamp - pose_history_.front().header.stamp).toSec();
-
-        stuck.update(pose);
-        if(stuck())
+        stuck->update(pose);
+        if((*stuck)())
         {
             ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal.");
-
             state = INACTIVE;
             stop();
-            stuck.reset();
+            stuck->reset();
             publishActionResult(actionlib_msgs::GoalStatus::ABORTED,
                                 vehicle_control_type == "differential_steering" ? "blocked_tracked" : "blocked");
         }
-
-        /*
-        double current_velocity_error = 0.0;
-        current_velocity_error = (motion_control_setup.current_velocity - vehicle_control_interface_->getCommandedSpeed()) / std::max(fabs(vehicle_control_interface_->getCommandedSpeed()), 0.1);
-        if (vehicle_control_interface_->getCommandedSpeed() > 0) {
-            if (current_velocity_error > 0.0) current_velocity_error = 0.0;
-        } else if (vehicle_control_interface_->getCommandedSpeed() < 0) {
-            if (current_velocity_error < 0.0) current_velocity_error = 0.0;
-        }
-        velocity_error = (velocity_blocked_time * velocity_error + dt * current_velocity_error) / (velocity_blocked_time + dt);
-
-        ROS_DEBUG("Current velocity:   %f", motion_control_setup.current_velocity);
-        ROS_DEBUG("Commanded velocity: %f", vehicle_control_interface_->getCommandedSpeed());
-        ROS_DEBUG("==> Mean error: %f %%", velocity_error * 100.0);
-
-        std_msgs::Float32 temp;
-        temp.data = velocity_error;
-        diagnosticsPublisher.publish(temp);
-
-        if (fabs(velocity_error) > velocity_blocked_limit) {
-            ROS_WARN("I think I am blocked! Terminating current drive goal...");
-            ROS_WARN("Current velocity:   %f", motion_control_setup.current_velocity);
-            ROS_WARN("Commanded velocity: %f", vehicle_control_interface_->getCommandedSpeed());
-            ROS_WARN("==> Mean error: %f %%", velocity_error * 100.0);
-            state = INACTIVE;
-            velocity_error = 0.0;
-            stop();
-
-            publishActionResult(actionlib_msgs::GoalStatus::ABORTED, "blocked");
-        }*/
     }
 
     // camera control
