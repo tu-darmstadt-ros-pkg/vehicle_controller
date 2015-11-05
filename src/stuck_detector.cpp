@@ -20,7 +20,7 @@ void StuckDetector::update(geometry_msgs::PoseStamped const & pose)
                    {
                         return (p.header.stamp - pose_history_.begin()->header.stamp).toSec();
                    });
-    auto it = std::upper_bound(time.begin(), time.end(), secs_to_remove);
+    auto it = std::lower_bound(time.begin(), time.end(), secs_to_remove);
 
     if(it != time.end())
         pose_history_.erase(pose_history_.begin(),
@@ -31,8 +31,8 @@ double StuckDetector::elapsedSecs()
 {
     if(pose_history_.size() < 2)
         return 0.0;
-    ros::Time start = pose_history_.begin()->header.stamp;
-    ros::Time end   = pose_history_.end()->header.stamp;
+    ros::Time start = pose_history_.front().header.stamp;
+    ros::Time end   = pose_history_.back().header.stamp;
     return (end - start).toSec();
 }
 
@@ -76,5 +76,6 @@ bool StuckDetector::operator ()()
     double max_ang = std::abs(constrainAngle_mpi_pi(quat2ZAngle(it_max_ang->pose.orientation)
                                                     - quat2ZAngle(start_pose.orientation)));
     double max_lin = euclideanDistance(it_max_lin->pose.position, start_pose.position);
-    return max_ang < M_PI / 4 && max_lin / time_diff < 0.1 * mp.commanded_speed;
+    time_diff = elapsedSecs();
+    return max_ang < M_PI / 4 && max_lin / time_diff < 0.1 * mp.commanded_speed && time_diff >= DETECTION_WINDOW;
 }

@@ -20,7 +20,7 @@ protected:
     double elapsedSecs();
 
 public:
-    static constexpr double DEFAULT_DETECTION_WINDOW = 15.0;
+    static constexpr double DEFAULT_DETECTION_WINDOW = 8.0;
 
     StuckDetector(MotionParameters const & mp, double detection_window = DEFAULT_DETECTION_WINDOW);
 

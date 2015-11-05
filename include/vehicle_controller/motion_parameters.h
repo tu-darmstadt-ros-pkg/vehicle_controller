@@ -37,7 +37,11 @@ class MotionParameters
 
     void limitSpeed(double &speed)
     {
-      double inclination_max_speed = std::max(fabs(speed) * (1.0 - current_inclination * inclination_speed_reduction_factor), 0.0);
+//        std::cout << "speed @ 1 = " << speed << std::endl;
+        double current_inclination = 0.0;
+//        std::cout << "current_inclination = " << current_inclination << std::endl;
+
+        double inclination_max_speed = std::max(fabs(speed) * (1.0 - current_inclination * inclination_speed_reduction_factor), 0.0);
 
       if (speed > 0.0) {
         if (speed > max_controller_speed_) speed = max_controller_speed_;
@@ -48,6 +52,8 @@ class MotionParameters
         if (speed < -inclination_max_speed) speed = -inclination_max_speed;
         if (speed > -min_speed) speed = -min_speed;
       }
+//      std::cout << "speed @ 2 = " << speed << std::endl;
+
     }
 
     bool USE_FINAL_TWIST_;

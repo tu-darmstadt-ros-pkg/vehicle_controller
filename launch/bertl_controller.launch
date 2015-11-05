@@ -24,7 +24,7 @@
     
     <param name="wheel_separation" value="0.5" />
 
-    <param name="stuck_detection_window" value="15.0" />
+    <param name="stuck_detection_window" value="8.0" />
   </node>
 </launch>
 
