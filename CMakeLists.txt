@@ -23,7 +23,7 @@ add_definitions("-std=c++11")
 ## DEPENDS: system dependencies of this project that dependent projects also need
 
 generate_dynamic_reconfigure_options(
-  cfg/pd_params.cfg
+  cfg/PdParams.cfg
 )
 
 catkin_package(
