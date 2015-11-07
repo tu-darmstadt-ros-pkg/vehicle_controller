@@ -2,6 +2,7 @@
 #include "quaternions.h"
 #include "utility.h"
 
+const double StuckDetector::DEFAULT_DETECTION_WINDOW = 8.0;
 
 StuckDetector::StuckDetector(MotionParameters const & mp, double detection_window) : mp(mp), DETECTION_WINDOW(detection_window)
 {
