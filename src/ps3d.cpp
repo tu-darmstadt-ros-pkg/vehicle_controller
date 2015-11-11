@@ -1,7 +1,8 @@
 #include <vehicle_controller/ps3d.h>
+#include <vehicle_controller/quaternions.h>
+
 #include <iostream>
 
-#include "quaternions.h"
 #include <ros/ros.h>
 
 using std::vector;

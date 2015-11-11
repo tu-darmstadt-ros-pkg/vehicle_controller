@@ -26,8 +26,8 @@
 */
 
 #include <vehicle_controller/stuck_detector.h>
-#include "quaternions.h"
-#include "utility.h"
+#include <vehicle_controller/quaternions.h>
+#include <vehicle_controller/utility.h>
 
 const double StuckDetector::DEFAULT_DETECTION_WINDOW = 8.0;
 

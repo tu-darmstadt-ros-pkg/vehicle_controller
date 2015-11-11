@@ -1,21 +1,22 @@
 #include <vehicle_controller/controller.h>
+#include <vehicle_controller/quaternions.h>
+#include <vehicle_controller/utility.h>
+
 #include <ros/ros.h>
 #include <tf/transform_datatypes.h>
 #include <limits>
 
-#include "quaternions.h"
-
 #include <geometry_msgs/PointStamped.h>
 #include <std_msgs/Float32.h>
 #include <std_msgs/String.h>
+
 #include <hector_move_base_msgs/move_base_action.h>
 #include <vehicle_controller/four_wheel_steer_controller.h>
 #include <vehicle_controller/differential_drive_controller.h>
+
 #include <algorithm>
 #include <sstream>
 #include <functional>
-
-#include "utility.h"
 
 Controller::Controller(const std::string& ns)
     : stuck(new StuckDetector(mp_)), nh(ns), state(INACTIVE)
@@ -89,8 +90,7 @@ bool Controller::configure()
     }
     this->vehicle_control_interface_->configure(params, &mp_);
 
-
-    ROS_INFO("Loaded %s as low level vehicle motion controller", this->vehicle_control_interface_->getName().c_str());
+    ROS_INFO("[vehicle_controller] Low level vehicle motion controller is %s", this->vehicle_control_interface_->getName().c_str());
 
     stateSubscriber     = nh.subscribe("state", 10, &Controller::stateCallback, this);
     drivetoSubscriber   = nh.subscribe("driveto", 10, &Controller::drivetoCallback, this);
