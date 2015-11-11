@@ -1,6 +1,8 @@
 #ifndef ps3d_h
 #define ps3d_h
 
+#include <vehicle_controller/ps3d_motion_parameters.h>
+
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/StdVector>
@@ -27,10 +29,10 @@ private:
     bool        allow_reverse_paths;          // Flag indicating if reverse paths are allowed
                                               // Switch on for tracked vehicles
     vec3 const  local_robot_direction;
-
+    PS3dMotionParameters * mp;
 
 public:
-    Pathsmoother3D(bool allow_reverse_paths);
+    Pathsmoother3D(bool allow_reverse_paths, PS3dMotionParameters * mp);
 
     void smooth(deque_vec3 const & in_path, quat const & in_start_orientation, quat const & in_end_orientation, vector_vec3 & out_smooth_positions,
                 vector_quat & out_smooth_orientations, bool forbid_reverse_path);
@@ -45,8 +47,7 @@ protected:
 
     vector_vec3 computeSmoothedPositions(std::vector<float> const & distances, deque_vec3 const & positions);
 
-    vector_quat computeSmoothedOrientations(std::vector<float> const & distances, deque_vec3 const & original_positions,
-                                            vector_vec3 const & smoothed_positions, quat const & start_orientation, quat const & end_orientation, bool reverse);
+    vector_quat computeSmoothedOrientations(vector_vec3 const & smoothed_positions, quat const & start_orientation, quat const & end_orientation, bool reverse);
 
     float gaussianWeight(float t0, float t1);
 

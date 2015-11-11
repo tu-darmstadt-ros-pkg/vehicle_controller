@@ -5,14 +5,15 @@
     <param name="carrot_distance" value="0.5" />
     <param name="speed" value="0.25" />
     <param name="max_speed" value="1.0" />
-    <param name="check_if_blocked" value="true" />
     <param name="velocity_blocked_limit" value="0.8" />
 
-    <param name="velocity_blocked_time" value="3.0" />
     <param name="vehicle_type" value="monstertruck" />
 
     <param name="goal_position_tolerance" value="0.1" />
-    <param name="goal_angle_tolerance" value="0.087266463" />
+    <param name="goal_angle_tolerance" value="0.087266463" /><!-- 5 deg -->
+
+    <param name="check_stuck" value="true" />
+    <param name="stuck_detection_window" value="4.0" />
   </node>
 </launch>
 

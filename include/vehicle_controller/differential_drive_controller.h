@@ -23,7 +23,6 @@
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 */
 
 #ifndef DIFFERENTIAL_DRIVE_CONTROLLER_H
@@ -50,8 +49,14 @@ class DifferentialDriveController: public VehicleControlInterface
 
     inline virtual bool hasReachedFinalOrientation(double goal_angle_error, double tol)
     {
-        /// for symmetric robot!
-        return std::abs(goal_angle_error) < tol || std::abs(goal_angle_error - M_PI) < tol || std::abs(goal_angle_error + M_PI) < tol;
+        if(mp_->isYSymmetric())
+        {
+            return std::abs(goal_angle_error) < tol || std::abs(goal_angle_error - M_PI) < tol || std::abs(goal_angle_error + M_PI) < tol;
+        }
+        else
+        {
+            return std::abs(goal_angle_error) < tol;
+        }
     }
 
     void pdGainCallback(vehicle_controller::PdParamsConfig & config, uint32_t level);
@@ -60,7 +65,7 @@ class DifferentialDriveController: public VehicleControlInterface
 
     virtual void executeTwist(const geometry_msgs::Twist& inc_twist);
 
-    void executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed);
+    void executePDControlledMotionCommand(double e_angle, double e_position, double dt);
 
     virtual void executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error,
                                       double carrot_distance, double speed,
@@ -83,14 +88,19 @@ class DifferentialDriveController: public VehicleControlInterface
     void limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate);
 
   protected:
-    ros::Publisher cmdVelRawPublisher_;
-    ros::Publisher pdoutPublisher_;
+    ros::Publisher cmd_vel_raw_pub_;
+    ros::Publisher pdout_pub_;
+
     geometry_msgs::Twist twist;
     MotionParameters* mp_;
 
   private:
 
-    double wheel_separation_;
+    double KP_ANGLE_;
+    double KD_ANGLE_;
+    double KP_POSITION_;
+    double KD_POSITION_;
+    double SPEED_REDUCTION_GAIN_;
 
     //
     // TODO

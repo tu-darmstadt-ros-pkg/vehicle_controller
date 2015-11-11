@@ -1,18 +1,16 @@
 #include <vehicle_controller/ps3d.h>
-#include <iostream>
+#include <vehicle_controller/quaternions.h>
 
-#include "quaternions.h"
 #include <ros/ros.h>
 
 using std::vector;
 
-Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths)
-    : SMOOTHED_PATH_DISCRETIZATION(0.05), // Hector best practice
-      PATH_SMOOTHNESS(0.125),             // Hector best practice
-      // SMOOTHED_PATH_DISCRETIZATION(0.04),
-      // PATH_SMOOTHNESS(2.0),
+Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths, PS3dMotionParameters * mp)
+    : SMOOTHED_PATH_DISCRETIZATION(0.05),// Hector best practice values
+      PATH_SMOOTHNESS(0.125),            // Hector best practice values
       allow_reverse_paths(allow_reverse_paths),
-      local_robot_direction(vec3(1,0,0))
+      local_robot_direction(vec3(1,0,0)), // ROS Cosy has always x axis being perpendicular to the front of the robot
+      mp(mp)
 {
 
 }
@@ -30,10 +28,8 @@ vector<float> Pathsmoother3D::computeAccumulatedDistances(deque_vec3 const & pos
   return result;
 }
 
-void Pathsmoother3D::smooth(deque_vec3 const & in_path,
-                            quat const & in_start_orientation, quat const & in_end_orientation,
-                            vector_vec3 & out_smooth_positions,
-                            vector_quat & out_smooth_orientations, bool forbid_reverse_path)
+void Pathsmoother3D::smooth(deque_vec3 const & in_path, quat const & in_start_orientation, quat const & in_end_orientation,
+                            vector_vec3 & out_smooth_positions, vector_quat & out_smooth_orientations, bool forbid_reverse_path)
 {
     // Missing
     // forbid_reverse_path has to switched on by the user if the robot is too far away from the path.
@@ -49,43 +45,43 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path,
     {
         if(in_path.size() >= 2 && smoothed_positions.size() >= in_path.size())
         {
-#ifdef OLD_CRITERION_FOR_REVERSE_PATHS
-            bool distC = distances.back() < 1.5;
-            // Assume global COSY = COSY in position[0], current direction of looking = (1,0,0)
-            // given: smoothed_positions[0] in WORLD COORDINATES
-            // given: rotation at position 0
-            // searched: direction the robot is looking in LOCAL COORDINATES
+            if(mp->isYSymmetric())
+            {
+                vec3 start_path_delta = (smoothed_positions[0] - smoothed_positions[1]).normalized();
+                double start_projection = start_path_delta.dot(in_start_orientation * local_robot_direction);
+                reverse = start_path_delta.dot(in_start_orientation * local_robot_direction) > 0.0;
 
-            vec3 start_vec(1,0,0);
-            vec3 start_path_delta = (smoothed_positions[0] - smoothed_positions[1]).normalized();
-            double start_path_projection = start_path_delta.dot(in_start_orientation * start_vec);
+                if(reverse)
+                    ROS_INFO("[Pathsmoother3D] REVERSE! start_projection = %f", start_projection);
+            }
+            else
+            {
+                bool distC = distances.back() < 1.5;
 
-            vec3 end_path_delta = (smoothed_positions[smoothed_positions.size() - 2] - smoothed_positions.back()).normalized();
-            vec3 end_vec = (in_end_orientation * start_vec).normalized();
-            double end_path_projection = end_path_delta.dot(end_vec);
+                // Assume global COSY = COSY in position[0], current direction of looking = (1,0,0)
+                // given: smoothed_positions[0] in WORLD COORDINATES
+                // given: rotation at position 0
+                // searched: direction the robot is looking in LOCAL COORDINATES
 
-            bool startC = start_path_projection > 0;
-            bool endC = end_path_projection > 0;
+                vec3 start_path_delta = (smoothed_positions[0] - smoothed_positions[1]).normalized();
+                double start_path_projection = start_path_delta.dot(in_start_orientation * local_robot_direction);
 
-            reverse = distC && startC && endC;
+                vec3 end_path_delta = (smoothed_positions[smoothed_positions.size() - 2] - smoothed_positions.back()).normalized();
+                vec3 end_vec = (in_end_orientation * local_robot_direction).normalized();
+                double end_path_projection = end_path_delta.dot(end_vec);
 
-            std::cout << "spd = " << start_path_delta.transpose() << " | " << "(spd,start_vec) = " << start_path_projection << std::endl;
-            std::cout << "epd = " << end_path_delta.transpose() << " | " << "(epd,end_vec) = " << end_path_projection << std::endl;
-            std::cout << "end_vec = " << end_vec.transpose() << std::endl;
+                bool startC = start_path_projection > 0;
+                bool endC = end_path_projection > 0;
 
-            if(reverse)
-                ROS_INFO("REVERSE! dist = %d, start = %d, end = %d", distC, startC, endC);
-#else
-            vec3 start_path_delta = (smoothed_positions[0] - smoothed_positions[1]).normalized();
-            double start_projection = start_path_delta.dot(in_start_orientation * local_robot_direction);
-            reverse = start_path_delta.dot(in_start_orientation * local_robot_direction) > 0.0;
-            if(reverse)
-                ROS_INFO("REVERSE! start_projection = %f", start_projection);
-#endif
+                reverse = distC && startC && endC;
+
+                if(reverse)
+                    ROS_WARN("[Pathsmoother3D] REVERSE! dist = %d, start = %d, end = %d", distC, startC, endC);
+            }
         }
     }
 
-    smoothed_orientations = computeSmoothedOrientations(distances, in_path, smoothed_positions, in_start_orientation, in_end_orientation, reverse);
+    smoothed_orientations = computeSmoothedOrientations(smoothed_positions, in_end_orientation, in_start_orientation, reverse);
     out_smooth_positions = smoothed_positions;
     out_smooth_orientations = smoothed_orientations;
 }
@@ -145,8 +141,7 @@ vector_vec3 Pathsmoother3D::computeSmoothedPositions(std::vector<float> const & 
 }
 
 
-vector_quat Pathsmoother3D::computeSmoothedOrientations(std::vector<float> const & distances, deque_vec3 const & original_positions,
-                                        vector_vec3 const & smoothed_positions, quat const & start_orientation, quat const & end_orientation, bool reverse)
+vector_quat Pathsmoother3D::computeSmoothedOrientations(vector_vec3 const & smoothed_positions, quat const & start_orientation, quat const & end_orientation, bool reverse)
 {
     vector_quat smoothed_orientations;
     smoothed_orientations.reserve(smoothed_positions.size());

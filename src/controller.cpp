@@ -1,12 +1,14 @@
 #include <vehicle_controller/controller.h>
+#include <vehicle_controller/quaternions.h>
+#include <vehicle_controller/utility.h>
+
 #include <ros/ros.h>
 #include <tf/transform_datatypes.h>
 #include <limits>
 
-#include "quaternions.h"
-
 #include <geometry_msgs/PointStamped.h>
 #include <std_msgs/Float32.h>
+#include <std_msgs/String.h>
 
 #include <hector_move_base_msgs/move_base_action.h>
 #include <vehicle_controller/four_wheel_steer_controller.h>
@@ -14,51 +16,22 @@
 
 #include <algorithm>
 #include <sstream>
-
 #include <functional>
 
-// #define END_TWIST
-
-double constrainAngle_0_2pi(double x)
-{
-    x = fmod(x, 2.0 * M_PI);
-    if (x < 0)
-        x += 2.0 * M_PI;
-    return x;
-}
-
-double constrainAngle_mpi_pi(double x)
-{
-    x = fmod(x + M_PI, 2.0 * M_PI);
-    if (x < 0)
-        x += 2.0 * M_PI;
-    return x - M_PI;
-}
-
-static double angularNorm(double diff)
-{
-    static const double M_2PI = 2.0 * M_PI;
-    diff -= floor(diff/M_2PI + .5)*M_2PI;
-    return diff;
-}
-
-float euclideanDistance(geometry_msgs::Point const & p0, geometry_msgs::Point const & p1)
-{
-  return std::sqrt(std::pow(p1.x - p0.x, 2) + std::pow(p1.y - p0.y, 2) + std::pow(p1.z - p0.z, 2));
-}
-
 Controller::Controller(const std::string& ns)
-    : nh(ns)
-    , state(INACTIVE)
+    : stuck(new StuckDetector(mp_)), nh(ns), state(INACTIVE)
 {
-    motion_control_setup.carrot_distance = 1.0;
-    motion_control_setup.min_speed = 0.1;
-    motion_control_setup.max_controller_speed_ = 0.25;
-    motion_control_setup.max_unlimited_speed_ = 2.0;
-    motion_control_setup.max_unlimited_angular_rate_ = 1.0;
-    motion_control_setup.max_controller_angular_rate_ =  0.4;
-    motion_control_setup.inclination_speed_reduction_factor = 0.5 / (30 * M_PI/180.0); // 0.5 per 30 degrees
-    motion_control_setup.inclination_speed_reduction_time_constant = 0.3;
+    mp_.carrot_distance = 1.0;
+    mp_.min_speed = 0.1;
+    mp_.commanded_speed = 0.0;
+    mp_.max_controller_speed_ = 0.25;
+    mp_.max_unlimited_speed_ = 2.0;
+    mp_.max_unlimited_angular_rate_ = 1.0;
+    mp_.max_controller_angular_rate_ =  0.4;
+    mp_.commanded_speed = 0.18;
+    mp_.inclination_speed_reduction_factor = 0.5 / (30 * M_PI/180.0); // 0.5 per 30 degrees
+    mp_.inclination_speed_reduction_time_constant = 0.3;
+    mp_.flipper_name = "flipper_front";
     map_frame_id = "nav";
     base_frame_id = "base_link";
 
@@ -66,13 +39,9 @@ Controller::Controller(const std::string& ns)
     camera_lookat_distance = 1.0;
     camera_lookat_height = -0.2;
 
-    check_if_blocked = true;
-    velocity_blocked_time = 5.0;
-    linear_speed_blocked_ = 0.05;
-    angular_speed_blocked_ = 0.05;
+    check_stuck = true;
 
-    motion_control_setup.current_velocity = 0.0;
-    motion_control_setup.current_inclination = 0.0;
+    mp_.current_inclination = 0.0;
     velocity_error = 0.0;
 
     goal_position_tolerance = 0.0;
@@ -93,27 +62,25 @@ Controller::~Controller()
 bool Controller::configure()
 {
     ros::NodeHandle params("~");
-    params.getParam("carrot_distance", motion_control_setup.carrot_distance);
-    params.getParam("min_speed", motion_control_setup.min_speed);
+    params.getParam("carrot_distance", mp_.carrot_distance);
+    params.getParam("min_speed", mp_.min_speed);
     params.getParam("frame_id", map_frame_id);
     params.getParam("base_frame_id", base_frame_id);
     params.getParam("camera_control", camera_control);
     params.getParam("camera_lookat_distance", camera_lookat_distance);
     params.getParam("camera_lookat_height", camera_lookat_height);
-    params.getParam("check_if_blocked", check_if_blocked);
-    params.getParam("velocity_blocked_time", velocity_blocked_time);
-    params.getParam("linear_speed_blocked", linear_speed_blocked_);
-    params.getParam("angular_speed_blocked", angular_speed_blocked_);
-    params.getParam("inclination_speed_reduction_factor", motion_control_setup.inclination_speed_reduction_factor);
-    params.getParam("inclination_speed_reduction_time_constant", motion_control_setup.inclination_speed_reduction_time_constant);
+    params.getParam("check_stuck", check_stuck);
+    params.getParam("inclination_speed_reduction_factor", mp_.inclination_speed_reduction_factor);
+    params.getParam("inclination_speed_reduction_time_constant", mp_.inclination_speed_reduction_time_constant);
     params.getParam("goal_position_tolerance", goal_position_tolerance);
     params.getParam("goal_angle_tolerance", goal_angle_tolerance);
-    params.getParam("vehicle_type", vehicle_type);
+    vehicle_control_type = "differential_steering";
+    params.getParam("vehicle_control_type", vehicle_control_type);
+    double stuck_detection_window = StuckDetector::DEFAULT_DETECTION_WINDOW;
+    params.param("stuck_detection_window", stuck_detection_window, StuckDetector::DEFAULT_DETECTION_WINDOW);
+    stuck.reset(new StuckDetector(mp_, stuck_detection_window));
 
-    std::string vehicle_plugin = "differential_steering";
-    params.getParam("vehicle_control_type", vehicle_plugin);
-
-    if (vehicle_plugin == "differential_steering")
+    if (vehicle_control_type == "differential_steering")
     {
         this->vehicle_control_interface_.reset(new DifferentialDriveController());
     }
@@ -121,11 +88,9 @@ bool Controller::configure()
     {
         this->vehicle_control_interface_.reset(new FourWheelSteerController());
     }
+    this->vehicle_control_interface_->configure(params, &mp_);
 
-    this->vehicle_control_interface_->configure(params, &motion_control_setup);
-
-
-    ROS_INFO("Loaded %s as low level vehicle motion controller", this->vehicle_control_interface_->getName().c_str());
+    ROS_INFO("[vehicle_controller] Low level vehicle motion controller is %s", this->vehicle_control_interface_->getName().c_str());
 
     stateSubscriber     = nh.subscribe("state", 10, &Controller::stateCallback, this);
     drivetoSubscriber   = nh.subscribe("driveto", 10, &Controller::drivetoCallback, this);
@@ -134,19 +99,23 @@ bool Controller::configure()
     cmd_velTeleopSubscriber = nh.subscribe("cmd_vel_teleop", 10, &Controller::cmd_velTeleopCallback, this);
     speedSubscriber     = nh.subscribe("speed", 10, &Controller::speedCallback, this);
 
-
     carrotPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("carrot", 1, true);
     drivepathPublisher  = nh.advertise<nav_msgs::Path>("drivepath", 1, true);
 
     pathPosePublisher = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
 
+    cmd_flipper_toggle_sub_ = nh.subscribe("cmd_flipper_toggle", 10, &Controller::cmd_flipper_toggleCallback, this);
+    joint_states_sub_ = nh.subscribe("joint_states", 1, &Controller::joint_statesCallback, this);
+
     diagnosticsPublisher = params.advertise<std_msgs::Float32>("velocity_error", 1, true);
+    autonomy_level_pub_ = nh.advertise<std_msgs::String>("/autonomy_level", 30);
+    jointstate_cmd_pub_ = nh.advertise<sensor_msgs::JointState>("/jointstate_cmd", 1, true);
 
     // action interface
     ros::NodeHandle action_nh("controller");
-    actionSubscriber      = action_nh.subscribe("generic", 10, &Controller::actionCallback, this);
-    actionGoalSubscriber  = action_nh.subscribe("goal", 10, &Controller::actionGoalCallback, this);
-    actionPathSubscriber  = action_nh.subscribe("path", 10, &Controller::actionPathCallback, this);
+    actionSubscriber      = action_nh.subscribe("generic", 10, &Controller::actionCallback,     this);
+    actionGoalSubscriber  = action_nh.subscribe("goal",    10, &Controller::actionGoalCallback, this);
+    actionPathSubscriber  = action_nh.subscribe("path",    10, &Controller::actionPathCallback, this);
     actionResultPublisher = action_nh.advertise<hector_move_base_msgs::MoveBaseActionResult>("result", 1);
 
     // alternative_tolerances_service
@@ -160,10 +129,18 @@ bool Controller::configure()
         lookatPublisher = nh.advertise<geometry_msgs::PointStamped>("camera/look_at", 1);
         cameraOrientationPublisher.publish(cameraDefaultOrientation);
     }
-
     empty_path.header.frame_id = map_frame_id;
 
     return true;
+}
+
+void Controller::joint_statesCallback(sensor_msgs::JointStateConstPtr msg)
+{
+    auto it = std::find(msg->name.begin(), msg->name.end(), mp_.flipper_name);
+    if(it != msg->name.end())
+    {
+        flipper_state = msg->position[std::distance(msg->name.begin(), it)];
+    }
 }
 
 void Controller::stateCallback(const nav_msgs::Odometry& state)
@@ -190,12 +167,11 @@ void Controller::stateCallback(const nav_msgs::Odometry& state)
         return;
     }
 
-    motion_control_setup.current_velocity = this->velocity.vector.x;
     double inclination = acos(this->pose.pose.orientation.w*this->pose.pose.orientation.w - this->pose.pose.orientation.x*this->pose.pose.orientation.x - this->pose.pose.orientation.y*this->pose.pose.orientation.y + this->pose.pose.orientation.z*this->pose.pose.orientation.z);
-    if (inclination >= motion_control_setup.current_inclination)
-        motion_control_setup.current_inclination = inclination;
+    if (inclination >= mp_.current_inclination)
+        mp_.current_inclination = inclination;
     else
-        motion_control_setup.current_inclination = (motion_control_setup.inclination_speed_reduction_time_constant * motion_control_setup.current_inclination + dt * inclination) / (motion_control_setup.inclination_speed_reduction_time_constant + dt);
+        mp_.current_inclination = (mp_.inclination_speed_reduction_time_constant * mp_.current_inclination + dt * inclination) / (mp_.inclination_speed_reduction_time_constant + dt);
 
     update();
 }
@@ -204,7 +180,7 @@ void Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStam
 {
     geometry_msgs::PoseStampedConstPtr goal = event.getConstMessage();
 
-    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new goal");
+    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received a new goal.");
     driveto(*goal);
 }
 
@@ -213,12 +189,14 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal)
     reset();
 
     geometry_msgs::PoseStamped goal_transformed;
-    try{
+    try
+    {
         listener.waitForTransform(this->map_frame_id, goal.header.frame_id, goal.header.stamp, ros::Duration(3.0));
         listener.transformPose(this->map_frame_id, goal, goal_transformed);
     }
-    catch (tf::TransformException ex) {
-        ROS_ERROR("%s", ex.what());
+    catch (tf::TransformException ex)
+    {
+        ROS_ERROR("[vehicle_controller] %s", ex.what());
         stop();
         publishActionResult(actionlib_msgs::GoalStatus::REJECTED);
         return false;
@@ -228,7 +206,8 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal)
     addLeg(goal_transformed.pose);
     state = DRIVETO;
 
-    ROS_INFO("Received new goal point (x = %.2f, y = %.2f)", goal_transformed.pose.position.x, goal_transformed.pose.position.y);
+    ROS_INFO("[vehicle_controller] Received new goal point (x = %.2f, y = %.2f), backward = %d.",
+             goal_transformed.pose.position.x, goal_transformed.pose.position.y, legs.back().backward);
 
     final_twist_trials = 0;
     publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
@@ -244,12 +223,20 @@ void Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& even
     drivepath(*path);
 }
 
+void Controller::cmd_flipper_toggleCallback(std_msgs::Empty const &)
+{
+    sensor_msgs::JointState msg;
+    msg.name = { mp_.flipper_name };
+    msg.position = { flipper_state < mp_.flipper_switch_position ? mp_.flipper_high_position : mp_.flipper_low_position };
+    jointstate_cmd_pub_.publish(msg);
+}
+
 bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transformed_path)
 {
-    // check if this path shall be smoothed
+    // Check if this path shall be smoothed
     // <=> path is output of exploration planner
-    //     and hence, the points lie in the centers
-    //     of neighbouring grid cells.
+    //     and hence, the points lie in the centers of neighbouring grid cells.
+    // Note: This function not robust to changes in the exploration planner
     double lu = 0.05 - 1e-5;
     double lo = std::sqrt(2.0) * 0.05 + 1e-5;
     bool path_to_be_smoothed = transformed_path.size() > 2;
@@ -266,6 +253,7 @@ bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transf
 bool Controller::drivepath(const nav_msgs::Path& path)
 {
     reset();
+
     if (path.poses.size() == 0)
     {
         ROS_WARN("[vehicle_controller] Received empty path");
@@ -273,9 +261,10 @@ bool Controller::drivepath(const nav_msgs::Path& path)
         publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
         return false;
     }
+
     if (path.poses.size() == 1)
     {
-        ROS_WARN("[vehicle_controller] Received path with only one pose, ignoring as this lead to crashes");
+        ROS_WARN("[vehicle_controller] Received path with only one pose, ignoring as this leads to crashes");
         stop();
         publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
         return false;
@@ -303,9 +292,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
         this->start = map_path[0];
         this->start.orientation = this->pose.pose.orientation;
 
-        // bool allow_reverse = vehicle_type == "tracked";
-        bool allow_reverse = true;
-        Pathsmoother3D ps3d(allow_reverse);
+        Pathsmoother3D ps3d(vehicle_control_type == "differential_steering", &mp_);
 
         quat in_start_orientation;
         quat in_end_orientation;
@@ -319,20 +306,6 @@ bool Controller::drivepath(const nav_msgs::Path& path)
                                     this->pose.pose.orientation.y, this->pose.pose.orientation.z);
         in_end_orientation = quat(map_path.back().orientation.w, map_path.back().orientation.x,
                                   map_path.back().orientation.y, map_path.back().orientation.z);
-
-//        if(in_path.size() >= 3)
-//        {
-//            // HACKY fix for (at ARGOS) undesired feature in exploration planner.
-//            // Now, does not contain deviating point at very last position, but extrapolates
-//            // from previous point
-
-//            vec3 last_dir = in_path[in_path.size() - 1] - in_path[in_path.size() - 2];
-//            vec3 ref_dir  = in_path[in_path.size() - 2] - in_path[in_path.size() - 3];
-
-//            vec3 new_last_dir = ref_dir.normalized().dot(last_dir) * ref_dir.normalized();
-
-//            in_path.back() = in_path[in_path.size() - 2] + new_last_dir;
-//        }
 
         vector_vec3 out_smoothed_positions;
         vector_quat out_smoothed_orientations;
@@ -385,11 +358,10 @@ bool Controller::drivepath(const nav_msgs::Path& path)
 
     state = DRIVEPATH;
     //@TODO The below crashed when a path with only one entry has been received. See check on top of this function.
-    ROS_INFO("Received new path to goal point (x = %.2f, y = %.2f)", legs.back().p2.x, legs.back().p2.y);
+    ROS_INFO("[vehicle_controller] Received new path to goal point (x = %.2f, y = %.2f)", legs.back().p2.x, legs.back().p2.y);
     publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
     return true;
 }
-
 
 geometry_msgs::Pose Controller::createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation)
 {
@@ -403,7 +375,6 @@ geometry_msgs::Pose Controller::createPoseFromQuatAndPosition(vec3 const & posit
     pose.orientation.z = orientation.z();
     return pose;
 }
-
 
 bool Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, const nav_msgs::Path& path)
 {
@@ -431,18 +402,11 @@ bool Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, 
     return true;
 }
 
-
 void Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
 {
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
     reset();
-
-    if (velocity.linear.x == 0.0) {
-        state = INACTIVE;
-    } else {
-        state = VELOCITY;
-    }
-
+    state = velocity.linear.x == 0.0 ? INACTIVE : VELOCITY;
     vehicle_control_interface_->executeTwist(velocity);
 }
 
@@ -450,19 +414,18 @@ void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 {
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
     reset();
+    state = velocity.linear.x == 0.0 ? INACTIVE : VELOCITY;
 
-    if (velocity.linear.x == 0.0) {
-        state = INACTIVE;
-    } else {
-        state = VELOCITY;
-    }
+    std_msgs::String autonomy_level;
+    autonomy_level.data = "teleop";
+    autonomy_level_pub_.publish(autonomy_level);
 
     vehicle_control_interface_->executeUnlimitedTwist(velocity);
 }
 
 void Controller::speedCallback(const std_msgs::Float32& speed)
 {
-    motion_control_setup.max_controller_speed_ = speed.data;
+    mp_.commanded_speed = speed.data;
 }
 
 bool Controller::alternativeTolerancesService(monstertruck_msgs::SetAlternativeTolerance::Request& req,
@@ -480,37 +443,39 @@ void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGener
     this->goalID.reset(new actionlib_msgs::GoalID(action.goal_id));
 
     hector_move_base_msgs::MoveBasePathPtr path_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBasePath>(action);
-    if (path_action) {
+    if (path_action)
+    {
         drivepath(path_action->target_path);
         drivepathPublisher.publish(path_action->target_path);
     }
 
     hector_move_base_msgs::MoveBaseGoalPtr goal_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBaseGoal>(action);
-    if (goal_action) {
+    if (goal_action)
+    {
         driveto(goal_action->target_pose);
-        drivepathPublisher.publish(empty_path); // publish empty path
+        drivepathPublisher.publish(empty_path);
     }
 }
 
 void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal& goal_action)
 {
-    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new goal");
+    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new goal.");
     this->goalID.reset(new actionlib_msgs::GoalID(goal_action.goal_id));
-
     driveto(goal_action.goal.target_pose);
-    drivepathPublisher.publish(empty_path); // publish empty path
+    drivepathPublisher.publish(empty_path);
 }
 
 void Controller::actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath& path_action)
 {
-    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new path");
+    ROS_INFO("PATH ACTION CALLBACK");
+    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new path.");
     this->goalID.reset(new actionlib_msgs::GoalID(path_action.goal_id));
-
     drivepath(path_action.goal.target_path);
     drivepathPublisher.publish(path_action.goal.target_path);
 }
 
-void Controller::publishActionResult(actionlib_msgs::GoalStatus::_status_type status, const std::string& text) {
+void Controller::publishActionResult(actionlib_msgs::GoalStatus::_status_type status, const std::string& text)
+{
     if (!goalID) return;
 
     hector_move_base_msgs::MoveBaseActionResult result;
@@ -539,8 +504,8 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.p1.y = start.position.y;
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
 
-        if(start.orientation.w == 0.0 && start.orientation.x == 0.0
-        && start.orientation.y == 0.0 && start.orientation.z == 0.0)
+        if (start.orientation.w == 0.0 && start.orientation.x == 0.0
+        && start.orientation.y == 0 && start.orientation.z == 0.0)
         {
             leg.p1.orientation = leg.course;
         }
@@ -560,7 +525,8 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
     }
 
     leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
-    if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0 && pose.orientation.y == 0 && pose.orientation.z == 0.0)
+    if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0
+    && pose.orientation.y == 0.0 && pose.orientation.z == 0.0)
     {
         leg.p2.orientation = leg.backward ? angularNorm(leg.course + M_PI) : leg.course;
     }
@@ -570,12 +536,12 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.p2.orientation = angles[0];
     }
 
-    leg.speed = motion_control_setup.DESIRED_SPEED_;
-    leg.length2 = (leg.p2.x-leg.p1.x)*(leg.p2.x-leg.p1.x) + (leg.p2.y-leg.p1.y)*(leg.p2.y-leg.p1.y);
-    leg.length = sqrt(leg.length2);
-    leg.percent = 0.0f;
+    leg.speed   = mp_.commanded_speed;
+    leg.length2 = std::pow(leg.p2.x - leg.p1.x, 2) + std::pow(leg.p2.y - leg.p1.y, 2);
+    leg.length  = std::sqrt(leg.length2);
+    leg.percent = 0.0;
 
-    if (leg.length2 == 0.0f) return;
+    if (leg.length2 == 0.0) return;
     legs.push_back(leg);
 }
 
@@ -599,8 +565,9 @@ void Controller::update()
     double angular_tolerance_for_current_path = goal_angle_tolerance;
 
     // Check if alternative tolerance is set by Service
-    if (alternative_tolerance_goalID && goalID && (alternative_tolerance_goalID->id == goalID->id)) {
-        ROS_DEBUG("[monstertruck_controller]: goalIDs are equal, using alternative tolerance.");
+    if (alternative_tolerance_goalID && goalID && (alternative_tolerance_goalID->id == goalID->id))
+    {
+        ROS_DEBUG("[vehicle_controller]: goalIDs are equal, using alternative tolerance.");
         ROS_INFO("[vehicle_controller] using tolerances = %f deg %f",
                  alternative_angle_tolerance * 180.0 / M_PI, alternative_goal_position_tolerance);
         linear_tolerance_for_current_path = alternative_goal_position_tolerance;
@@ -609,7 +576,7 @@ void Controller::update()
 
     // Check if goal has been reached based an goal_position_tolerance/goal_angle_tolerance
     double goal_position_error = sqrt(pow(legs.back().p2.x - pose.pose.position.x, 2) + pow(legs.back().p2.y - pose.pose.position.y, 2));
-    double goal_angle_error_   = constrainAngle_mpi_pi(legs.back().p2.orientation - angles[0]);
+    double goal_angle_error_   = angularNorm(legs.back().p2.orientation - angles[0]);
     if (goal_position_error < linear_tolerance_for_current_path
     &&  vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path))
     {
@@ -622,13 +589,13 @@ void Controller::update()
     while(1)
     {
         if (current == legs.size())
-        {            
+        {
             goal_angle_error_ = constrainAngle_mpi_pi(goal_angle_error_);
             ROS_INFO("[vehicle_controller] Reached goal point position. angle error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI,
                      angular_tolerance_for_current_path * 180.0 / M_PI);
-            if(final_twist_trials > motion_control_setup.FINAL_TWIST_TRIALS_MAX_
+            if(final_twist_trials > mp_.FINAL_TWIST_TRIALS_MAX_
             || vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path)
-            || !motion_control_setup.USE_FINAL_TWIST_)
+            || !mp_.USE_FINAL_TWIST_)
             {
                 state = INACTIVE;
                 ROS_INFO("[vehicle_controller] Reached goal point orientation! error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI, angular_tolerance_for_current_path * 180.0 / M_PI);
@@ -637,13 +604,12 @@ void Controller::update()
                 publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
                 return;
             }
-            else
+            else // Perform twist at end of path to obtain a desired orientation
             {
                 final_twist_trials++;
-                ROS_INFO("[vehicle_controller] Performing final twist.");
+                ROS_DEBUG("[vehicle_controller] Performing final twist.");
                 this->vehicle_control_interface_->executeMotionCommand(goal_angle_error_, goal_angle_error_,
-                                                                       motion_control_setup.carrot_distance,
-                                                                       0.0, 0.0, dt);
+                                                                       mp_.carrot_distance, 0.0, 0.0, dt);
                 return;
             }
         }
@@ -662,7 +628,7 @@ void Controller::update()
     Point carrot;
     unsigned int carrot_waypoint = current;
     float carrot_percent = legs[current].percent;
-    float carrot_remaining = motion_control_setup.carrot_distance;
+    float carrot_remaining = mp_.carrot_distance;
 
     while(carrot_waypoint < legs.size())
     {
@@ -692,9 +658,12 @@ void Controller::update()
     carrot.y           = (1.0f - carrot_percent) * legs[carrot_waypoint].p1.y + carrot_percent * legs[carrot_waypoint].p2.y;
     // carrot.orientation = legs[carrot_waypoint].p1.orientation + std::min(carrot_percent, 1.0f) * angular_norm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
 
-    if (carrot_waypoint == (legs.size()-1) ){
+    if (carrot_waypoint == legs.size() - 1)
+    {
         carrot.orientation = legs[carrot_waypoint].p1.orientation + std::min(carrot_percent, 1.0f) * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
-    }else{
+    }
+    else
+    {
         carrot.orientation = legs[carrot_waypoint].p1.orientation + /* carrot_percent * */ 1.0f * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
     }
 
@@ -710,105 +679,40 @@ void Controller::update()
 
     // calculate steering angle
     double beta = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
-    double relative_angle    = angularNorm( beta - angles[0]);
-    double orientation_error = angularNorm(-beta + angles[0]);
-    double sign  = legs[current].backward ? -1.0 : 1.0;
-    double speed = sign * legs[current].speed;
+
+    double relative_angle    = constrainAngle_mpi_pi( beta - angles[0]);
+    double orientation_error = constrainAngle_mpi_pi(-beta + angles[0]); // angular_norm(carrot.orientation - angles[0]);
+    float sign = legs[current].backward ? -1.0 : 1.0;
+    float speed = sign * legs[current].speed;
 
     double signed_carrot_distance_2_robot = sign * euclideanDistance(carrotPose.pose.position, pose.pose.position);
-    this->vehicle_control_interface_->executeMotionCommand(relative_angle, orientation_error, motion_control_setup.carrot_distance,
+    if(state == DRIVETO && goal_position_error < 0.6)
+    {
+        if(relative_angle > M_PI_2)
+            relative_angle = relative_angle - M_PI;
+        if(relative_angle < -M_PI_2)
+            relative_angle = M_PI + relative_angle;
+    }
+    this->vehicle_control_interface_->executeMotionCommand(relative_angle, orientation_error, mp_.carrot_distance,
                                                            speed, signed_carrot_distance_2_robot, dt);
 
-
-    int const POSE_HISTORY_SIZE = 50;
-    if(pose_history_.size() < POSE_HISTORY_SIZE)
+    if (check_stuck && !isDtInvalid())
     {
-        pose_history_.push_back(pose);
-    }
-    else
-    {
-        pose_history_.push_back(pose);
-        pose_history_.pop_front();
-    }
-
-
-    // check if vehicle is blocked
-    if (check_if_blocked && dt > 0.0 && pose_history_.size() >= POSE_HISTORY_SIZE)
-    // @ TODO : PM suggest change td > 0.0 to !isDtInvalid()
-    {
-        double acc_lin = 0.0;
-        double max_lin = 0.0;
-        double acc_ang = 0.0;
-        double max_ang = 0.0;
-        for(unsigned i = 1; i < pose_history_.size(); i++)
-        {
-            double e_lin = euclideanDistance(pose_history_[i].pose.position, pose_history_[i - 1].pose.position)
-                       / (pose_history_[i].header.stamp - pose_history_[i - 1].header.stamp).toSec();
-
-            double a0[3];
-            double a1[3];
-            quaternion2angles(pose_history_[i - 1].pose.orientation, a0);
-            quaternion2angles(pose_history_[i].pose.orientation, a1);
-
-            double e_ang = std::min(std::abs(constrainAngle_mpi_pi(a0[0]) - constrainAngle_mpi_pi(a1[0])),
-                                    std::abs(constrainAngle_0_2pi(a0[0]) - constrainAngle_0_2pi(a1[0])))
-                            / (pose_history_[i].header.stamp - pose_history_[i - 1].header.stamp).toSec();
-
-            acc_ang += e_ang;
-            acc_lin += e_lin;
-            max_ang = std::max(max_ang, e_ang);
-            max_lin = std::max(max_lin, e_lin);
-        }
-        acc_lin /= POSE_HISTORY_SIZE;
-        acc_ang /= POSE_HISTORY_SIZE;
-        ROS_DEBUG("[vehicle_controller] acc = %f, max = %f", acc_ang, max_ang);
-
-
-        if(acc_lin < linear_speed_blocked_ && max_lin < linear_speed_blocked_
-        && acc_ang < angular_speed_blocked_ && max_ang < angular_speed_blocked_)
+        stuck->update(pose);
+        if((*stuck)())
         {
             ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal.");
             state = INACTIVE;
             stop();
-
-            pose_history_.clear();
-
-            publishActionResult(actionlib_msgs::GoalStatus::ABORTED, "blocked");
+            stuck->reset();
+            publishActionResult(actionlib_msgs::GoalStatus::ABORTED,
+                                vehicle_control_type == "differential_steering" ? "blocked_tracked" : "blocked");
         }
-
-        /*
-        double current_velocity_error = 0.0;
-        current_velocity_error = (motion_control_setup.current_velocity - vehicle_control_interface_->getCommandedSpeed()) / std::max(fabs(vehicle_control_interface_->getCommandedSpeed()), 0.1);
-        if (vehicle_control_interface_->getCommandedSpeed() > 0) {
-            if (current_velocity_error > 0.0) current_velocity_error = 0.0;
-        } else if (vehicle_control_interface_->getCommandedSpeed() < 0) {
-            if (current_velocity_error < 0.0) current_velocity_error = 0.0;
-        }
-        velocity_error = (velocity_blocked_time * velocity_error + dt * current_velocity_error) / (velocity_blocked_time + dt);
-
-        ROS_DEBUG("Current velocity:   %f", motion_control_setup.current_velocity);
-        ROS_DEBUG("Commanded velocity: %f", vehicle_control_interface_->getCommandedSpeed());
-        ROS_DEBUG("==> Mean error: %f %%", velocity_error * 100.0);
-
-        std_msgs::Float32 temp;
-        temp.data = velocity_error;
-        diagnosticsPublisher.publish(temp);
-
-        if (fabs(velocity_error) > velocity_blocked_limit) {
-            ROS_WARN("I think I am blocked! Terminating current drive goal...");
-            ROS_WARN("Current velocity:   %f", motion_control_setup.current_velocity);
-            ROS_WARN("Commanded velocity: %f", vehicle_control_interface_->getCommandedSpeed());
-            ROS_WARN("==> Mean error: %f %%", velocity_error * 100.0);
-            state = INACTIVE;
-            velocity_error = 0.0;
-            stop();
-
-            publishActionResult(actionlib_msgs::GoalStatus::ABORTED, "blocked");
-        }*/
     }
 
     // camera control
-    if (camera_control) {
+    if (camera_control)
+    {
         // calculate lookat position
         Point lookat;
         unsigned int lookat_waypoint = current;
@@ -858,7 +762,8 @@ void Controller::stop()
 {
     this->vehicle_control_interface_->stop();
     drivepathPublisher.publish(empty_path);
-    if (camera_control) cameraOrientationPublisher.publish(cameraDefaultOrientation);
+    if (camera_control)
+        cameraOrientationPublisher.publish(cameraDefaultOrientation);
 }
 
 void Controller::cleanup()

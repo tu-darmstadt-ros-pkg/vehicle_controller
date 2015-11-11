@@ -9,6 +9,8 @@
 #include <monstertruck_msgs/MotionCommand.h>
 #include <monstertruck_msgs/SetAlternativeTolerance.h>
 #include <std_msgs/Float32.h>
+#include <std_msgs/Empty.h>
+#include <sensor_msgs/JointState.h>
 
 #include <hector_move_base_msgs/MoveBaseActionGeneric.h>
 #include <hector_move_base_msgs/MoveBaseActionGoal.h>
@@ -20,13 +22,20 @@
 
 #include <vehicle_controller/vehicle_control_interface.h>
 #include <vehicle_controller/motion_parameters.h>
+#include <vehicle_controller/ps3d.h>
+#include <vehicle_controller/stuck_detector.h>
+
+#include <memory>
 
 #include <vehicle_controller/ps3d.h>
 
-class Controller {
+class Controller
+{
 public:
   typedef enum { INACTIVE, VELOCITY, DRIVETO, DRIVEPATH } State;
-  typedef struct {
+
+  typedef struct
+  {
     float x;
     float y;
     float orientation;
@@ -50,10 +59,6 @@ public:
 
   friend int main(int, char**);
 
-  bool pathToBeSmoothed(const std::deque<geometry_msgs::Pose> &transformed_path);
-  bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
-  geometry_msgs::Pose createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation);
-
 protected:
   virtual bool configure();
   virtual void update();
@@ -72,6 +77,9 @@ protected:
   virtual void speedCallback(const std_msgs::Float32&);
   virtual bool alternativeTolerancesService(monstertruck_msgs::SetAlternativeTolerance::Request& req, monstertruck_msgs::SetAlternativeTolerance::Response& res);
 
+  void joint_statesCallback(sensor_msgs::JointStateConstPtr msg);
+  void cmd_flipper_toggleCallback(const std_msgs::Empty&);
+
   virtual void actionCallback(const hector_move_base_msgs::MoveBaseActionGeneric&);
   virtual void actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal&);
   virtual void actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath&);
@@ -79,6 +87,10 @@ protected:
 
   void addLeg(geometry_msgs::Pose const&);
   void setDriveCommand(float speed, float kappa, float tan_gamma);
+
+  bool pathToBeSmoothed(const std::deque<geometry_msgs::Pose> &transformed_path);
+  bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
+  geometry_msgs::Pose createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation);
 
 private:
   ros::NodeHandle nh;
@@ -90,6 +102,9 @@ private:
   ros::Subscriber cmd_velSubscriber;
   ros::Subscriber cmd_velTeleopSubscriber;
   ros::Subscriber speedSubscriber;
+  ros::Subscriber cmd_flipper_toggle_sub_;
+  ros::Subscriber joint_states_sub_;
+
 
   ros::Publisher carrotPosePublisher;
   ros::Publisher lookatPublisher;
@@ -98,6 +113,8 @@ private:
   ros::Publisher diagnosticsPublisher;
 
   ros::Publisher pathPosePublisher;
+  ros::Publisher autonomy_level_pub_;
+  ros::Publisher jointstate_cmd_pub_;
 
   // action interface
   ros::Subscriber actionSubscriber;
@@ -121,8 +138,10 @@ private:
   geometry_msgs::Pose start;
   Legs legs;
 
-  // parameters
-  MotionParameters motion_control_setup;
+  double flipper_state;
+
+  // motion parameters (set at launch)
+  MotionParameters mp_;
 
   std::string map_frame_id;
   std::string base_frame_id;
@@ -132,14 +151,10 @@ private:
   double camera_lookat_height;
   geometry_msgs::QuaternionStamped cameraDefaultOrientation;
 
-  bool check_if_blocked;
+  bool check_stuck;
   double dt;
-  //double current_velocity;
-  //double current_inclination;
+
   double velocity_error;
-  double velocity_blocked_time;
-  double linear_speed_blocked_;
-  double angular_speed_blocked_;
 
   double goal_position_tolerance;
   double goal_angle_tolerance;
@@ -150,8 +165,7 @@ private:
 
   boost::shared_ptr<VehicleControlInterface> vehicle_control_interface_;
 
-  std::string vehicle_type;
-
+  std::string vehicle_control_type;
   int final_twist_trials;
 
   inline void invalidateDt()
@@ -161,10 +175,10 @@ private:
 
   inline bool isDtInvalid()
   {
-      return dt == 0.0;
+      return dt <= 0.0;
   }
 
-  std::deque< geometry_msgs::PoseStamped > pose_history_;
+  std::unique_ptr<StuckDetector> stuck;
 };
 
 #endif // VEHICLE_CONTROLLER_H

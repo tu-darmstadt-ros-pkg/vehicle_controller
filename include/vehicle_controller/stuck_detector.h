@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2014, Stefan Kohlbrecher
+    Copyright (c) 2015, Paul Manns
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -25,43 +25,54 @@
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef MOTION_PARAMETERS_H
-#define MOTION_PARAMETERS_H
+#ifndef STUCK_DETECTOR_H
+#define STUCK_DETECTOR_H
 
-#include <string>
+#include <deque>
+#include <algorithm>
 
-#include <vehicle_controller/ps3d_motion_parameters.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <vehicle_controller/motion_parameters.h>
 
-/*
- * Contains motion parameters for the wheeled and tracked robots controlled by
- * the vehicle_controller.
+/**
+ * @brief The StuckDetector class is used to detect if the robot has maneuvered
+ *        into  a position where following the path in the usual manner does not
+ *        work anymore.
  */
-class MotionParameters : public PS3dMotionParameters
+class StuckDetector
 {
-  public:
-    bool USE_FINAL_TWIST_;
-    int FINAL_TWIST_TRIALS_MAX_;
+private:
+    std::deque< geometry_msgs::PoseStamped > pose_history_;
 
-    double flipper_low_position;
-    double flipper_switch_position;
-    double flipper_high_position;
-    std::string flipper_name;
+    double time_diff;
+    double DETECTION_WINDOW;
+    MotionParameters const & mp;
 
-    double carrot_distance;
-    double min_speed;
-    double commanded_speed;
-    double inclination_speed_reduction_factor;
-    double inclination_speed_reduction_time_constant;
-    double current_inclination;
-    double max_controller_speed_;
-    double max_unlimited_speed_;
-    double max_controller_angular_rate_;
-    double max_unlimited_angular_rate_;
+protected:
+    double elapsedSecs();
 
-    inline virtual bool isYSymmetric()
-    {
-        return false; // TODO IMPLEMENT
-    }
+public:
+    static const double DEFAULT_DETECTION_WINDOW;
+
+    StuckDetector(MotionParameters const & mp, double detection_window = DEFAULT_DETECTION_WINDOW);
+
+    double quat2ZAngle(geometry_msgs::Quaternion const & q);
+
+    void update(geometry_msgs::PoseStamped const & pose);
+
+    void reset();
+
+    /**
+     * @brief operator ()
+     *        Core function of the stuck detection class. The robot is deemed stuck if the
+     *        following two conditions are satisfied
+     *        During the sliding time window
+     *        - the robot's orientation has changed less than PI / 5
+     *        - the robot's position has changed less than 10% of what
+     *          the commanded linear speed would imply
+     * @return true if the robot is stuck else false
+     */
+    bool operator()();
 };
 
-#endif
+#endif // STUCK_DETECTOR_H

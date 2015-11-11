@@ -7,6 +7,8 @@ find_package(Eigen REQUIRED)
 include_directories(${EIGEN_INCLUDE_DIRS} include)
 add_definitions(${EIGEN_DEFINITIONS})
 
+add_definitions("-std=c++11")
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -21,7 +23,7 @@ add_definitions(${EIGEN_DEFINITIONS})
 ## DEPENDS: system dependencies of this project that dependent projects also need
 
 generate_dynamic_reconfigure_options(
-  cfg/pd_params.cfg
+  cfg/PdParams.cfg
 )
 
 catkin_package(

@@ -9,17 +9,18 @@
     <param name="speed" value="0.18" />
     <param name="max_speed" value="0.18" />
     <param name="min_speed" value="0.0" />
-    <param name="check_if_blocked" value="false" />
     <param name="velocity_blocked_limit" value="0.5" />
-    <param name="velocity_blocked_time" value="3.0" />
 
+    <param name="vehicle_type" value="tracked" />
     <param name="vehicle_control_type" value="differential_steering"/>
+
     <param name="goal_position_tolerance" value="0.1" />
-    <param name="goal_angle_tolerance" value="0.087266463" />
+    <param name="goal_angle_tolerance" value="0.087266463" /><!-- 5 deg -->
     
     <param name="wheel_separation" value="0.34" />
 
-    <param name="vehicle_type" value="tracked" />
+    <param name="check_stuck" value="true" />
+    <param name="stuck_detection_window" value="4.0" />
   </node>
 </launch>
 
