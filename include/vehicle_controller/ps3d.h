@@ -45,8 +45,7 @@ protected:
 
     vector_vec3 computeSmoothedPositions(std::vector<float> const & distances, deque_vec3 const & positions);
 
-    vector_quat computeSmoothedOrientations(std::vector<float> const & distances, deque_vec3 const & original_positions,
-                                            vector_vec3 const & smoothed_positions, quat const & start_orientation, quat const & end_orientation, bool reverse);
+    vector_quat computeSmoothedOrientations(vector_vec3 const & smoothed_positions, quat const & start_orientation, quat const & end_orientation, bool reverse);
 
     float gaussianWeight(float t0, float t1);
 

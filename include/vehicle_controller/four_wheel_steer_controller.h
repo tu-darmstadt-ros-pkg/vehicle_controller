@@ -23,7 +23,6 @@
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 */
 
 #ifndef FOUR_WHEEL_STEER_CONTROLLER_H
@@ -51,11 +50,26 @@ class FourWheelSteerController: public VehicleControlInterface
         executeTwist(velocity);
     }
 
+    void limitSpeed(double & speed)
+    {
+        double inclination_max_speed = std::max(fabs(speed) * (1.0 - mp_->current_inclination * mp_->inclination_speed_reduction_factor), 0.0);
+        if (speed > 0.0) {
+          if (speed > mp_->max_controller_speed_) speed = mp_->max_controller_speed_;
+          if (speed > inclination_max_speed) speed = inclination_max_speed;
+          if (speed < mp_->min_speed) speed = mp_->min_speed;
+        } else if (speed < 0.0) {
+          if (speed < -mp_->max_controller_speed_) speed = -mp_->max_controller_speed_;
+          if (speed < -inclination_max_speed) speed = -inclination_max_speed;
+          if (speed > -mp_->min_speed) speed = -mp_->min_speed;
+        }
+    }
+
     virtual void executeTwist(const geometry_msgs::Twist& velocity)
     {
       double backward = (velocity.linear.x < 0) ? -1.0 : 1.0;
       double speed = backward * sqrt(velocity.linear.x*velocity.linear.x + velocity.linear.y*velocity.linear.y);
-      mp_->limitSpeed(speed);
+
+      limitSpeed(speed);
 
       float kappa = velocity.angular.z * speed;
       float tan_gamma = tan(velocity.linear.y / velocity.linear.x);
@@ -92,7 +106,7 @@ class FourWheelSteerController: public VehicleControlInterface
 
       float B = 0.16; // half wheel distance (front - rear)
 
-      mp_->limitSpeed(speed);
+      limitSpeed(speed);
       drive.speed = speed;
 
 

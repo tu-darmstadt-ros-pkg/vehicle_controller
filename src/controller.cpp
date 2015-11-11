@@ -8,11 +8,9 @@
 #include <geometry_msgs/PointStamped.h>
 #include <std_msgs/Float32.h>
 #include <std_msgs/String.h>
-
 #include <hector_move_base_msgs/move_base_action.h>
 #include <vehicle_controller/four_wheel_steer_controller.h>
 #include <vehicle_controller/differential_drive_controller.h>
-
 #include <algorithm>
 #include <sstream>
 #include <functional>
@@ -241,10 +239,10 @@ void Controller::cmd_flipper_toggleCallback(std_msgs::Empty const &)
 
 bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transformed_path)
 {
-    // check if this path shall be smoothed
+    // Check if this path shall be smoothed
     // <=> path is output of exploration planner
-    //     and hence, the points lie in the centers
-    //     of neighbouring grid cells.
+    //     and hence, the points lie in the centers of neighbouring grid cells.
+    // Note: This function not robust to changes in the exploration planner
     double lu = 0.05 - 1e-5;
     double lo = std::sqrt(2.0) * 0.05 + 1e-5;
     bool path_to_be_smoothed = transformed_path.size() > 2;
@@ -574,7 +572,7 @@ void Controller::update()
     // Check if alternative tolerance is set by Service
     if (alternative_tolerance_goalID && goalID && (alternative_tolerance_goalID->id == goalID->id))
     {
-        ROS_DEBUG("[monstertruck_controller]: goalIDs are equal, using alternative tolerance.");
+        ROS_DEBUG("[vehicle_controller]: goalIDs are equal, using alternative tolerance.");
         ROS_INFO("[vehicle_controller] using tolerances = %f deg %f",
                  alternative_angle_tolerance * 180.0 / M_PI, alternative_goal_position_tolerance);
         linear_tolerance_for_current_path = alternative_goal_position_tolerance;
@@ -611,10 +609,10 @@ void Controller::update()
                 publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
                 return;
             }
-            else
+            else // Perform twist at end of path to obtain a desired orientation
             {
                 final_twist_trials++;
-                ROS_INFO("[vehicle_controller] Performing final twist.");
+                ROS_DEBUG("[vehicle_controller] Performing final twist.");
                 this->vehicle_control_interface_->executeMotionCommand(goal_angle_error_, goal_angle_error_,
                                                                        mp_.carrot_distance, 0.0, 0.0, dt);
                 return;

@@ -7,12 +7,10 @@
 using std::vector;
 
 Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths)
-    : SMOOTHED_PATH_DISCRETIZATION(0.05),// Hector best practice
-      PATH_SMOOTHNESS(0.125), // Hector best practice
-      // SMOOTHED_PATH_DISCRETIZATION(0.04),
-      // PATH_SMOOTHNESS(2.0),
+    : SMOOTHED_PATH_DISCRETIZATION(0.05),// Hector best practice values
+      PATH_SMOOTHNESS(0.125),            // Hector best practice values
       allow_reverse_paths(allow_reverse_paths),
-      local_robot_direction(vec3(1,0,0))
+      local_robot_direction(vec3(1,0,0)) // ROS Cosy has always x axis being perpendicular to the front of the robot
 {
 
 }
@@ -33,8 +31,8 @@ vector<float> Pathsmoother3D::computeAccumulatedDistances(deque_vec3 const & pos
 }
 
 
-void Pathsmoother3D::smooth(deque_vec3 const & in_path, quat const & in_start_orientation, quat const & in_end_orientation, vector_vec3 & out_smooth_positions,
-                            vector_quat & out_smooth_orientations, bool forbid_reverse_path)
+void Pathsmoother3D::smooth(deque_vec3 const & in_path, quat const & in_start_orientation, quat const & in_end_orientation,
+                            vector_vec3 & out_smooth_positions, vector_quat & out_smooth_orientations, bool forbid_reverse_path)
 {
     // Missing
     // forbid_reverse_path has to switched on by the user if the robot is too far away from the path.
@@ -73,15 +71,10 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path, quat const & in_start_or
 
             reverse = distC && startC && endC;
 
-//            std::cout << "spd = " << start_path_delta.transpose() << " | " << "(spd,start_vec) = " << start_path_projection << std::endl;
-//            std::cout << "epd = " << end_path_delta.transpose() << " | " << "(epd,end_vec) = " << end_path_projection << std::endl;
-//            std::cout << "end_vec = " << end_vec.transpose() << std::endl;
-
             if(reverse)
             {
-                ROS_INFO("REVERSE! dist = %d, start = %d, end = %d", distC, startC, endC);
+                ROS_INFO("[Pathsmoother3D] REVERSE! dist = %d, start = %d, end = %d", distC, startC, endC);
             }
-
         }
     }
 
@@ -146,8 +139,7 @@ vector_vec3 Pathsmoother3D::computeSmoothedPositions(std::vector<float> const & 
 }
 
 
-vector_quat Pathsmoother3D::computeSmoothedOrientations(std::vector<float> const & distances, deque_vec3 const & original_positions,
-                                        vector_vec3 const & smoothed_positions, quat const & start_orientation, quat const & end_orientation, bool reverse)
+vector_quat Pathsmoother3D::computeSmoothedOrientations(vector_vec3 const & smoothed_positions, quat const & start_orientation, quat const & end_orientation, bool reverse)
 {
     vector_quat smoothed_orientations;
     smoothed_orientations.reserve(smoothed_positions.size());
@@ -161,26 +153,8 @@ vector_quat Pathsmoother3D::computeSmoothedOrientations(std::vector<float> const
             if(0 < i && i < smoothed_positions.size() - 1)
             {
                 quat q;
-                // q.setFromTwoVectors(smoothed_positions[i] - smoothed_positions[i - 1], smoothed_positions[i + 1] - smoothed_positions[i]);
                 q.setFromTwoVectors(local_robot_direction, smoothed_positions[i + 1] - smoothed_positions[i]);
                 smoothed_orientations.push_back(q);
-
-//                Quaternion q1;
-//                q1.w = q.w();
-//                q1.x = q.x();
-//                q1.y = q.y();
-//                q1.z = q.z();
-//                double angles1[3];
-//                quaternion2angles(q1, angles1);
-//                Quaternion q2;
-//                double angles2[3];
-//                angles2[0] = atan2((smoothed_positions[i - 1](1) - smoothed_positions[i](1)) / SMOOTHED_PATH_DISCRETIZATION,
-//                                   (smoothed_positions[i - 1](0) - smoothed_positions[i](0)) / SMOOTHED_PATH_DISCRETIZATION);
-//                angles2[1] = 0;
-//                angles2[2] = 0;
-//                angles2quaternion(angles2, q2);
-//                ROS_INFO("%f = Z = %f | %f = Y = %f | %f = X = %f",
-//                         angles1[0], angles2[0], angles1[1], angles2[1], angles1[2], angles2[2]);
             }
             else if(i == smoothed_positions.size() - 1)
             {
@@ -202,8 +176,7 @@ vector_quat Pathsmoother3D::computeSmoothedOrientations(std::vector<float> const
             if(0 < i && i < smoothed_positions.size() - 1)
             {
                 quat q;
-                // q.setFromTwoVectors(smoothed_positions[i - 1] - smoothed_positions[i], smoothed_positions[i] - smoothed_positions[i + 1]);
-                q.setFromTwoVectors(vec3(1,0,0), smoothed_positions[i] - smoothed_positions[i + 1]);
+                q.setFromTwoVectors(local_robot_direction, smoothed_positions[i] - smoothed_positions[i + 1]);
                 smoothed_orientations.push_back(q);
             }
             else if(i == smoothed_positions.size() - 1)

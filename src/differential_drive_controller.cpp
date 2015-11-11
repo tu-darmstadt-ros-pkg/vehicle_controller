@@ -133,11 +133,10 @@ void DifferentialDriveController::executeMotionCommand(double carrot_relative_an
 
     twist.linear.x = speed;
 
-    if (sign < 0){
+    if (sign < 0)
         twist.angular.z = carrot_orientation_error / carrot_distance * 1.5 * 0.25;
-    }else{
+    else
         twist.angular.z = carrot_relative_angle / carrot_distance * 1.5;
-    }
 
     this->limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
 
@@ -155,8 +154,6 @@ void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double
 {
     double speed = twist.linear.x;
     double angular_rate = twist.angular.z;
-
-    mp_->limitSpeed(speed);
 
     speed        = std::max(-mp_->max_unlimited_speed_, std::min(mp_->max_unlimited_speed_, speed));
     angular_rate = std::max(-mp_->max_unlimited_angular_rate_, std::min(mp_->max_unlimited_angular_rate_, angular_rate));
