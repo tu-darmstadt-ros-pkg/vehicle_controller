@@ -38,10 +38,7 @@ Controller::Controller(const std::string& ns)
     camera_lookat_distance = 1.0;
     camera_lookat_height = -0.2;
 
-    check_if_blocked = true;
-    velocity_blocked_time = 5.0;
-    linear_speed_blocked_ = 0.05;
-    angular_speed_blocked_ = 0.05;
+    check_stuck = true;
 
     mp_.current_inclination = 0.0;
     velocity_error = 0.0;
@@ -71,10 +68,7 @@ bool Controller::configure()
     params.getParam("camera_control", camera_control);
     params.getParam("camera_lookat_distance", camera_lookat_distance);
     params.getParam("camera_lookat_height", camera_lookat_height);
-    params.getParam("check_if_blocked", check_if_blocked);
-    params.getParam("velocity_blocked_time", velocity_blocked_time);
-    params.getParam("linear_speed_blocked", linear_speed_blocked_);
-    params.getParam("angular_speed_blocked", angular_speed_blocked_);
+    params.getParam("check_stuck", check_stuck);
     params.getParam("inclination_speed_reduction_factor", mp_.inclination_speed_reduction_factor);
     params.getParam("inclination_speed_reduction_time_constant", mp_.inclination_speed_reduction_time_constant);
     params.getParam("goal_position_tolerance", goal_position_tolerance);
@@ -695,7 +689,7 @@ void Controller::update()
     this->vehicle_control_interface_->executeMotionCommand(relative_angle, orientation_error, mp_.carrot_distance,
                                                            speed, signed_carrot_distance_2_robot, dt);
 
-    if (check_if_blocked && !isDtInvalid())
+    if (check_stuck && !isDtInvalid())
     {
         stuck->update(pose);
         if((*stuck)())
