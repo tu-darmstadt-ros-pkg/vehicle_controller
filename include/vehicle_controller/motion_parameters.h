@@ -42,6 +42,7 @@ class MotionParameters : public PS3dMotionParameters
     bool USE_FINAL_TWIST_;
     int FINAL_TWIST_TRIALS_MAX_;
 
+    bool y_symmetry;
     double flipper_low_position;
     double flipper_switch_position;
     double flipper_high_position;
@@ -60,7 +61,7 @@ class MotionParameters : public PS3dMotionParameters
 
     inline virtual bool isYSymmetric()
     {
-        return false; // TODO IMPLEMENT
+        return y_symmetry;
     }
 };
 

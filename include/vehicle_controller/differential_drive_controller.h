@@ -59,13 +59,13 @@ class DifferentialDriveController: public VehicleControlInterface
         }
     }
 
-    void pdGainCallback(vehicle_controller::PdParamsConfig & config, uint32_t level);
+    void pdParamCallback(vehicle_controller::PdParamsConfig & config, uint32_t level);
 
     virtual void executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist);
 
     virtual void executeTwist(const geometry_msgs::Twist& inc_twist);
 
-    void executePDControlledMotionCommand(double e_angle, double e_position, double dt);
+    void executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed);
 
     virtual void executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error,
                                       double carrot_distance, double speed,

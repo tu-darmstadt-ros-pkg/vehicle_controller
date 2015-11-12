@@ -30,10 +30,10 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
     SPEED_REDUCTION_GAIN_ = 2.0;
 
     dr_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>;
-    dr_server_->setCallback(boost::bind(&DifferentialDriveController::pdGainCallback, this, _1, _2));
+    dr_server_->setCallback(boost::bind(&DifferentialDriveController::pdParamCallback, this, _1, _2));
 }
 
-void DifferentialDriveController::pdGainCallback(vehicle_controller::PdParamsConfig & config, uint32_t level)
+void DifferentialDriveController::pdParamCallback(vehicle_controller::PdParamsConfig & config, uint32_t level)
 {
     KP_ANGLE_ = config.angle_p_gain;
     KD_ANGLE_ = config.angle_d_gain;
@@ -66,14 +66,16 @@ void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_t
 }
 
 /**
- * Assumption: Angle lies in -PI,PI
+ * @brief DifferentialDriveController::executePDControlledMotionCommand
+ * @param e_angle the angular error which is assumed to lie inside [-pi,pi]
+ * @param e_position the position error
+ * @param dt time difference between two control loop iterates
  */
-void DifferentialDriveController::executePDControlledMotionCommand(double e_angle, double e_position, double dt)
+void DifferentialDriveController::executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed)
 {
     static double previous_e_angle = e_angle;
     static double previous_e_position = e_position;
 
-    // Assumption: e_angle lies in [M_PI_2, M_PI]
     if(mp_->isYSymmetric())
     {
         if(e_angle > M_PI_2)
@@ -86,13 +88,13 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     double de_position_dt = (e_position - previous_e_position) / dt;
 
     double speed   = KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;
-    double z_twist = KP_ANGLE_ * e_angle + KD_ANGLE_ * de_angle_dt;
+    double z_angular_rate = KP_ANGLE_ * e_angle + KD_ANGLE_ * de_angle_dt;
 
-    if(fabs(speed) > fabs(mp_->commanded_speed))
+    if(fabs(speed) > fabs(cmded_speed))
         speed = (speed < 0 ? -1.0 : 1.0) * fabs(mp_->commanded_speed);
 
     twist.linear.x = speed;
-    twist.angular.z = z_twist;
+    twist.angular.z = z_angular_rate;
     this->limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
     cmd_vel_raw_pub_.publish(twist);
 
@@ -105,9 +107,9 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     pdout.de_position_dt = de_position_dt;
     pdout.de_angle_dt = de_angle_dt;
     pdout.speed = speed;
-    pdout.z_twist = z_twist;
+    pdout.z_twist = z_angular_rate;
     pdout.z_twist_real = twist.angular.z;
-    pdout.z_twist_deg = z_twist / M_PI * 180;
+    pdout.z_twist_deg = z_angular_rate / M_PI * 180;
     pdout.speed_real = twist.linear.x;
     pdout.z_twist_deg_real = twist.angular.z / M_PI * 180;
     pdout_pub_.publish(pdout);
@@ -124,7 +126,16 @@ void DifferentialDriveController::executeMotionCommand(double carrot_relative_an
 //    if(signed_carrot_distance_2_robot < 0 && fabs(e_angle) > M_PI_4)
 //        e_angle = carrot_relative_angle;
     double e_angle = carrot_relative_angle;
-    executePDControlledMotionCommand(e_angle, signed_carrot_distance_2_robot, dt);
+    if(e_angle > M_PI + 1e-2 || e_angle < -M_PI - 1e-2)
+    {
+        ROS_WARN("[vehicle_controller] [differential_drive_controller] Invalid angle was given.");
+    }
+    if(speed == 0.0)
+    {
+        ROS_INFO("[vehicle_controller] [differential_drive_controller] Commanded speed is 0");
+        speed = 0.0;
+    }
+    executePDControlledMotionCommand(e_angle, signed_carrot_distance_2_robot, dt, speed);
     // executeMotionCommand(carrot_relative_angle, carrot_orientation_error, carrot_distance, speed);
 }
 

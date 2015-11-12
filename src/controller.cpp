@@ -28,7 +28,6 @@ Controller::Controller(const std::string& ns)
     mp_.max_unlimited_speed_ = 2.0;
     mp_.max_unlimited_angular_rate_ = 1.0;
     mp_.max_controller_angular_rate_ =  0.4;
-    mp_.commanded_speed = 0.18;
     mp_.inclination_speed_reduction_factor = 0.5 / (30 * M_PI/180.0); // 0.5 per 30 degrees
     mp_.inclination_speed_reduction_time_constant = 0.3;
     mp_.flipper_name = "flipper_front";
@@ -74,6 +73,7 @@ bool Controller::configure()
     params.getParam("inclination_speed_reduction_time_constant", mp_.inclination_speed_reduction_time_constant);
     params.getParam("goal_position_tolerance", goal_position_tolerance);
     params.getParam("goal_angle_tolerance", goal_angle_tolerance);
+    params.param("y_symmetry", mp_.y_symmetry, false);
     vehicle_control_type = "differential_steering";
     params.getParam("vehicle_control_type", vehicle_control_type);
     double stuck_detection_window = StuckDetector::DEFAULT_DETECTION_WINDOW;
@@ -101,7 +101,6 @@ bool Controller::configure()
 
     carrotPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("carrot", 1, true);
     drivepathPublisher  = nh.advertise<nav_msgs::Path>("drivepath", 1, true);
-
     pathPosePublisher = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
 
     cmd_flipper_toggle_sub_ = nh.subscribe("cmd_flipper_toggle", 10, &Controller::cmd_flipper_toggleCallback, this);
@@ -387,7 +386,7 @@ bool Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, 
         }
         catch (tf::TransformException ex)
         {
-            ROS_ERROR("[vehicle_controller] Drivepath transformation to map frame failed. "
+            ROS_ERROR("[vehicle_controller] Drivepath transformation to map frame failed: "
                       "%s", ex.what());
             stop();
             publishActionResult(actionlib_msgs::GoalStatus::REJECTED);
@@ -467,7 +466,6 @@ void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionG
 
 void Controller::actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath& path_action)
 {
-    ROS_INFO("PATH ACTION CALLBACK");
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new path.");
     this->goalID.reset(new actionlib_msgs::GoalID(path_action.goal_id));
     drivepath(path_action.goal.target_path);
@@ -505,7 +503,7 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
 
         if (start.orientation.w == 0.0 && start.orientation.x == 0.0
-        && start.orientation.y == 0 && start.orientation.z == 0.0)
+         && start.orientation.y == 0.0 && start.orientation.z == 0.0)
         {
             leg.p1.orientation = leg.course;
         }
@@ -526,7 +524,7 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
 
     leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
     if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0
-    && pose.orientation.y == 0.0 && pose.orientation.z == 0.0)
+     && pose.orientation.y == 0.0 && pose.orientation.z == 0.0)
     {
         leg.p2.orientation = leg.backward ? angularNorm(leg.course + M_PI) : leg.course;
     }
@@ -539,9 +537,9 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
     leg.speed   = mp_.commanded_speed;
     leg.length2 = std::pow(leg.p2.x - leg.p1.x, 2) + std::pow(leg.p2.y - leg.p1.y, 2);
     leg.length  = std::sqrt(leg.length2);
-    leg.percent = 0.0;
+    leg.percent = 0.0f;
 
-    if (leg.length2 == 0.0) return;
+    if (leg.length2 == 0.0f) return;
     legs.push_back(leg);
 }
 
@@ -565,7 +563,7 @@ void Controller::update()
     double angular_tolerance_for_current_path = goal_angle_tolerance;
 
     // Check if alternative tolerance is set by Service
-    if (alternative_tolerance_goalID && goalID && (alternative_tolerance_goalID->id == goalID->id))
+    if (alternative_tolerance_goalID && goalID && alternative_tolerance_goalID->id == goalID->id)
     {
         ROS_DEBUG("[vehicle_controller]: goalIDs are equal, using alternative tolerance.");
         ROS_INFO("[vehicle_controller] using tolerances = %f deg %f",
@@ -574,18 +572,18 @@ void Controller::update()
         angular_tolerance_for_current_path = alternative_angle_tolerance;
     }
 
-    // Check if goal has been reached based an goal_position_tolerance/goal_angle_tolerance
-    double goal_position_error = sqrt(pow(legs.back().p2.x - pose.pose.position.x, 2) + pow(legs.back().p2.y - pose.pose.position.y, 2));
+    // Check if goal has been reached based on goal_position_tolerance/goal_angle_tolerance
+    double goal_position_error = std::sqrt(  std::pow(legs.back().p2.x - pose.pose.position.x, 2)
+                                           + std::pow(legs.back().p2.y - pose.pose.position.y, 2));
     double goal_angle_error_   = angularNorm(legs.back().p2.orientation - angles[0]);
     if (goal_position_error < linear_tolerance_for_current_path
-    &&  vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path))
+     && vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path))
     {
         ROS_INFO("[vehicle_controller] Current position and orientation are within goal tolerance.");
         current = legs.size();
-        // reached goal point handled by the following loop
+        // Reached goal point. This task is handled in the following loop
     }
 
-    // calculate projection
     while(1)
     {
         if (current == legs.size())
@@ -667,27 +665,26 @@ void Controller::update()
         carrot.orientation = legs[carrot_waypoint].p1.orientation + /* carrot_percent * */ 1.0f * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
     }
 
+    carrotPose.header = pose.header;
+    carrotPose.pose.position.x = carrot.x;
+    carrotPose.pose.position.y = carrot.y;
+    double ypr[3] = { carrot.orientation, 0.0, 0.0 };
+    angles2quaternion(ypr, carrotPose.pose.orientation);
     if (carrotPosePublisher)
     {
-        carrotPose.header = pose.header;
-        carrotPose.pose.position.x = carrot.x;
-        carrotPose.pose.position.y = carrot.y;
-        double ypr[3] = { carrot.orientation, 0.0, 0.0 };
-        angles2quaternion(ypr, carrotPose.pose.orientation);
         carrotPosePublisher.publish(carrotPose);
     }
 
     // calculate steering angle
     double beta = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
-
     double relative_angle    = constrainAngle_mpi_pi( beta - angles[0]);
-    double orientation_error = constrainAngle_mpi_pi(-beta + angles[0]); // angular_norm(carrot.orientation - angles[0]);
-    float sign = legs[current].backward ? -1.0 : 1.0;
-    float speed = sign * legs[current].speed;
+    double orientation_error = constrainAngle_mpi_pi(-beta + angles[0]);
+    double sign = legs[current].backward ? -1.0 : 1.0;
+    double speed = sign * legs[current].speed;
 
     double signed_carrot_distance_2_robot = sign * euclideanDistance(carrotPose.pose.position, pose.pose.position);
     if(state == DRIVETO && goal_position_error < 0.6)
-    {
+    { // TODO: Consider adding to condition: !mp_.isYSymmetric()
         if(relative_angle > M_PI_2)
             relative_angle = relative_angle - M_PI;
         if(relative_angle < -M_PI_2)
@@ -718,7 +715,8 @@ void Controller::update()
         unsigned int lookat_waypoint = current;
         bool found_lookat_position = false;
 
-        while(lookat_waypoint < legs.size()) {
+        while(lookat_waypoint < legs.size())
+        {
             lookat.x           = legs[lookat_waypoint].p2.x;
             lookat.y           = legs[lookat_waypoint].p2.y;
             lookat.orientation = legs[lookat_waypoint].p2.orientation;
