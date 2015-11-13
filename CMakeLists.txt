@@ -24,6 +24,7 @@ add_definitions("-std=c++11")
 
 generate_dynamic_reconfigure_options(
   cfg/PdParams.cfg
+  cfg/PdParamsArgo.cfg
 )
 
 catkin_package(
