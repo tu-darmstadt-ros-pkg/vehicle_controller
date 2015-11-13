@@ -38,6 +38,7 @@
 
 #include <dynamic_reconfigure/server.h>
 #include <vehicle_controller/PdParamsConfig.h>
+#include <vehicle_controller/PdParamsArgoConfig.h>
 
 
 class DifferentialDriveController: public VehicleControlInterface
@@ -58,8 +59,6 @@ class DifferentialDriveController: public VehicleControlInterface
             return std::abs(goal_angle_error) < tol;
         }
     }
-
-    void pdParamCallback(vehicle_controller::PdParamsConfig & config, uint32_t level);
 
     virtual void executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist);
 
@@ -94,6 +93,21 @@ class DifferentialDriveController: public VehicleControlInterface
     geometry_msgs::Twist twist;
     MotionParameters* mp_;
 
+    template <typename TPD> void pdParamCallback(TPD & config, uint32_t level)
+    {
+        KP_ANGLE_ = config.angle_p_gain;
+        KD_ANGLE_ = config.angle_d_gain;
+        KP_POSITION_ = config.position_p_gain;
+        KD_POSITION_ = config.position_d_gain;
+        mp_->commanded_speed = config.speed;
+        SPEED_REDUCTION_GAIN_ = config.speed_reduction_gain;
+        mp_->USE_FINAL_TWIST_ = config.use_final_twist;
+        mp_->FINAL_TWIST_TRIALS_MAX_ = config.final_twist_trials_max;
+        mp_->flipper_low_position = config.flipper_low_position;
+        mp_->flipper_high_position = config.flipper_high_position;
+        mp_->flipper_switch_position = config.flipper_switch_position;
+    }
+
   private:
 
     double KP_ANGLE_;
@@ -108,7 +122,8 @@ class DifferentialDriveController: public VehicleControlInterface
     // or the controller itself but definitely not in this class
     // This has to be fixed!!!
     //
-    dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig> * dr_server_;
+    dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig> * dr_default_server_ = 0;
+    dynamic_reconfigure::Server<vehicle_controller::PdParamsArgoConfig> * dr_argo_server_ = 0;
 };
 
 #endif

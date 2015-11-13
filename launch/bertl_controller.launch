@@ -16,7 +16,8 @@
 
     <param name="goal_position_tolerance" value="0.1" />
     <param name="goal_angle_tolerance" value="0.087266463" /><!-- 5 deg -->
-    
+    <param name="pd_params" value="PdParams" />
+
     <param name="wheel_separation" value="0.34" />
     <param name="wheel_separation" value="0.5" />
 

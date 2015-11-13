@@ -11,6 +11,7 @@
 
     <param name="goal_position_tolerance" value="0.1" />
     <param name="goal_angle_tolerance" value="0.087266463" /><!-- 5 deg -->
+    <param name="pd_params" value="PdParams" />
 
     <param name="check_stuck" value="true" />
     <param name="stuck_detection_window" value="4.0" />

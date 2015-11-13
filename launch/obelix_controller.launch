@@ -13,6 +13,7 @@
 
     <param name="vehicle_type" value="tracked" />
     <param name="vehicle_control_type" value="differential_steering"/>
+    <param name="pd_params" value="PdParams" />
 
     <param name="goal_position_tolerance" value="0.1" />
     <param name="goal_angle_tolerance" value="0.087266463" /><!-- is 5 deg -->

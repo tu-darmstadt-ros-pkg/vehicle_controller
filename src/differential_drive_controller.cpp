@@ -6,8 +6,10 @@
 
 DifferentialDriveController::~DifferentialDriveController()
 {
-    if(dr_server_)
-        delete dr_server_;
+    if(dr_default_server_)
+        delete dr_default_server_;
+    if(dr_argo_server_)
+        delete dr_argo_server_;
 }
 
 void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParameters* mp)
@@ -29,23 +31,16 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
     KD_POSITION_ = 0.0;
     SPEED_REDUCTION_GAIN_ = 2.0;
 
-    dr_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>;
-    dr_server_->setCallback(boost::bind(&DifferentialDriveController::pdParamCallback, this, _1, _2));
-}
-
-void DifferentialDriveController::pdParamCallback(vehicle_controller::PdParamsConfig & config, uint32_t level)
-{
-    KP_ANGLE_ = config.angle_p_gain;
-    KD_ANGLE_ = config.angle_d_gain;
-    KP_POSITION_ = config.position_p_gain;
-    KD_POSITION_ = config.position_d_gain;
-    mp_->commanded_speed = config.speed;
-    SPEED_REDUCTION_GAIN_ = config.speed_reduction_gain;
-    mp_->USE_FINAL_TWIST_ = config.use_final_twist;
-    mp_->FINAL_TWIST_TRIALS_MAX_ = config.final_twist_trials_max;
-    mp_->flipper_low_position = config.flipper_low_position;
-    mp_->flipper_high_position = config.flipper_high_position;
-    mp_->flipper_switch_position = config.flipper_switch_position;
+    if(mp_->pd_params == "PdParamsArgo")
+    {
+        dr_argo_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsArgoConfig>;
+        dr_argo_server_->setCallback(boost::bind(&DifferentialDriveController::pdParamCallback<vehicle_controller::PdParamsArgoConfig>, this, _1, _2));
+    }
+    else
+    {
+        dr_default_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>;
+        dr_default_server_->setCallback(boost::bind(&DifferentialDriveController::pdParamCallback<vehicle_controller::PdParamsConfig>, this, _1, _2));
+    }
 }
 
 void DifferentialDriveController::executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist)

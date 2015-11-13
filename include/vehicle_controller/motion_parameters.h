@@ -47,6 +47,7 @@ class MotionParameters : public PS3dMotionParameters
     double flipper_switch_position;
     double flipper_high_position;
     std::string flipper_name;
+    std::string pd_params;
 
     double carrot_distance;
     double min_speed;

@@ -31,6 +31,8 @@ Controller::Controller(const std::string& ns)
     mp_.inclination_speed_reduction_factor = 0.5 / (30 * M_PI/180.0); // 0.5 per 30 degrees
     mp_.inclination_speed_reduction_time_constant = 0.3;
     mp_.flipper_name = "flipper_front";
+    mp_.pd_params = "PdParams";
+
     map_frame_id = "nav";
     base_frame_id = "base_link";
 
@@ -73,6 +75,7 @@ bool Controller::configure()
     params.getParam("inclination_speed_reduction_time_constant", mp_.inclination_speed_reduction_time_constant);
     params.getParam("goal_position_tolerance", goal_position_tolerance);
     params.getParam("goal_angle_tolerance", goal_angle_tolerance);
+    params.param("pd_params", mp_.pd_params, std::string("PdParams"));
     params.param("y_symmetry", mp_.y_symmetry, false);
     vehicle_control_type = "differential_steering";
     params.getParam("vehicle_control_type", vehicle_control_type);
