@@ -75,6 +75,7 @@ bool Controller::configure()
     params.getParam("inclination_speed_reduction_time_constant", mp_.inclination_speed_reduction_time_constant);
     params.getParam("goal_position_tolerance", goal_position_tolerance);
     params.getParam("goal_angle_tolerance", goal_angle_tolerance);
+    params.getParam("speed", mp_.commanded_speed);
     params.param("pd_params", mp_.pd_params, std::string("PdParams"));
     params.param("y_symmetry", mp_.y_symmetry, false);
     vehicle_control_type = "differential_steering";
