@@ -674,28 +674,13 @@ void Controller::update()
         carrotPosePublisher.publish(carrotPose);
     }
 
-    double relative_angle;
-    double orientation_error;
-    double speed;
-    double signed_carrot_distance_2_robot = 0.0;
+    double beta = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
+    double relative_angle    = constrainAngle_mpi_pi( beta - angles[0]);
+    double orientation_error = constrainAngle_mpi_pi( carrot.orientation - angles[0]);
+    double sign = legs[current].backward ? -1.0 : 1.0;
+    double speed = sign * legs[current].speed;
+    double signed_carrot_distance_2_robot = sign * euclideanDistance(carrotPose.pose.position, pose.pose.position);
 
-    // Calculate steering angle
-    if(vehicle_control_type == "ackermann_steering")
-    {
-        relative_angle = angularNorm(atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x) - angles[0]);
-        orientation_error = angularNorm(carrot.orientation - angles[0]);
-        float sign = legs[current].backward ? -1.0 : 1.0;
-        speed = sign * legs[current].speed;
-    }
-    else
-    {
-        double beta = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
-        relative_angle    = constrainAngle_mpi_pi( beta - angles[0]);
-        orientation_error = constrainAngle_mpi_pi(-beta + angles[0]); // angular_norm(carrot.orientation - angles[0]);
-        float sign = legs[current].backward ? -1.0 : 1.0;
-        speed = sign * legs[current].speed;
-        signed_carrot_distance_2_robot = sign * euclideanDistance(carrotPose.pose.position, pose.pose.position);
-    }
     if(state == DRIVETO && goal_position_error < 0.6)
     {
         if(relative_angle > M_PI_2)
