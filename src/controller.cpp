@@ -506,11 +506,7 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
 
         if (start.orientation.w == 0.0 && start.orientation.x == 0.0
-<<<<<<< HEAD
          && start.orientation.y == 0.0 && start.orientation.z == 0.0)
-=======
-        && start.orientation.y == 0.0 && start.orientation.z == 0.0)
->>>>>>> bertl_hector_integration
         {
             leg.p1.orientation = leg.course;
         }
