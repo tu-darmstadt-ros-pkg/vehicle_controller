@@ -506,7 +506,11 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
 
         if (start.orientation.w == 0.0 && start.orientation.x == 0.0
+<<<<<<< HEAD
          && start.orientation.y == 0.0 && start.orientation.z == 0.0)
+=======
+        && start.orientation.y == 0.0 && start.orientation.z == 0.0)
+>>>>>>> bertl_hector_integration
         {
             leg.p1.orientation = leg.course;
         }
@@ -678,14 +682,13 @@ void Controller::update()
         carrotPosePublisher.publish(carrotPose);
     }
 
-    // calculate steering angle
     double beta = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
     double relative_angle    = constrainAngle_mpi_pi( beta - angles[0]);
-    double orientation_error = constrainAngle_mpi_pi(-beta + angles[0]);
+    double orientation_error = constrainAngle_mpi_pi( carrot.orientation - angles[0]);
     double sign = legs[current].backward ? -1.0 : 1.0;
     double speed = sign * legs[current].speed;
-
     double signed_carrot_distance_2_robot = sign * euclideanDistance(carrotPose.pose.position, pose.pose.position);
+
     if(state == DRIVETO && goal_position_error < 0.6)
     { // TODO: Consider adding to condition: !mp_.isYSymmetric()
         if(relative_angle > M_PI_2)

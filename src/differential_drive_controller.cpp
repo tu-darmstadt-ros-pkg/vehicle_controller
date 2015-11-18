@@ -117,9 +117,6 @@ void DifferentialDriveController::executeMotionCommand(double carrot_relative_an
     double carrot_orientation_error, double carrot_distance, double speed,
     double signed_carrot_distance_2_robot, double dt)
 {
-//    double e_angle = speed < 0 ? carrot_orientation_error : carrot_relative_angle;
-//    if(signed_carrot_distance_2_robot < 0 && fabs(e_angle) > M_PI_4)
-//        e_angle = carrot_relative_angle;
     double e_angle = carrot_relative_angle;
     if(e_angle > M_PI + 1e-2 || e_angle < -M_PI - 1e-2)
     {
