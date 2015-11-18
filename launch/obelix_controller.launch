@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 
 <launch>
-  <node pkg="monstertruck_controller" type="controller_node" name="monstertruck_controller" output="screen">
+  <node pkg="vehicle_controller" type="controller_node" name="vehicle_controller" output="screen">
     
     <param name="frame_id" value="map" />
     
@@ -17,7 +17,7 @@
     <param name="goal_position_tolerance" value="0.1" />
     <param name="goal_angle_tolerance" value="0.087266463" /><!-- is 5 deg -->
     
-    <param name="wheel_separation" value="0.34" />
+    <param name="wheel_separation" value="0.45" /> <!-- TODO measure correctly -->
 
     <param name="check_stuck" value="true" />
     <param name="stuck_detection_window" value="4.0" />

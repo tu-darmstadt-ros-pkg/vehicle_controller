@@ -466,7 +466,6 @@ void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionG
 
 void Controller::actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath& path_action)
 {
-    ROS_INFO("PATH ACTION CALLBACK");
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new path.");
     this->goalID.reset(new actionlib_msgs::GoalID(path_action.goal_id));
     drivepath(path_action.goal.target_path);
@@ -504,7 +503,7 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
 
         if (start.orientation.w == 0.0 && start.orientation.x == 0.0
-        && start.orientation.y == 0 && start.orientation.z == 0.0)
+        && start.orientation.y == 0.0 && start.orientation.z == 0.0)
         {
             leg.p1.orientation = leg.course;
         }
@@ -631,17 +630,21 @@ void Controller::update()
 
     while(carrot_waypoint < legs.size())
     {
-        if (carrot_remaining <= (1.0f - carrot_percent) * legs[carrot_waypoint].length) {
+        if (carrot_remaining <= (1.0f - carrot_percent) * legs[carrot_waypoint].length)
+        {
             carrot_percent += carrot_remaining / legs[carrot_waypoint].length;
             break;
         }
 
         carrot_remaining -= (1.0f - carrot_percent) * legs[carrot_waypoint].length;
-        if (carrot_waypoint+1 < legs.size() && legs[carrot_waypoint].backward == legs[carrot_waypoint+1].backward) {
+        if (carrot_waypoint + 1 < legs.size() && legs[carrot_waypoint].backward == legs[carrot_waypoint + 1].backward)
+        {
             ROS_DEBUG("Carrot reached waypoint %d", carrot_waypoint);
             carrot_percent = 0.0f;
             carrot_waypoint++;
-        } else {
+        }
+        else
+        {
             ROS_DEBUG("Carrot reached last waypoint or change of direction");
             carrot_percent = 1.0f + carrot_remaining / legs[carrot_waypoint].length;
             break;
@@ -661,24 +664,38 @@ void Controller::update()
         carrot.orientation = legs[carrot_waypoint].p1.orientation + /* carrot_percent * */ 1.0f * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
     }
 
+    carrotPose.header = pose.header;
+    carrotPose.pose.position.x = carrot.x;
+    carrotPose.pose.position.y = carrot.y;
+    double ypr[3] = { carrot.orientation, 0, 0 };
+    angles2quaternion(ypr, carrotPose.pose.orientation);
     if (carrotPosePublisher)
     {
-        carrotPose.header = pose.header;
-        carrotPose.pose.position.x = carrot.x;
-        carrotPose.pose.position.y = carrot.y;
-        double ypr[3] = { carrot.orientation, 0, 0 };
-        angles2quaternion(ypr, carrotPose.pose.orientation);
         carrotPosePublisher.publish(carrotPose);
     }
 
-    // calculate steering angle
-    double beta = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
-    double relative_angle    = constrainAngle_mpi_pi( beta - angles[0]);
-    double orientation_error = constrainAngle_mpi_pi(-beta + angles[0]); // angular_norm(carrot.orientation - angles[0]);
-    float sign = legs[current].backward ? -1.0 : 1.0;
-    float speed = sign * legs[current].speed;
+    double relative_angle;
+    double orientation_error;
+    double speed;
+    double signed_carrot_distance_2_robot = 0.0;
 
-    double signed_carrot_distance_2_robot = sign * euclideanDistance(carrotPose.pose.position, pose.pose.position);
+    // Calculate steering angle
+    if(vehicle_control_type == "ackermann_steering")
+    {
+        relative_angle = angularNorm(atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x) - angles[0]);
+        orientation_error = angularNorm(carrot.orientation - angles[0]);
+        float sign = legs[current].backward ? -1.0 : 1.0;
+        speed = sign * legs[current].speed;
+    }
+    else
+    {
+        double beta = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
+        relative_angle    = constrainAngle_mpi_pi( beta - angles[0]);
+        orientation_error = constrainAngle_mpi_pi(-beta + angles[0]); // angular_norm(carrot.orientation - angles[0]);
+        float sign = legs[current].backward ? -1.0 : 1.0;
+        speed = sign * legs[current].speed;
+        signed_carrot_distance_2_robot = sign * euclideanDistance(carrotPose.pose.position, pose.pose.position);
+    }
     if(state == DRIVETO && goal_position_error < 0.6)
     {
         if(relative_angle > M_PI_2)

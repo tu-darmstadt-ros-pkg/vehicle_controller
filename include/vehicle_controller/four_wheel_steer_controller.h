@@ -37,6 +37,7 @@ class FourWheelSteerController: public VehicleControlInterface
     virtual void configure(ros::NodeHandle& params, MotionParameters* mp)
     {
       mp_ = mp;
+      mp_->USE_FINAL_TWIST_ = false;
 
       ros::NodeHandle nh;
       drivePublisher_ = nh.advertise<monstertruck_msgs::MotionCommand>("drive", 1);
@@ -108,7 +109,6 @@ class FourWheelSteerController: public VehicleControlInterface
 
       limitSpeed(speed);
       drive.speed = speed;
-
 
       if (drive.speed != 0.0) {
         float max_kappa = tan(max_steeringangle) / B;

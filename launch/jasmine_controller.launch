@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 
 <launch>
-  <node pkg="monstertruck_controller" type="controller_node" name="monstertruck_controller" output="screen">
+  <node pkg="vehicle_controller" type="controller_node" name="vehicle_controller" output="screen">
     
     <param name="frame_id" value="map" />
     
