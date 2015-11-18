@@ -29,108 +29,37 @@
 #define FOUR_WHEEL_STEER_CONTROLLER_H
 
 #include <ros/ros.h>
+#include <geometry_msgs/Twist.h>
+#include <monstertruck_msgs/MotionCommand.h>
+
 #include "vehicle_control_interface.h"
 
 class FourWheelSteerController: public VehicleControlInterface
 {
   public:
-    virtual void configure(ros::NodeHandle& params, MotionParameters* mp)
-    {
-      mp_ = mp;
-      mp_->USE_FINAL_TWIST_ = false;
+    virtual void configure(ros::NodeHandle& params, MotionParameters* mp);
 
-      ros::NodeHandle nh;
-      drivePublisher_ = nh.advertise<monstertruck_msgs::MotionCommand>("drive", 1);
-
-      max_steeringangle = 30.0 * M_PI/180.0;
-      params.getParam("max_steeringangle", max_steeringangle);
-    }
-
-    virtual void executeUnlimitedTwist(const geometry_msgs::Twist& velocity)
+    inline virtual void executeUnlimitedTwist(const geometry_msgs::Twist& velocity)
     {
         executeTwist(velocity);
     }
 
-    void limitSpeed(double & speed)
-    {
-        double inclination_max_speed = std::max(fabs(speed) * (1.0 - mp_->current_inclination * mp_->inclination_speed_reduction_factor), 0.0);
-        if (speed > 0.0) {
-          if (speed > mp_->max_controller_speed_) speed = mp_->max_controller_speed_;
-          if (speed > inclination_max_speed) speed = inclination_max_speed;
-          if (speed < mp_->min_speed) speed = mp_->min_speed;
-        } else if (speed < 0.0) {
-          if (speed < -mp_->max_controller_speed_) speed = -mp_->max_controller_speed_;
-          if (speed < -inclination_max_speed) speed = -inclination_max_speed;
-          if (speed > -mp_->min_speed) speed = -mp_->min_speed;
-        }
-    }
+    void limitSpeed(double & speed);
 
-    virtual void executeTwist(const geometry_msgs::Twist& velocity)
-    {
-      double backward = (velocity.linear.x < 0) ? -1.0 : 1.0;
-      double speed = backward * sqrt(velocity.linear.x*velocity.linear.x + velocity.linear.y*velocity.linear.y);
+    virtual void executeTwist(const geometry_msgs::Twist& velocity);
 
-      limitSpeed(speed);
+    virtual void executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error, double carrot_distance, double speed);
 
-      float kappa = velocity.angular.z * speed;
-      float tan_gamma = tan(velocity.linear.y / velocity.linear.x);
+    virtual void stop();
 
-      setDriveCommand(speed, kappa, tan_gamma);      
-    }
+    virtual double getCommandedSpeed() const;
 
-    virtual void executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error, double carrot_distance, double speed)
-    {
-      float sign = speed < 0.0 ? -1.0 : 1.0;
-      float kappa     = sign * carrot_orientation_error / carrot_distance * 1.5;
-      float tan_gamma = tan(carrot_relative_angle - carrot_orientation_error);
-
-      this->setDriveCommand(speed, kappa ,tan_gamma);
-    }
-
-    virtual void stop()
-    {
-      drive.speed = 0.0;
-      drivePublisher_.publish(drive);
-    }
-
-    virtual double getCommandedSpeed() const
-    {
-      return drive.speed;
-    }
-
-    virtual std::string getName()
+    inline virtual std::string getName()
     {
       return "Four Wheel Steering Controller";
     }
 
-    void setDriveCommand(double speed, double kappa, double tan_gamma) {
-
-      float B = 0.16; // half wheel distance (front - rear)
-
-      limitSpeed(speed);
-      drive.speed = speed;
-
-      if (drive.speed != 0.0) {
-        float max_kappa = tan(max_steeringangle) / B;
-        if (kappa >= max_kappa) {
-          kappa = max_kappa;
-          tan_gamma = 0;
-
-        } else if (kappa <= -max_kappa) {
-          kappa = -max_kappa;
-          tan_gamma = 0;
-
-        } else {
-          float max_tan_gamma = tan(max_steeringangle) - fabs(kappa) * B;
-          if (tan_gamma >  max_tan_gamma) tan_gamma =  max_tan_gamma;
-          if (tan_gamma < -max_tan_gamma) tan_gamma = -max_tan_gamma;
-        }
-
-        drive.steerAngleFront = atan( tan_gamma + kappa * B);
-        drive.steerAngleRear  = atan(-tan_gamma + kappa * B);
-      }
-      drivePublisher_.publish(drive);
-    }
+    void setDriveCommand(double speed, double kappa, double tan_gamma);
 
     inline virtual bool hasReachedFinalOrientation(double goal_angle_error, double tol)
     {
