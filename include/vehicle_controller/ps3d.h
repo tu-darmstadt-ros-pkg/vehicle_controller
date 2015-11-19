@@ -74,13 +74,13 @@ public:
                 vector_quat & out_smooth_orientations, bool forbid_reverse_path) const;
 
 protected:
-    std::vector<double> computeAccumulatedDistances(deque_vec3 const & positions);
+    std::vector<double> computeAccumulatedDistances(deque_vec3 const & positions) const;
 
-    vector_vec3 computeSmoothedPositions(const std::vector<double> &distances, deque_vec3 const & positions);
+    vector_vec3 computeSmoothedPositions(const std::vector<double> &distances, deque_vec3 const & positions) const;
 
-    vector_quat computeSmoothedOrientations(vector_vec3 const & smoothed_positions, quat const & start_orientation, quat const & end_orientation, bool reverse);
+    vector_quat computeSmoothedOrientations(vector_vec3 const & smoothed_positions, quat const & start_orientation, quat const & end_orientation, bool reverse) const;
 
-    double gaussianWeight(double t0, double t1);
+    double gaussianWeight(double t0, double t1) const;
 
 };
 

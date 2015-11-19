@@ -619,11 +619,12 @@ void Controller::update()
         legs[current].percent = ((pose.pose.position.x - legs[current].p1.x) * (legs[current].p2.x - legs[current].p1.x)
                                  + (pose.pose.position.y - legs[current].p1.y) * (legs[current].p2.y - legs[current].p1.y))
                 / legs[current].length2;
-        ROS_DEBUG("Robot has passed %.1f percent of leg %u.", legs[current].percent, current);
+
+        ROS_DEBUG("[vehicle_controller] Robot has passed %.1f percent of leg %u.", legs[current].percent, current);
         if (legs[current].percent < 1.0) break;
 
         ++current;
-        ROS_DEBUG("Robot reached waypoint %d", current);
+        ROS_DEBUG("[vehicle_controller] Robot reached waypoint %d", current);
     }
 
     // calculate carrot

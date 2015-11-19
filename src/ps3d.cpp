@@ -46,12 +46,12 @@ Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths, PS3dMotionParameters * 
 
 }
 
-double Pathsmoother3D::gaussianWeight(double t0, double t1)
+double Pathsmoother3D::gaussianWeight(double t0, double t1) const
 {
   return exp(-pow(t0 - t1, 2) / (2.0 *  pow(PATH_SMOOTHNESS, 2)));
 }
 
-vector<double> Pathsmoother3D::computeAccumulatedDistances(deque_vec3 const & positions)
+vector<double> Pathsmoother3D::computeAccumulatedDistances(deque_vec3 const & positions) const
 {
   vector<double> result(positions.size(), 0);
   for(unsigned i = 1; i < positions.size(); i++)
@@ -121,7 +121,8 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path,
     out_smooth_orientations = smoothed_orientations;
 }
 
-vector_vec3 Pathsmoother3D::computeSmoothedPositions(std::vector<double> const & distances, deque_vec3 const & positions)
+vector_vec3 Pathsmoother3D::computeSmoothedPositions(std::vector<double> const & distances,
+                                                     deque_vec3 const & positions) const
 {
     // TODO : assert distances.size() == poses_in.size()
     // The total distance is in accumulatedDistances(...).back()
@@ -177,7 +178,7 @@ vector_vec3 Pathsmoother3D::computeSmoothedPositions(std::vector<double> const &
 vector_quat Pathsmoother3D::computeSmoothedOrientations(vector_vec3 const & smoothed_positions,
                                                         quat const & start_orientation,
                                                         quat const & end_orientation,
-                                                        bool reverse)
+                                                        bool reverse) const
 {
     vector_quat smoothed_orientations;
     smoothed_orientations.reserve(smoothed_positions.size());
