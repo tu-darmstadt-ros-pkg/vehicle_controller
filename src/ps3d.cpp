@@ -48,7 +48,7 @@ Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths, PS3dMotionParameters * 
 
 double Pathsmoother3D::gaussianWeight(double t0, double t1) const
 {
-  return exp(-pow(t0 - t1, 2) / (2.0 *  pow(PATH_SMOOTHNESS, 2)));
+  return exp(-pow(t0 - t1, 2.0) / (2.0 *  pow(PATH_SMOOTHNESS, 2.0)));
 }
 
 vector<double> Pathsmoother3D::computeAccumulatedDistances(deque_vec3 const & positions) const

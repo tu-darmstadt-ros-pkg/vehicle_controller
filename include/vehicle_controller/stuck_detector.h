@@ -44,19 +44,17 @@ class StuckDetector
 private:
     std::deque< geometry_msgs::PoseStamped > pose_history_;
 
-    double time_diff;
     double DETECTION_WINDOW;
     MotionParameters const & mp;
 
 protected:
-    double elapsedSecs();
+    double elapsedSecs() const;
+    double quat2ZAngle(geometry_msgs::Quaternion const & q) const;
 
 public:
     static const double DEFAULT_DETECTION_WINDOW;
 
     StuckDetector(MotionParameters const & mp, double detection_window = DEFAULT_DETECTION_WINDOW);
-
-    double quat2ZAngle(geometry_msgs::Quaternion const & q);
 
     void update(geometry_msgs::PoseStamped const & pose);
 
@@ -72,7 +70,7 @@ public:
      *          the commanded linear speed would imply
      * @return true if the robot is stuck else false
      */
-    bool operator()();
+    bool operator()() const;
 };
 
 #endif // STUCK_DETECTOR_H
