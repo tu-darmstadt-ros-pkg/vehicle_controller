@@ -43,11 +43,11 @@ void FourWheelSteerController::executeTwist(const geometry_msgs::Twist& velocity
   setDriveCommand(speed, kappa, tan_gamma);
 }
 
-void FourWheelSteerController::executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error, double carrot_distance, double speed)
+void FourWheelSteerController::executeMotionCommand(double ang_error_2_path, double ang_error_2_carrot, double carrot_distance, double speed)
 {
   float sign = speed < 0.0 ? -1.0 : 1.0;
-  float kappa     = sign * carrot_orientation_error / carrot_distance * 1.5;
-  float tan_gamma = tan(carrot_relative_angle - carrot_orientation_error);
+  float kappa     = sign * ang_error_2_carrot / carrot_distance * 1.5;
+  float tan_gamma = tan(ang_error_2_path - ang_error_2_carrot);
 
   this->setDriveCommand(speed, kappa ,tan_gamma);
 }

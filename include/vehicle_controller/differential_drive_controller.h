@@ -28,10 +28,11 @@
 #ifndef DIFFERENTIAL_DRIVE_CONTROLLER_H
 #define DIFFERENTIAL_DRIVE_CONTROLLER_H
 
+#include <vehicle_controller/vehicle_control_interface.h>
+
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
 #include <monstertruck_msgs/Pdout.h>
-#include "vehicle_control_interface.h"
 #include <algorithm>
 #include <fstream>
 #include <queue>
@@ -66,11 +67,11 @@ class DifferentialDriveController: public VehicleControlInterface
 
     void executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed);
 
-    virtual void executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error,
+    virtual void executeMotionCommand(double ang_error_2_path, double ang_error_2_carrot,
                                       double carrot_distance, double speed,
                                       double signed_carrot_distance_2_robot, double dt);
 
-    virtual void executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error, double carrot_distance, double speed);
+    virtual void executeMotionCommand(double ang_error_2_path, double ang_error_2_carrot, double carrot_distance, double speed);
 
     virtual void stop();
 
@@ -83,8 +84,6 @@ class DifferentialDriveController: public VehicleControlInterface
     {
       return "Differential Drive Controller";
     }
-
-    void limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate);
 
   protected:
     ros::Publisher cmd_vel_raw_pub_;
@@ -107,6 +106,8 @@ class DifferentialDriveController: public VehicleControlInterface
         mp_->flipper_high_position = config.flipper_high_position;
         mp_->flipper_switch_position = config.flipper_switch_position;
     }
+
+    void limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate) const;
 
   private:
 

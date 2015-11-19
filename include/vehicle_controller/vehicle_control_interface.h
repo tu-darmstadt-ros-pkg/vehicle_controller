@@ -29,7 +29,9 @@
 #ifndef VEHICLE_CONTROL_INTERFACE_H
 #define VEHICLE_CONTROL_INTERFACE_H
 
-#include "motion_parameters.h"
+#include <vehicle_controller/motion_parameters.h>
+#include <ros/ros.h>
+#include <geometry_msgs/Twist.h>
 
 class VehicleControlInterface
 {
@@ -38,12 +40,12 @@ class VehicleControlInterface
     virtual void executeTwist(const geometry_msgs::Twist& twist) = 0;
     virtual void executeUnlimitedTwist(const geometry_msgs::Twist& twist) = 0;
 
-    virtual void executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error, double carrot_distance, double speed) = 0;
+    virtual void executeMotionCommand(double ang_error_2_path, double ang_error_2_carrot, double carrot_distance, double speed) = 0;
 
-    virtual void executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error,
+    virtual void executeMotionCommand(double ang_error_2_path, double ang_error_2_carrot,
                                       double carrot_distance, double speed, double signed_carrot_distance_2_robot, double dt)
     {
-        executeMotionCommand(carrot_relative_angle, carrot_orientation_error, carrot_distance, speed);
+        executeMotionCommand(ang_error_2_path, ang_error_2_carrot, carrot_distance, speed);
     }
 
     virtual void stop() = 0;

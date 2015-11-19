@@ -18,7 +18,7 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
 
     ros::NodeHandle nh;
     cmd_vel_raw_pub_ = nh.advertise<geometry_msgs::Twist>("cmd_vel_raw", 1);
-    pdout_pub_ = nh.advertise<monstertruck_msgs::Pdout>("pdout", 1);
+    pdout_pub_       = nh.advertise<monstertruck_msgs::Pdout>("pdout", 1);
 
     params.getParam("max_controller_speed", mp_->max_controller_speed_);
     params.getParam("max_unlimited_speed", mp_->max_unlimited_speed_);
@@ -113,11 +113,14 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     previous_e_position = e_position;
 }
 
-void DifferentialDriveController::executeMotionCommand(double carrot_relative_angle,
-    double carrot_orientation_error, double carrot_distance, double speed,
-    double signed_carrot_distance_2_robot, double dt)
+void DifferentialDriveController::executeMotionCommand(double ang_error_2_path,
+                                                       double ang_error_2_carrot,
+                                                       double carrot_distance,
+                                                       double speed,
+                                                       double signed_carrot_distance_2_robot,
+                                                       double dt)
 {
-    double e_angle = carrot_relative_angle;
+    double e_angle = ang_error_2_path;
     if(e_angle > M_PI + 1e-2 || e_angle < -M_PI - 1e-2)
     {
         ROS_WARN("[vehicle_controller] [differential_drive_controller] Invalid angle was given.");
@@ -131,18 +134,20 @@ void DifferentialDriveController::executeMotionCommand(double carrot_relative_an
     // executeMotionCommand(carrot_relative_angle, carrot_orientation_error, carrot_distance, speed);
 }
 
-void DifferentialDriveController::executeMotionCommand(double carrot_relative_angle, double carrot_orientation_error, double carrot_distance, double speed)
+void DifferentialDriveController::executeMotionCommand(double ang_error_2_path,
+                                                       double ang_error_2_carrot,
+                                                       double carrot_distance,
+                                                       double speed)
 {
-    float sign = speed < 0.0 ? -1.0 : 1.0;
+    double sign = speed < 0.0 ? -1.0 : 1.0;
 
     twist.linear.x = speed;
-
     if (sign < 0)
-        twist.angular.z = carrot_orientation_error / carrot_distance * 1.5 * 0.25;
+        twist.angular.z = ang_error_2_carrot / carrot_distance * 1.5 * 0.25;
     else
-        twist.angular.z = carrot_relative_angle / carrot_distance * 1.5;
+        twist.angular.z = ang_error_2_path / carrot_distance * 1.5;
 
-    this->limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
+    limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
 
     cmd_vel_raw_pub_.publish(twist);
 }
@@ -150,11 +155,11 @@ void DifferentialDriveController::executeMotionCommand(double carrot_relative_an
 void DifferentialDriveController::stop()
 {
     twist.angular.z = 0.0;
-    twist.linear.x = 0.0;
+    twist.linear.x  = 0.0;
     cmd_vel_raw_pub_.publish(twist);
 }
 
-void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate)
+void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate) const
 {
     double speed = twist.linear.x;
     double angular_rate = twist.angular.z;
