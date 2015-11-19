@@ -122,7 +122,7 @@ class DifferentialDriveController: public VehicleControlInterface
     // or the controller itself but definitely not in this class
     // This has to be fixed!!!
     //
-    dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig> * dr_default_server_ = 0;
+    dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>     * dr_default_server_ = 0;
     dynamic_reconfigure::Server<vehicle_controller::PdParamsArgoConfig> * dr_argo_server_ = 0;
 };
 

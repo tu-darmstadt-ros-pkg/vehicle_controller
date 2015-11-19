@@ -675,25 +675,32 @@ void Controller::update()
     double ypr[3] = { carrot.orientation, 0.0, 0.0 };
     angles2quaternion(ypr, carrotPose.pose.orientation);
     if (carrotPosePublisher)
-    {
         carrotPosePublisher.publish(carrotPose);
-    }
 
-    double beta = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
-    double relative_angle    = constrainAngle_mpi_pi( beta - angles[0]);
-    double orientation_error = constrainAngle_mpi_pi( carrot.orientation - angles[0]);
-    double sign = legs[current].backward ? -1.0 : 1.0;
+    // --------------------------------------------------------------------------------------------------- //
+    // alpha = robot orientation                      # robot orientation in global cosy                   //
+    // beta  = angle(carrot position, robot position) # path orientation in global cosy                    //
+    // error_2_path   = beta - alpha                  # error of robot orientation to path orientation     //
+    // error_2_carrot = carrot orientation - alpha    # error of robot orientation to carrot orientation   //
+    // --------------------------------------------------------------------------------------------------- //
+
+    double alpha = angles[0];
+    double beta  = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
+
+    double error_2_path   = constrainAngle_mpi_pi( beta - alpha );
+    double error_2_carrot = constrainAngle_mpi_pi( carrot.orientation - alpha);
+    double sign  = legs[current].backward ? -1.0 : 1.0;
     double speed = sign * legs[current].speed;
     double signed_carrot_distance_2_robot = sign * euclideanDistance(carrotPose.pose.position, pose.pose.position);
 
     if(state == DRIVETO && goal_position_error < 0.6)
     { // TODO: Consider adding to condition: !mp_.isYSymmetric()
-        if(relative_angle > M_PI_2)
-            relative_angle = relative_angle - M_PI;
-        if(relative_angle < -M_PI_2)
-            relative_angle = M_PI + relative_angle;
+        if(error_2_path > M_PI_2)
+            error_2_path = error_2_path - M_PI;
+        if(error_2_path < -M_PI_2)
+            error_2_path = M_PI + error_2_path;
     }
-    this->vehicle_control_interface_->executeMotionCommand(relative_angle, orientation_error, mp_.carrot_distance,
+    this->vehicle_control_interface_->executeMotionCommand(error_2_path, error_2_carrot, mp_.carrot_distance,
                                                            speed, signed_carrot_distance_2_robot, dt);
 
     if (check_stuck && !isDtInvalid())

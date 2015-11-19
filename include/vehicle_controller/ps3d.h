@@ -1,3 +1,30 @@
+/*
+    Copyright (c) 2015, Paul Manns
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+        * Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+        * Redistributions in binary form must reproduce the above copyright
+        notice, this list of conditions and the following disclaimer in the
+        documentation and/or other materials provided with the distribution.
+        * Neither the name of the <organization> nor the
+        names of its contributors may be used to endorse or promote products
+        derived from this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY Antons Rebguns <email> ''AS IS'' AND ANY
+    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL Antons Rebguns <email> BE LIABLE FOR ANY
+    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
 #ifndef ps3d_h
 #define ps3d_h
 
@@ -21,10 +48,9 @@ typedef std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterni
 class Pathsmoother3D
 {
 private:
-    float const SMOOTHED_PATH_DISCRETIZATION;
-    float const PATH_SMOOTHNESS;              // Smoothing parameter. Current value is hand tuend
-                                              // The smaller the smoother.
-                                              // The bigger the smaller the error to the original path.
+    double const SMOOTHED_PATH_DISCRETIZATION;
+    double const PATH_SMOOTHNESS;             // Temperature / smoothness parameter. Current value is manually tuned.
+                                              // The smaller the smoother. <-> The bigger the smaller the error to the original path.
     int         MINIMUM_WAY_POINTS;           // Minimum number of points
     bool        allow_reverse_paths;          // Flag indicating if reverse paths are allowed
                                               // Switch on for tracked vehicles
@@ -34,22 +60,27 @@ private:
 public:
     Pathsmoother3D(bool allow_reverse_paths, PS3dMotionParameters * mp);
 
+    /**
+     * @brief smooth is the core function of the path smoother, it computes a smoothed path from a given path
+     *        based on the predefined discretization and and temperature parameter.
+     * @param in_path consists of support points defining a piecewise linear path to be smoothed
+     * @param in_start_orientation quaternion containing the robot's orientation at the beginning of the path
+     * @param in_end_orientation quaternion containing the robot's orientation desired for the end of the path
+     * @param out_smooth_positions consists of support points defining a piecewise linear path after the smoothing
+     * @param out_smooth_orientations consists of quaternions defining the robot's orientations desired for the respective support points
+     * @param forbid_reverse_path allows the caller to forbid to interpret the path to be tracked by driving reversely (affects the orientations)
+     */
     void smooth(deque_vec3 const & in_path, quat const & in_start_orientation, quat const & in_end_orientation, vector_vec3 & out_smooth_positions,
-                vector_quat & out_smooth_orientations, bool forbid_reverse_path);
-
-    bool path2BeSmoothed(deque_vec3 const & transformed_path);
-
-    void computePathMatricesStrings4R(deque_vec3 const & in_original_path, vector_vec3 const & in_smoothed_path,
-                                      std::string & out_trans, std::string & out_smooth);
+                vector_quat & out_smooth_orientations, bool forbid_reverse_path) const;
 
 protected:
-    std::vector<float> computeAccumulatedDistances(deque_vec3 const & positions);
+    std::vector<double> computeAccumulatedDistances(deque_vec3 const & positions);
 
-    vector_vec3 computeSmoothedPositions(std::vector<float> const & distances, deque_vec3 const & positions);
+    vector_vec3 computeSmoothedPositions(const std::vector<double> &distances, deque_vec3 const & positions);
 
     vector_quat computeSmoothedOrientations(vector_vec3 const & smoothed_positions, quat const & start_orientation, quat const & end_orientation, bool reverse);
 
-    float gaussianWeight(float t0, float t1);
+    double gaussianWeight(double t0, double t1);
 
 };
 

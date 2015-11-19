@@ -1,9 +1,40 @@
+/*
+    Copyright (c) 2015, Paul Manns
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+        * Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+        * Redistributions in binary form must reproduce the above copyright
+        notice, this list of conditions and the following disclaimer in the
+        documentation and/or other materials provided with the distribution.
+        * Neither the name of the <organization> nor the
+        names of its contributors may be used to endorse or promote products
+        derived from this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY Antons Rebguns <email> ''AS IS'' AND ANY
+    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL Antons Rebguns <email> BE LIABLE FOR ANY
+    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
 #include <vehicle_controller/ps3d.h>
 #include <vehicle_controller/quaternions.h>
 
 #include <ros/ros.h>
 
+#include <cmath>
+
 using std::vector;
+using std::exp;
+using std::pow;
 
 Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths, PS3dMotionParameters * mp)
     : SMOOTHED_PATH_DISCRETIZATION(0.05),// Hector best practice values
@@ -15,21 +46,25 @@ Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths, PS3dMotionParameters * 
 
 }
 
-float Pathsmoother3D::gaussianWeight(float t0, float t1)
+double Pathsmoother3D::gaussianWeight(double t0, double t1)
 {
-  return exp(-pow(t0 - t1, 2) / (2.0 *  pow(PATH_SMOOTHNESS,2)));
+  return exp(-pow(t0 - t1, 2) / (2.0 *  pow(PATH_SMOOTHNESS, 2)));
 }
 
-vector<float> Pathsmoother3D::computeAccumulatedDistances(deque_vec3 const & positions)
+vector<double> Pathsmoother3D::computeAccumulatedDistances(deque_vec3 const & positions)
 {
-  vector<float> result(positions.size(), 0);
+  vector<double> result(positions.size(), 0);
   for(unsigned i = 1; i < positions.size(); i++)
     result[i] = result[i - 1] + (positions[i] - positions[i - 1]).norm();
   return result;
 }
 
-void Pathsmoother3D::smooth(deque_vec3 const & in_path, quat const & in_start_orientation, quat const & in_end_orientation,
-                            vector_vec3 & out_smooth_positions, vector_quat & out_smooth_orientations, bool forbid_reverse_path)
+void Pathsmoother3D::smooth(deque_vec3 const & in_path,
+                            quat const & in_start_orientation,
+                            quat const & in_end_orientation,
+                            vector_vec3 & out_smooth_positions,
+                            vector_quat & out_smooth_orientations,
+                            bool forbid_reverse_path) const
 {
     // Missing
     // forbid_reverse_path has to switched on by the user if the robot is too far away from the path.
@@ -37,7 +72,7 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path, quat const & in_start_or
     vector_vec3 smoothed_positions;
     vector_quat smoothed_orientations;
 
-    vector<float> distances = computeAccumulatedDistances(in_path);
+    vector<double> distances = computeAccumulatedDistances(in_path);
     smoothed_positions = computeSmoothedPositions(distances, in_path);
 
     bool reverse = false;
@@ -86,8 +121,7 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path, quat const & in_start_or
     out_smooth_orientations = smoothed_orientations;
 }
 
-
-vector_vec3 Pathsmoother3D::computeSmoothedPositions(std::vector<float> const & distances, deque_vec3 const & positions)
+vector_vec3 Pathsmoother3D::computeSmoothedPositions(std::vector<double> const & distances, deque_vec3 const & positions)
 {
     // TODO : assert distances.size() == poses_in.size()
     // The total distance is in accumulatedDistances(...).back()
@@ -97,16 +131,16 @@ vector_vec3 Pathsmoother3D::computeSmoothedPositions(std::vector<float> const & 
     vector_vec3 smoothed_positions;
     smoothed_positions.reserve(distances.back() / SMOOTHED_PATH_DISCRETIZATION + 1);
 
-    std::vector<float> samples;
+    std::vector<double> samples;
     samples.reserve(distances.back() / SMOOTHED_PATH_DISCRETIZATION);
 
     vector_vec3 samplesX;
     samplesX.reserve(distances.back() / SMOOTHED_PATH_DISCRETIZATION);
 
-    vector<float>::const_iterator itT = distances.begin();
+    vector<double>::const_iterator itT = distances.begin();
     deque_vec3::const_iterator itX = positions.begin();
 
-    for(float d = 0; d < distances.back(); d += SMOOTHED_PATH_DISCRETIZATION)
+    for(double d = 0; d < distances.back(); d += SMOOTHED_PATH_DISCRETIZATION)
     {
         if(d > *(itT + 1))
         {
@@ -124,12 +158,12 @@ vector_vec3 Pathsmoother3D::computeSmoothedPositions(std::vector<float> const & 
     for(unsigned i = 1; i < samples.size() - 1; ++i)
     {
         vec3 p = vec3::Zero();
-        float weight = 0;
+        double weight = 0;
         for(unsigned j = 0; j < samples.size(); ++j)
             weight += gaussianWeight(samples[i], samples[j]);
         for(unsigned j = 0; j < samples.size(); ++j)
         {
-            float w_ij = gaussianWeight(samples[i], samples[j]);
+            double w_ij = gaussianWeight(samples[i], samples[j]);
             p(0) += (w_ij / weight) * samplesX[j](0);
             p(1) += (w_ij / weight) * samplesX[j](1);
             p(2) += (w_ij / weight) * samplesX[j](2);
@@ -140,8 +174,10 @@ vector_vec3 Pathsmoother3D::computeSmoothedPositions(std::vector<float> const & 
     return smoothed_positions;
 }
 
-
-vector_quat Pathsmoother3D::computeSmoothedOrientations(vector_vec3 const & smoothed_positions, quat const & start_orientation, quat const & end_orientation, bool reverse)
+vector_quat Pathsmoother3D::computeSmoothedOrientations(vector_vec3 const & smoothed_positions,
+                                                        quat const & start_orientation,
+                                                        quat const & end_orientation,
+                                                        bool reverse)
 {
     vector_quat smoothed_orientations;
     smoothed_orientations.reserve(smoothed_positions.size());
