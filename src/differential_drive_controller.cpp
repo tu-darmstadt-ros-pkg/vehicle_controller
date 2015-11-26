@@ -66,7 +66,11 @@ void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_t
  * @param e_position the position error
  * @param dt time difference between two control loop iterates
  */
-void DifferentialDriveController::executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed)
+void DifferentialDriveController::executePDControlledMotionCommand(double e_angle,
+                                                                   double e_position,
+                                                                   double dt,
+                                                                   double cmded_speed,
+                                                                   bool approaching_goal_point)
 {
     static double previous_e_angle = e_angle;
     static double previous_e_position = e_position;
@@ -82,7 +86,8 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     double de_angle_dt    = (e_angle - previous_e_angle) / dt; // causes discontinuity @ orientation_error vs relative_angle switch
     double de_position_dt = (e_position - previous_e_position) / dt;
 
-    double speed   = KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;
+    double speed   = approaching_goal_point ? std::abs(cmded_speed) * (e_position < 0 ? -1.0 : 1.0) :
+                                              KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;
     double z_angular_rate = KP_ANGLE_ * e_angle + KD_ANGLE_ * de_angle_dt;
 
     if(fabs(speed) > fabs(cmded_speed))
@@ -96,6 +101,7 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     monstertruck_msgs::Pdout pdout;
     pdout.header.frame_id = "world";
     pdout.header.stamp = ros::Time::now();
+    pdout.approaching_goal_point = approaching_goal_point;
     pdout.dt = dt;
     pdout.e_position = e_position;
     pdout.e_angle = e_angle;
@@ -118,7 +124,8 @@ void DifferentialDriveController::executeMotionCommand(double ang_error_2_path,
                                                        double carrot_distance,
                                                        double speed,
                                                        double signed_carrot_distance_2_robot,
-                                                       double dt)
+                                                       double dt,
+                                                       bool approaching_goal_point)
 {
     double e_angle = ang_error_2_path;
     if(e_angle > M_PI + 1e-2 || e_angle < -M_PI - 1e-2)
@@ -130,7 +137,7 @@ void DifferentialDriveController::executeMotionCommand(double ang_error_2_path,
         ROS_INFO("[vehicle_controller] [differential_drive_controller] Commanded speed is 0");
         speed = 0.0;
     }
-    executePDControlledMotionCommand(e_angle, signed_carrot_distance_2_robot, dt, speed);
+    executePDControlledMotionCommand(e_angle, signed_carrot_distance_2_robot, dt, speed, approaching_goal_point);
     // executeMotionCommand(carrot_relative_angle, carrot_orientation_error, carrot_distance, speed);
 }
 

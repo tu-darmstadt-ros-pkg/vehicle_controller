@@ -43,7 +43,8 @@ class VehicleControlInterface
     virtual void executeMotionCommand(double ang_error_2_path, double ang_error_2_carrot, double carrot_distance, double speed) = 0;
 
     virtual void executeMotionCommand(double ang_error_2_path, double ang_error_2_carrot,
-                                      double carrot_distance, double speed, double signed_carrot_distance_2_robot, double dt)
+                                      double carrot_distance, double speed, double signed_carrot_distance_2_robot, double dt,
+                                      bool   approaching_goal_point)
     {
         executeMotionCommand(ang_error_2_path, ang_error_2_carrot, carrot_distance, speed);
     }

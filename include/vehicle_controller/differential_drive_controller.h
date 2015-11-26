@@ -65,11 +65,12 @@ class DifferentialDriveController: public VehicleControlInterface
 
     virtual void executeTwist(const geometry_msgs::Twist& inc_twist);
 
-    void executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed);
+    void executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed, bool approaching_goal_point);
 
     virtual void executeMotionCommand(double ang_error_2_path, double ang_error_2_carrot,
                                       double carrot_distance, double speed,
-                                      double signed_carrot_distance_2_robot, double dt);
+                                      double signed_carrot_distance_2_robot, double dt,
+                                      bool approaching_goal_point);
 
     virtual void executeMotionCommand(double ang_error_2_path, double ang_error_2_carrot, double carrot_distance, double speed);
 

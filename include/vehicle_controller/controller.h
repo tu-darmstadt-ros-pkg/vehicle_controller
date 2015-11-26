@@ -41,7 +41,8 @@ public:
     float orientation;
   } Point;
 
-  typedef struct {
+  typedef struct
+  {
     Point p1;
     Point p2;
     float course;
@@ -52,6 +53,7 @@ public:
     float length;
     float percent;
   } Leg;
+
   typedef std::vector<Leg> Legs;
 
   Controller(const std::string &ns = std::string());
