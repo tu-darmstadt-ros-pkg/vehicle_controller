@@ -121,10 +121,19 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path,
     out_smooth_orientations = smoothed_orientations;
 }
 
+/**
+ * @brief Pathsmoother3D::computeSmoothedPositions computes smoothed positions from the piecewise linear input
+ *        path positions with the configured discretization and smoothness.
+ *        The function assumes distances.size() == positions.size() otherwise the result
+ *        is undefined and segmentation fault crashes may happen
+ * @param distances array, distance[i] = distance from position[0] to position[i] along the path defined by
+ *        positions
+ * @param positions defines a piecewise linear input path
+ * @return a smoothed piecewise linear output path
+ */
 vector_vec3 Pathsmoother3D::computeSmoothedPositions(std::vector<double> const & distances,
                                                      deque_vec3 const & positions) const
 {
-    // TODO : assert distances.size() == poses_in.size()
     // The total distance is in accumulatedDistances(...).back()
     // => sample path along the accumulated (approx. for the time needed for the path).
     // ROS_INFO("total linear distance = %f \n", distances.back());
