@@ -614,7 +614,7 @@ void Controller::update()
             }
         }
 
-        legs[current].percent = ((pose.pose.position.x - legs[current].p1.x) * (legs[current].p2.x - legs[current].p1.x)
+        legs[current].percent = (  (pose.pose.position.x - legs[current].p1.x) * (legs[current].p2.x - legs[current].p1.x)
                                  + (pose.pose.position.y - legs[current].p1.y) * (legs[current].p2.y - legs[current].p1.y))
                 / legs[current].length2;
 
