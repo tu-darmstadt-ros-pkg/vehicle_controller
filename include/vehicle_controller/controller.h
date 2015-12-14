@@ -26,35 +26,13 @@
 #include <vehicle_controller/stuck_detector.h>
 
 #include <memory>
-
 #include <vehicle_controller/ps3d.h>
+#include <vehicle_controller/utility.h>
 
 class Controller
 {
 public:
   typedef enum { INACTIVE, VELOCITY, DRIVETO, DRIVEPATH } State;
-
-  typedef struct
-  {
-    float x;
-    float y;
-    float orientation;
-  } Point;
-
-  typedef struct
-  {
-    Point p1;
-    Point p2;
-    float course;
-
-    bool backward;
-    float speed;
-    float length2;
-    float length;
-    float percent;
-  } Leg;
-
-  typedef std::vector<Leg> Legs;
 
   Controller(const std::string &ns = std::string());
   virtual ~Controller();

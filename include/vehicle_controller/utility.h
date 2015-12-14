@@ -4,6 +4,28 @@
 #include <cmath>
 #include <geometry_msgs/Point.h>
 
+struct Point
+{
+  float x;
+  float y;
+  float orientation;
+};
+
+struct Leg
+{
+  Point p1;
+  Point p2;
+  float course;
+
+  bool backward;
+  float speed;
+  float length2;
+  float length;
+  float percent;
+};
+
+typedef std::vector<Leg> Legs;
+
 inline static double constrainAngle_0_2pi(double x)
 {
     x = fmod(x, 2.0 * M_PI);
