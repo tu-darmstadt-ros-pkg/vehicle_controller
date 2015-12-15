@@ -309,7 +309,8 @@ bool Controller::drivepath(const nav_msgs::Path& path)
 
 
         geometry_msgs::PoseStamped ptbp;
-        ptbp.header = pose.header;
+        ptbp.header.stamp = ros::Time::now();
+        ptbp.header.frame_id = map_frame_id;
         ptbp.pose.position.x = in_path.back()(0);
         ptbp.pose.position.y = in_path.back()(1);
         ptbp.pose.position.z = 0;
