@@ -102,6 +102,7 @@ bool Controller::configure()
     speedSubscriber     = nh.subscribe("speed", 10, &Controller::speedCallback, this);
 
     carrotPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("carrot", 1, true);
+    endPosePoublisher   = nh.advertise<geometry_msgs::PoseStamped>("end_pose", 1, true);
     drivepathPublisher  = nh.advertise<nav_msgs::Path>("drivepath", 1, true);
     pathPosePublisher   = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
 
@@ -305,6 +306,15 @@ bool Controller::drivepath(const nav_msgs::Path& path)
                                     pose.pose.orientation.y, pose.pose.orientation.z);
         in_end_orientation = quat(map_path.back().orientation.w, map_path.back().orientation.x,
                                   map_path.back().orientation.y, map_path.back().orientation.z);
+
+
+        geometry_msgs::PoseStamped ptbp;
+        ptbp.header = pose.header;
+        ptbp.pose.position.x = in_path.back()(0);
+        ptbp.pose.position.y = in_path.back()(1);
+        ptbp.pose.position.z = 0;
+        ptbp.pose.orientation = map_path.back().orientation;
+        endPosePoublisher.publish(ptbp);
 
         vector_vec3 out_smoothed_positions;
         vector_quat out_smoothed_orientations;

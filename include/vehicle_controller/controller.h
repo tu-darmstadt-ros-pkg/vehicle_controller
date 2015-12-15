@@ -85,7 +85,7 @@ private:
   ros::Subscriber cmd_flipper_toggle_sub_;
   ros::Subscriber joint_states_sub_;
 
-
+  ros::Publisher endPosePoublisher;
   ros::Publisher carrotPosePublisher;
   ros::Publisher lookatPublisher;
   ros::Publisher cameraOrientationPublisher;
