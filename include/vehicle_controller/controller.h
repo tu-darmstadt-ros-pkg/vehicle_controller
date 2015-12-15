@@ -28,6 +28,7 @@
 #include <memory>
 #include <vehicle_controller/ps3d.h>
 #include <vehicle_controller/utility.h>
+#include <vehicle_controller/melman_mpc_wrapper.h>
 
 class Controller
 {
@@ -73,6 +74,9 @@ protected:
   geometry_msgs::Pose createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation);
 
 private:
+  MelmanMpcWrapper mpc;
+  double t_mpc;
+
   ros::NodeHandle nh;
   tf::TransformListener listener;
 
@@ -91,6 +95,7 @@ private:
   ros::Publisher cameraOrientationPublisher;
   ros::Publisher drivepathPublisher;
   ros::Publisher diagnosticsPublisher;
+  ros::Publisher endPosePoublisher;
 
   ros::Publisher pathPosePublisher;
   ros::Publisher autonomy_level_pub_;
@@ -159,6 +164,7 @@ private:
   }
 
   std::unique_ptr<StuckDetector> stuck;
+
 };
 
 #endif // VEHICLE_CONTROLLER_H

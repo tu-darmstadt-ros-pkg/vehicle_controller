@@ -19,7 +19,7 @@
 #include <functional>
 
 Controller::Controller(const std::string& ns)
-    : stuck(new StuckDetector(mp_)), nh(ns), state(INACTIVE)
+    : mpc(mp_), stuck(new StuckDetector(mp_)), nh(ns), state(INACTIVE)
 {
     mp_.carrot_distance = 1.0;
     mp_.min_speed = 0.1;
@@ -102,6 +102,8 @@ bool Controller::configure()
     speedSubscriber     = nh.subscribe("speed", 10, &Controller::speedCallback, this);
 
     carrotPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("carrot", 1, true);
+    endPosePoublisher = nh.advertise<geometry_msgs::PoseStamped>("end_pose", 1, true);
+
     drivepathPublisher  = nh.advertise<nav_msgs::Path>("drivepath", 1, true);
     pathPosePublisher   = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
 
@@ -306,6 +308,16 @@ bool Controller::drivepath(const nav_msgs::Path& path)
         in_end_orientation = quat(map_path.back().orientation.w, map_path.back().orientation.x,
                                   map_path.back().orientation.y, map_path.back().orientation.z);
 
+
+        geometry_msgs::PoseStamped ptbp;
+        ptbp.header = pose.header;
+        ptbp.pose.position.x = in_path.back()(0);
+        ptbp.pose.position.y = in_path.back()(1);
+        ptbp.pose.position.z = 0;
+        ptbp.pose.orientation = map_path.back().orientation;
+        endPosePoublisher.publish(ptbp);
+
+
         vector_vec3 out_smoothed_positions;
         vector_quat out_smoothed_orientations;
         ps3d.smooth(in_path, in_start_orientation, in_end_orientation,
@@ -354,6 +366,17 @@ bool Controller::drivepath(const nav_msgs::Path& path)
         path.header.stamp = ros::Time::now();
         pathPosePublisher.publish(path);
     }
+
+    double angles[3];
+    quaternion2angles(this->pose.pose.orientation, angles);
+    Point state_4_mpc;
+    state_4_mpc.orientation = angles[0];
+    state_4_mpc.x = this->pose.pose.position.x;
+    state_4_mpc.y = this->pose.pose.position.y;
+    ROS_INFO("[vehicle_controller] Updating path ...");
+    mpc.updatePath(legs, state_4_mpc);
+    t_mpc = ros::Time::now().toSec();
+    ROS_INFO("[vehicle_controller] Updating path done.");
 
     state = DRIVEPATH;
     if(legs.size() >= 1)
@@ -704,6 +727,13 @@ void Controller::update()
     vehicle_control_interface_->executeMotionCommand(error_2_path, error_2_carrot, mp_.carrot_distance,
                                                      speed, signed_carrot_distance_2_robot, dt,
                                                      approaching_goal_point);
+
+//    Point p_mpc;
+//    p_mpc.orientation = angles[0];
+//    p_mpc.x = this->pose.pose.position.x;
+//    p_mpc.y = this->pose.pose.position.y;
+//    geometry_msgs::Twist twist = mpc.feedbackStep(p_mpc, ros::Time::now().toSec() - t_mpc);
+//    vehicle_control_interface_->executeTwist(twist);
 
     if (check_stuck && !isDtInvalid())
     {
