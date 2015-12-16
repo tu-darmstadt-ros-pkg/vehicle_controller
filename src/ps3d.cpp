@@ -28,9 +28,9 @@
 #include <vehicle_controller/ps3d.h>
 #include <vehicle_controller/quaternions.h>
 
-#include <ros/ros.h>
-
 #include <cmath>
+
+#include <ros/ros.h>
 
 using std::vector;
 using std::exp;
@@ -116,7 +116,7 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path,
         }
     }
 
-    smoothed_orientations = computeSmoothedOrientations(smoothed_positions, in_end_orientation, in_start_orientation, reverse);
+    smoothed_orientations = computeSmoothedOrientations(smoothed_positions, in_start_orientation, in_end_orientation, reverse);
     out_smooth_positions = smoothed_positions;
     out_smooth_orientations = smoothed_orientations;
 }
