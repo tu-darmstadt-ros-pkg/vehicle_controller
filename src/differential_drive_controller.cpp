@@ -134,7 +134,7 @@ void DifferentialDriveController::executeMotionCommand(double ang_error_2_path,
     }
     if(speed == 0.0)
     {
-        ROS_INFO("[vehicle_controller] [differential_drive_controller] Commanded speed is 0");
+        ROS_DEBUG("[vehicle_controller] [differential_drive_controller] Commanded speed is 0");
         speed = 0.0;
     }
     executePDControlledMotionCommand(e_angle, signed_carrot_distance_2_robot, dt, speed, approaching_goal_point);
