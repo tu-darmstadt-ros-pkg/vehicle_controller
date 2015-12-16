@@ -286,6 +286,13 @@ bool Controller::drivepath(const nav_msgs::Path& path)
                         return transformed_waypoint;
                    });
 
+    geometry_msgs::PoseStamped ptbp;
+    ptbp.header.stamp = ros::Time::now();
+    ptbp.header.frame_id = map_frame_id;
+    ptbp.pose.position = map_path.back().position;
+    ptbp.pose.orientation = map_path.back().orientation;
+    endPosePoublisher.publish(ptbp);
+
     if(pathToBeSmoothed(map_path))
     {
         ROS_DEBUG("[vehicle_controller] Using PathSmoother.");
@@ -307,16 +314,6 @@ bool Controller::drivepath(const nav_msgs::Path& path)
         in_end_orientation = quat(map_path.back().orientation.w, map_path.back().orientation.x,
                                   map_path.back().orientation.y, map_path.back().orientation.z);
 
-
-        geometry_msgs::PoseStamped ptbp;
-        ptbp.header.stamp = ros::Time::now();
-        ptbp.header.frame_id = map_frame_id;
-        ptbp.pose.position.x = in_path.back()(0);
-        ptbp.pose.position.y = in_path.back()(1);
-        ptbp.pose.position.z = 0;
-        ptbp.pose.orientation = map_path.back().orientation;
-        endPosePoublisher.publish(ptbp);
-
         vector_vec3 out_smoothed_positions;
         vector_quat out_smoothed_orientations;
         ps3d.smooth(in_path, in_start_orientation, in_end_orientation,
@@ -326,6 +323,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
         std::transform(out_smoothed_positions.begin(), out_smoothed_positions.end(),
                        out_smoothed_orientations.begin(), std::back_inserter(smooth_path),
                        boost::bind(&Controller::createPoseFromQuatAndPosition, this, _1, _2));
+
         std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Controller::addLeg, this, _1));
 
         nav_msgs::Path path2publish;
@@ -357,6 +355,11 @@ bool Controller::drivepath(const nav_msgs::Path& path)
             }
             else
             {
+                addLeg(transformed_waypoint);
+            }
+            if (path.poses.size() == 1) // TODO: Consider calling driveto instead for small paths instead.
+            {
+                transformed_waypoint.position.x += 0.01;
                 addLeg(transformed_waypoint);
             }
         }
