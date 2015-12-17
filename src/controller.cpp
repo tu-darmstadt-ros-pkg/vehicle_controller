@@ -235,14 +235,14 @@ void Controller::cmd_flipper_toggleCallback(std_msgs::Empty const &)
     jointstate_cmd_pub_.publish(msg);
 }
 
-bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transformed_path)
+bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transformed_path, bool fixed_path)
 {
     // Check if this path shall be smoothed
     // <=> path has length >= 2 and path is output of exploration planner
     //     and hence, the points lie in the centers of neighbouring grid cells.
     // Note: This function not robust to changes in the exploration planner
 
-    if(transformed_path.size() < 2)
+    if(transformed_path.size() < 2 || fixed_path)
         return false;
 
     double lu = 0.05 - 1e-5;
@@ -258,7 +258,7 @@ bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transf
     return path_to_be_smoothed;
 }
 
-bool Controller::drivepath(const nav_msgs::Path& path)
+bool Controller::drivepath(const nav_msgs::Path& path, bool fixed_path)
 {
     reset();
 
@@ -293,7 +293,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     ptbp.pose.orientation = map_path.back().orientation;
     endPosePoublisher.publish(ptbp);
 
-    if(pathToBeSmoothed(map_path))
+    if(pathToBeSmoothed(map_path, fixed_path))
     {
         ROS_DEBUG("[vehicle_controller] Using PathSmoother.");
         start = map_path[0];
@@ -454,13 +454,15 @@ bool Controller::alternativeTolerancesService(monstertruck_msgs::SetAlternativeT
 
 void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGeneric& action)
 {
+    ROS_WARN("[vehicle_controller] Action callback!");
+
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new action");
-    this->goalID.reset(new actionlib_msgs::GoalID(action.goal_id));
+    this->goalID.reset(new actionlib_msgs::GoalID(action.goal_id));    
 
     hector_move_base_msgs::MoveBasePathPtr path_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBasePath>(action);
     if (path_action)
     {
-        drivepath(path_action->target_path);
+        drivepath(path_action->target_path, path_action->fixed);
         drivepathPublisher.publish(path_action->target_path);
     }
 
@@ -484,7 +486,7 @@ void Controller::actionPathCallback(const hector_move_base_msgs::MoveBaseActionP
 {
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new path.");
     this->goalID.reset(new actionlib_msgs::GoalID(path_action.goal_id));
-    drivepath(path_action.goal.target_path);
+    drivepath(path_action.goal.target_path, path_action.goal.fixed);
     drivepathPublisher.publish(path_action.goal.target_path);
 }
 
