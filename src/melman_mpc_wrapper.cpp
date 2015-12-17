@@ -5,7 +5,7 @@
 
 USING_NAMESPACE_ACADO
 
-MelmanMpcWrapper::MelmanMpcWrapper(const MotionParameters &mp) : Q(4,4), r(3), mp(mp)
+MelmanMpcWrapper::MelmanMpcWrapper(const MotionParameters &mp) : Q(4,4), r(4), mp(mp)
 {
     setupODE();
 }
@@ -73,7 +73,7 @@ void MelmanMpcWrapper::updatePath(Legs const & legs, Point state)
     ROS_INFO("[mpc] 1");
 
     double tend = std::accumulate(legs.begin(), legs.end(), 0.0, [](double const & acc, Leg const & l)
-                                  { return acc + l.length * l.speed * 0.8; });
+                                  { return acc + l.length / (l.speed * 0.4); });
     int    samplings = tend / 0.1;
 
     ref_traj_grid = new VariablesGrid(4, 0, tend, legs.size());
@@ -96,8 +96,8 @@ void MelmanMpcWrapper::updatePath(Legs const & legs, Point state)
 
     Q(0,0) = 1.0;
     Q(1,1) = 1.0;
-    Q(2,2) = 0.001;
-    Q(3,3) = 0.001;
+    Q(2,2) = 0.05;
+    Q(3,3) = 0.05;
 
     r.setAll(0.0) ;
 
@@ -108,13 +108,13 @@ void MelmanMpcWrapper::updatePath(Legs const & legs, Point state)
     ocp->subjectTo(AT_START, ys == 0.0);
     ocp->subjectTo(AT_START, xc == -d);
     ocp->subjectTo(AT_START, yc == 0.0);
-    ocp->subjectTo(-mp.max_controller_angular_rate_ <= u1 <= mp.max_controller_angular_rate_);
-    ocp->subjectTo(-mp.max_controller_speed_        <= u2 <= mp.max_controller_speed_);
+    ocp->subjectTo(-mp.max_controller_speed_        <= u1 <= mp.max_controller_speed_);
+    ocp->subjectTo(-mp.max_controller_angular_rate_ <= u2 <= mp.max_controller_angular_rate_);
 
     alg = new RealTimeAlgorithm(*ocp, 0.05);
-    alg->set(MAX_NUM_ITERATIONS, 2);
+    alg->set(MAX_NUM_ITERATIONS, 1);
     alg->set(PLOT_RESOLUTION, HIGH);
-    alg->set(PRINTLEVEL, MEDIUM);
+    alg->set(PRINTLEVEL, LOW);
 
     controller = new Controller(*alg, *ref_traj);
     DVector y( 5 ) ;
@@ -130,7 +130,6 @@ void MelmanMpcWrapper::updatePath(Legs const & legs, Point state)
 
 geometry_msgs::Twist MelmanMpcWrapper::feedbackStep(Point state, double t)
 {
-    ROS_INFO("[mpc fb] 0");
     DVector y( 5 ) ;
     y.setZero();
     y(0) = state.orientation;
@@ -138,20 +137,16 @@ geometry_msgs::Twist MelmanMpcWrapper::feedbackStep(Point state, double t)
     y(2) = state.y + std::sin(state.orientation) * d;
     y(3) = state.x;
     y(4) = state.y;
-    ROS_INFO("[mpc fb] 1");
 
-    ROS_INFO("[mpc fb] 2");
     controller->step(t, y);
 
     DVector u;
-    ROS_INFO("[mpc fb] 3");
     controller->getU(u);
-    ROS_INFO("[mpc fb] 4");
-
+    ROS_INFO("[mpc fb] ang rate = %f, lin speed = %f", u[1], u[0]);
 
     geometry_msgs::Twist twist;
-    twist.angular.z = u[0];
-    twist.linear.x  = u[1];
+    twist.angular.z = u[1];
+    twist.linear.x  = u[0];
     return twist;
 }
 

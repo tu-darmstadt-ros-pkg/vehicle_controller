@@ -265,7 +265,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
 
     if (path.poses.size() == 0)
     {
-        ROS_WARN("[vehicle_controller] Received empty path");
+        ROS_WARN("[vehicle_controller] Received empty path.");
         stop();
         publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
         return false;
@@ -374,6 +374,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     state_4_mpc.x = this->pose.pose.position.x;
     state_4_mpc.y = this->pose.pose.position.y;
     ROS_INFO("[vehicle_controller] Updating path ...");
+    legs.resize(std::min(6ul, legs.size()));
     mpc.updatePath(legs, state_4_mpc);
     t_mpc = ros::Time::now().toSec();
     ROS_INFO("[vehicle_controller] Updating path done.");
@@ -724,16 +725,16 @@ void Controller::update()
         if(error_2_path < -M_PI_2)
             error_2_path = M_PI + error_2_path;
     }
-    vehicle_control_interface_->executeMotionCommand(error_2_path, error_2_carrot, mp_.carrot_distance,
-                                                     speed, signed_carrot_distance_2_robot, dt,
-                                                     approaching_goal_point);
+//    vehicle_control_interface_->executeMotionCommand(error_2_path, error_2_carrot, mp_.carrot_distance,
+//                                                     speed, signed_carrot_distance_2_robot, dt,
+//                                                     approaching_goal_point);
 
-//    Point p_mpc;
-//    p_mpc.orientation = angles[0];
-//    p_mpc.x = this->pose.pose.position.x;
-//    p_mpc.y = this->pose.pose.position.y;
-//    geometry_msgs::Twist twist = mpc.feedbackStep(p_mpc, ros::Time::now().toSec() - t_mpc);
-//    vehicle_control_interface_->executeTwist(twist);
+    Point p_mpc;
+    p_mpc.orientation = angles[0];
+    p_mpc.x = this->pose.pose.position.x;
+    p_mpc.y = this->pose.pose.position.y;
+    geometry_msgs::Twist twist = mpc.feedbackStep(p_mpc, ros::Time::now().toSec() - t_mpc);
+    vehicle_control_interface_->executeUnlimitedTwist(twist);
 
     if (check_stuck && !isDtInvalid())
     {

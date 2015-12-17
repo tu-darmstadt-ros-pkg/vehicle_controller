@@ -15,7 +15,7 @@ class MelmanMpcWrapper
 {
 private:
     double c = 1.0;
-    double d = 0.05;
+    double d = 0.00;
 
     MotionParameters const & mp;
 
