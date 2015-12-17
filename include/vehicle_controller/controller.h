@@ -47,7 +47,7 @@ protected:
   virtual void cleanup();
 
   virtual bool driveto(const geometry_msgs::PoseStamped&);
-  virtual bool drivepath(const nav_msgs::Path&);
+  virtual bool drivepath(const nav_msgs::Path&, bool fixed_path = true);
 
   virtual void stateCallback(const nav_msgs::Odometry&);
   virtual void drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&);
@@ -68,7 +68,7 @@ protected:
   void addLeg(geometry_msgs::Pose const&);
   void setDriveCommand(float speed, float kappa, float tan_gamma);
 
-  bool pathToBeSmoothed(const std::deque<geometry_msgs::Pose> &transformed_path);
+  bool pathToBeSmoothed(const std::deque<geometry_msgs::Pose> &transformed_path, bool fixed_path);
   bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
   geometry_msgs::Pose createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation);
 
