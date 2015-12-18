@@ -8,6 +8,7 @@ include_directories(${EIGEN_INCLUDE_DIRS} include)
 add_definitions(${EIGEN_DEFINITIONS})
 
 add_definitions("-std=c++11")
+add_definitions("-Wall")
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)

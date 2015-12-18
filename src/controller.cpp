@@ -19,7 +19,7 @@
 #include <functional>
 
 Controller::Controller(const std::string& ns)
-    : stuck(new StuckDetector(mp_)), nh(ns), state(INACTIVE)
+    : nh(ns), state(INACTIVE), stuck(new StuckDetector(mp_))
 {
     mp_.carrot_distance = 1.0;
     mp_.min_speed = 0.1;
