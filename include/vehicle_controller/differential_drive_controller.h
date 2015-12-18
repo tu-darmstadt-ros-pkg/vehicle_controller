@@ -65,6 +65,12 @@ class DifferentialDriveController: public VehicleControlInterface
 
     virtual void executeTwist(const geometry_msgs::Twist& inc_twist);
 
+    /**
+     * @brief DifferentialDriveController::executePDControlledMotionCommand
+     * @param e_angle the angular error which is assumed to lie inside [-pi,pi]
+     * @param e_position the position error
+     * @param dt time difference between two control loop iterates
+     */
     void executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed, bool approaching_goal_point);
 
     virtual void executeMotionCommand(double ang_error_2_path, double ang_error_2_carrot,
