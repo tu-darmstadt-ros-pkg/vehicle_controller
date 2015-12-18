@@ -81,7 +81,6 @@ protected:
     vector_quat computeSmoothedOrientations(vector_vec3 const & smoothed_positions, quat const & start_orientation, quat const & end_orientation, bool reverse) const;
 
     double gaussianWeight(double t0, double t1) const;
-
 };
 
 #endif

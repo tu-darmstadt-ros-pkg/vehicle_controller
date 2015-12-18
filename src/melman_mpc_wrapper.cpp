@@ -29,10 +29,10 @@ MelmanMpcWrapper::~MelmanMpcWrapper()
 void MelmanMpcWrapper::setupODE()
 {
     f << dot(theta) == u2;
-    f << dot(xs)    == c * u1 * cos(theta);
-    f << dot(ys)    == c * u1 * sin(theta);
-    f << dot(xc)    == c * u1 * cos(theta) + d * sin(theta) * u2;
-    f << dot(yc)    == c * u1 * sin(theta) + d * cos(theta) * u2;
+    f << dot(xs)    == c * u1 * cos(theta) - d * sin(theta) * u2;
+    f << dot(ys)    == c * u1 * sin(theta) + d * cos(theta) * u2;
+    f << dot(xc)    == c * u1 * cos(theta);
+    f << dot(yc)    == c * u1 * sin(theta);
 }
 
 void MelmanMpcWrapper::updatePath(Legs const & legs, Point state)
@@ -130,6 +130,7 @@ void MelmanMpcWrapper::updatePath(Legs const & legs, Point state)
 
 geometry_msgs::Twist MelmanMpcWrapper::feedbackStep(Point state, double t)
 {
+    ROS_INFO("[mpc fb] 1");
     DVector y( 5 ) ;
     y.setZero();
     y(0) = state.orientation;
@@ -142,7 +143,7 @@ geometry_msgs::Twist MelmanMpcWrapper::feedbackStep(Point state, double t)
 
     DVector u;
     controller->getU(u);
-    ROS_INFO("[mpc fb] ang rate = %f, lin speed = %f", u[1], u[0]);
+    ROS_INFO("[mpc fb] theta = %f, x = %f, y = %f, ang rate = %f, lin speed = %f", y(0), y(1), y(2), u[1], u[0]);
 
     geometry_msgs::Twist twist;
     twist.angular.z = u[1];

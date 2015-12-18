@@ -374,7 +374,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     state_4_mpc.x = this->pose.pose.position.x;
     state_4_mpc.y = this->pose.pose.position.y;
     ROS_INFO("[vehicle_controller] Updating path ...");
-    legs.resize(std::min(6ul, legs.size()));
+    legs.resize(std::min(15ul, legs.size()));
     mpc.updatePath(legs, state_4_mpc);
     t_mpc = ros::Time::now().toSec();
     ROS_INFO("[vehicle_controller] Updating path done.");
