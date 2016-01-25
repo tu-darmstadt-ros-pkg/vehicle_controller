@@ -102,7 +102,7 @@ bool Controller::configure()
     speedSubscriber     = nh.subscribe("speed", 10, &Controller::speedCallback, this);
 
     carrotPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("carrot", 1, true);
-    endPosePoublisher = nh.advertise<geometry_msgs::PoseStamped>("end_pose", 1, true);
+    endPosePoublisher   = nh.advertise<geometry_msgs::PoseStamped>("end_pose", 1, true);
 
     drivepathPublisher  = nh.advertise<nav_msgs::Path>("drivepath", 1, true);
     pathPosePublisher   = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
@@ -148,21 +148,31 @@ void Controller::joint_statesCallback(sensor_msgs::JointStateConstPtr msg)
 
 void Controller::stateCallback(const nav_msgs::Odometry& state)
 {
-    dt = (state.header.stamp - pose.header.stamp).toSec();
+    dt = (state.header.stamp - robot_state_header.stamp).toSec();
     if (dt < 0.0 || dt > 1.0)
         invalidateDt();
 
+    geometry_msgs::PoseStamped pose;
+    geometry_msgs::Vector3Stamped velocity_linear;
+    geometry_msgs::Vector3Stamped velocity_angular;
     pose.header = state.header;
     pose.pose = state.pose.pose;
-    velocity.header = state.header;
-    velocity.vector = state.twist.twist.linear;
+    velocity_linear.header = state.header;
+    velocity_linear.vector = state.twist.twist.linear;
+    velocity_angular.header = state.header;
+    velocity_angular.vector = state.twist.twist.angular;
 
     try
     {
         listener.waitForTransform(map_frame_id, state.header.frame_id, state.header.stamp, ros::Duration(3.0));
         listener.waitForTransform(base_frame_id, state.header.frame_id, state.header.stamp, ros::Duration(3.0));
         listener.transformPose(map_frame_id, pose, pose);
-        listener.transformVector(base_frame_id, velocity, velocity);
+        listener.transformVector(base_frame_id, velocity_linear, velocity_linear);
+        listener.transformVector(base_frame_id, velocity_angular, velocity_angular);
+
+        robot_state_header = state.header;
+        robot_control_state.setRobotState(velocity_linear.vector, velocity_angular.vector, pose.pose, dt);
+        robot_control_state.clearControlState();
     }
     catch (tf::TransformException ex)
     {
@@ -178,7 +188,7 @@ void Controller::stateCallback(const nav_msgs::Odometry& state)
         mp_.current_inclination = (mp_.inclination_speed_reduction_time_constant * mp_.current_inclination + dt * inclination)
                                   / (mp_.inclination_speed_reduction_time_constant + dt);
 
-    update();
+    update();    
 }
 
 void Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
@@ -207,7 +217,7 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal)
         return false;
     }
 
-    start = pose.pose;
+    start = robot_control_state.pose;
     addLeg(goal_transformed.pose);
     state = DRIVETO;
 
@@ -236,14 +246,14 @@ void Controller::cmd_flipper_toggleCallback(std_msgs::Empty const &)
     jointstate_cmd_pub_.publish(msg);
 }
 
-bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transformed_path)
+bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transformed_path, bool fixed_path)
 {
     // Check if this path shall be smoothed
     // <=> path has length >= 2 and path is output of exploration planner
     //     and hence, the points lie in the centers of neighbouring grid cells.
     // Note: This function not robust to changes in the exploration planner
 
-    if(transformed_path.size() < 2)
+    if(transformed_path.size() < 2 || fixed_path)
         return false;
 
     double lu = 0.05 - 1e-5;
@@ -259,7 +269,7 @@ bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transf
     return path_to_be_smoothed;
 }
 
-bool Controller::drivepath(const nav_msgs::Path& path)
+bool Controller::drivepath(const nav_msgs::Path& path, bool fixed_path)
 {
     reset();
 
@@ -287,11 +297,18 @@ bool Controller::drivepath(const nav_msgs::Path& path)
                         return transformed_waypoint;
                    });
 
-    if(pathToBeSmoothed(map_path))
+    geometry_msgs::PoseStamped ptbp;
+    ptbp.header.stamp = ros::Time::now();
+    ptbp.header.frame_id = map_frame_id;
+    ptbp.pose.position = map_path.back().position;
+    ptbp.pose.orientation = map_path.back().orientation;
+    endPosePoublisher.publish(ptbp);
+
+    if(pathToBeSmoothed(map_path, fixed_path))
     {
         ROS_DEBUG("[vehicle_controller] Using PathSmoother.");
         start = map_path[0];
-        start.orientation = pose.pose.orientation;
+        start.orientation = robot_control_state.pose.orientation;
 
         Pathsmoother3D ps3d(vehicle_control_type == "differential_steering", &mp_);
 
@@ -303,14 +320,12 @@ bool Controller::drivepath(const nav_msgs::Path& path)
                        [](geometry_msgs::Pose const & pose_)
                        { return vec3(pose_.position.x, pose_.position.y, pose_.position.z); });
 
-        in_start_orientation = quat(pose.pose.orientation.w, pose.pose.orientation.x,
-                                    pose.pose.orientation.y, pose.pose.orientation.z);
-        in_end_orientation = quat(map_path.back().orientation.w, map_path.back().orientation.x,
-                                  map_path.back().orientation.y, map_path.back().orientation.z);
+        in_start_orientation = geomQuat2EigenQuat(robot_control_state.pose.orientation);
+        in_end_orientation   = geomQuat2EigenQuat(map_path.back().orientation);
 
 
         geometry_msgs::PoseStamped ptbp;
-        ptbp.header = pose.header;
+        ptbp.header = robot_state_header;
         ptbp.pose.position.x = in_path.back()(0);
         ptbp.pose.position.y = in_path.back()(1);
         ptbp.pose.position.z = 0;
@@ -327,6 +342,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
         std::transform(out_smoothed_positions.begin(), out_smoothed_positions.end(),
                        out_smoothed_orientations.begin(), std::back_inserter(smooth_path),
                        boost::bind(&Controller::createPoseFromQuatAndPosition, this, _1, _2));
+
         std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Controller::addLeg, this, _1));
 
         nav_msgs::Path path2publish;
@@ -354,10 +370,15 @@ bool Controller::drivepath(const nav_msgs::Path& path)
             if (waypoint == path.poses.begin())
             {
                 start = transformed_waypoint;
-                start.orientation = pose.pose.orientation;
+                start.orientation = robot_control_state.pose.orientation;
             }
             else
             {
+                addLeg(transformed_waypoint);
+            }
+            if (path.poses.size() == 1) // TODO: Consider calling driveto instead for small paths instead.
+            {
+                transformed_waypoint.position.x += 0.01;
                 addLeg(transformed_waypoint);
             }
         }
@@ -368,11 +389,11 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     }
 
     double angles[3];
-    quaternion2angles(this->pose.pose.orientation, angles);
+    quaternion2angles(robot_control_state.pose.orientation, angles);
     Point state_4_mpc;
     state_4_mpc.orientation = angles[0];
-    state_4_mpc.x = this->pose.pose.position.x;
-    state_4_mpc.y = this->pose.pose.position.y;
+    state_4_mpc.x = robot_control_state.pose.position.x;
+    state_4_mpc.y = robot_control_state.pose.position.y;
     ROS_INFO("[vehicle_controller] Updating path ...");
     legs.resize(std::min(15ul, legs.size()));
     mpc.updatePath(legs, state_4_mpc);
@@ -464,13 +485,15 @@ bool Controller::alternativeTolerancesService(monstertruck_msgs::SetAlternativeT
 
 void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGeneric& action)
 {
+    ROS_WARN("[vehicle_controller] Action callback!");
+
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new action");
-    this->goalID.reset(new actionlib_msgs::GoalID(action.goal_id));
+    this->goalID.reset(new actionlib_msgs::GoalID(action.goal_id));    
 
     hector_move_base_msgs::MoveBasePathPtr path_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBasePath>(action);
     if (path_action)
     {
-        drivepath(path_action->target_path);
+        drivepath(path_action->target_path, path_action->fixed);
         drivepathPublisher.publish(path_action->target_path);
     }
 
@@ -494,7 +517,7 @@ void Controller::actionPathCallback(const hector_move_base_msgs::MoveBaseActionP
 {
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new path.");
     this->goalID.reset(new actionlib_msgs::GoalID(path_action.goal_id));
-    drivepath(path_action.goal.target_path);
+    drivepath(path_action.goal.target_path, path_action.goal.fixed);
     drivepathPublisher.publish(path_action.goal.target_path);
 }
 
@@ -503,7 +526,7 @@ void Controller::publishActionResult(actionlib_msgs::GoalStatus::_status_type st
     if (!goalID) return;
 
     hector_move_base_msgs::MoveBaseActionResult result;
-    result.header.stamp = this->pose.header.stamp;
+    result.header.stamp = robot_state_header.stamp;
     result.status.goal_id = *goalID;
     result.status.status = status;
     result.status.text = text;
@@ -584,7 +607,7 @@ void Controller::update()
 
     // get current orientation
     double angles[3];
-    quaternion2angles(pose.pose.orientation, angles);
+    quaternion2angles(robot_control_state.pose.orientation, angles);
 
     double linear_tolerance_for_current_path = goal_position_tolerance;
     double angular_tolerance_for_current_path = goal_angle_tolerance;
@@ -600,8 +623,10 @@ void Controller::update()
     }
 
     // Check if goal has been reached based on goal_position_tolerance/goal_angle_tolerance
-    double goal_position_error = std::sqrt(  std::pow(legs.back().p2.x - pose.pose.position.x, 2)
-                                           + std::pow(legs.back().p2.y - pose.pose.position.y, 2));
+    double goal_position_error =
+            std::sqrt(
+                std::pow(legs.back().p2.x - robot_control_state.pose.position.x, 2)
+              + std::pow(legs.back().p2.y - robot_control_state.pose.position.y, 2));
     double goal_angle_error_   = angularNorm(legs.back().p2.orientation - angles[0]);
     if (goal_position_error < linear_tolerance_for_current_path
      && vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path))
@@ -632,14 +657,29 @@ void Controller::update()
             {
                 final_twist_trials++;
                 ROS_DEBUG("[vehicle_controller] Performing final twist.");
-                vehicle_control_interface_->executeMotionCommand(goal_angle_error_, goal_angle_error_,
-                                                                 mp_.carrot_distance, 0.0, 0.0, dt, true);
+
+                geometry_msgs::Vector3 desired_position;
+                desired_position.x = legs.back().p2.x;
+                desired_position.y = legs.back().p2.y;
+
+                robot_control_state.setControlState(0.0,
+                                                    desired_position,
+                                                    goal_angle_error_,
+                                                    goal_angle_error_,
+                                                    mp_.carrot_distance,
+                                                    0.0,
+                                                    true);
+
+                vehicle_control_interface_->executeMotionCommand(robot_control_state);
                 return;
             }
         }
 
-        legs[current].percent = (  (pose.pose.position.x - legs[current].p1.x) * (legs[current].p2.x - legs[current].p1.x)
-                                 + (pose.pose.position.y - legs[current].p1.y) * (legs[current].p2.y - legs[current].p1.y))
+        legs[current].percent =
+                (  (robot_control_state.pose.position.x - legs[current].p1.x)
+                   * (legs[current].p2.x - legs[current].p1.x)
+                 + (robot_control_state.pose.position.y - legs[current].p1.y)
+                   * (legs[current].p2.y - legs[current].p1.y))
                 / legs[current].length2;
 
         ROS_DEBUG("[vehicle_controller] Robot has passed %.1f percent of leg %u.", legs[current].percent, current);
@@ -692,7 +732,7 @@ void Controller::update()
         carrot.orientation = legs[carrot_waypoint].p1.orientation + /* carrot_percent * */ 1.0f * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
     }
 
-    carrotPose.header = pose.header;
+    carrotPose.header = robot_state_header;
     carrotPose.pose.position.x = carrot.x;
     carrotPose.pose.position.y = carrot.y;
     double ypr[3] = { carrot.orientation, 0.0, 0.0 };
@@ -707,16 +747,31 @@ void Controller::update()
     // error_2_carrot = carrot orientation - alpha    # error of robot orientation to carrot orientation   //
     // --------------------------------------------------------------------------------------------------- //
 
+    geometry_msgs::Vector3 desired_position;
+    desired_position.x = carrot.x;
+    desired_position.y = carrot.y;
+    desired_position.z = 0.0;
+
     double alpha = angles[0];
-    double beta  = atan2(carrot.y - pose.pose.position.y, carrot.x - pose.pose.position.x);
+    double beta  = atan2(carrot.y - robot_control_state.pose.position.y,
+                         carrot.x - robot_control_state.pose.position.x);
 
     double error_2_path   = constrainAngle_mpi_pi( beta - alpha );
     double error_2_carrot = constrainAngle_mpi_pi( carrot.orientation - alpha);
     double sign  = legs[current].backward ? -1.0 : 1.0;
     double speed = sign * legs[current].speed;
-    double signed_carrot_distance_2_robot = sign * euclideanDistance(carrotPose.pose.position, pose.pose.position);
+    double signed_carrot_distance_2_robot =
+            sign * euclideanDistance(carrotPose.pose.position,
+                                     robot_control_state.pose.position);
+    bool approaching_goal_point = goal_position_error < 0.4;
 
-    bool   approaching_goal_point = goal_position_error < 0.4;
+    robot_control_state.setControlState(speed,
+                                        desired_position,
+                                        error_2_path,
+                                        error_2_carrot,
+                                        mp_.carrot_distance,
+                                        signed_carrot_distance_2_robot,
+                                        approaching_goal_point);
 
     if(state == DRIVETO && goal_position_error < 0.6)
     { // TODO: Consider adding to condition: !mp_.isYSymmetric()
@@ -725,20 +780,22 @@ void Controller::update()
         if(error_2_path < -M_PI_2)
             error_2_path = M_PI + error_2_path;
     }
-//    vehicle_control_interface_->executeMotionCommand(error_2_path, error_2_carrot, mp_.carrot_distance,
-//                                                     speed, signed_carrot_distance_2_robot, dt,
-//                                                     approaching_goal_point);
+
+    //        vehicle_control_interface_->executeMotionCommand(robot_control_state);
 
     Point p_mpc;
     p_mpc.orientation = angles[0];
-    p_mpc.x = this->pose.pose.position.x;
-    p_mpc.y = this->pose.pose.position.y;
+    p_mpc.x = robot_control_state.pose.position.x;
+    p_mpc.y = robot_control_state.pose.position.y;
     geometry_msgs::Twist twist = mpc.feedbackStep(p_mpc, ros::Time::now().toSec() - t_mpc);
     vehicle_control_interface_->executeUnlimitedTwist(twist);
 
     if (check_stuck && !isDtInvalid())
     {
-        stuck->update(pose);
+        geometry_msgs::PoseStamped ps;
+        ps.header = robot_state_header;
+        ps.pose   = robot_control_state.pose;
+        stuck->update(ps);
         if((*stuck)())
         {
             ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal.");
@@ -764,8 +821,16 @@ void Controller::update()
             lookat.y           = legs[lookat_waypoint].p2.y;
             lookat.orientation = legs[lookat_waypoint].p2.orientation;
 
-            float distance = sqrt((pose.pose.position.x - lookat.x)*(pose.pose.position.x - lookat.x) + (pose.pose.position.y - lookat.y)*(pose.pose.position.y - lookat.y));
-            double relative_angle = angularNorm(atan2(lookat.y - pose.pose.position.y, lookat.x - pose.pose.position.x) - angles[0]);
+            double distance =
+                    std::sqrt(
+                        (robot_control_state.pose.position.x - lookat.x)
+                      * (robot_control_state.pose.position.x - lookat.x)
+                     +  (robot_control_state.pose.position.y - lookat.y)
+                      * (robot_control_state.pose.position.y - lookat.y));
+            double relative_angle =
+                    angularNorm(atan2(lookat.y - robot_control_state.pose.position.y,
+                                      lookat.x - robot_control_state.pose.position.x)
+                                - angles[0]);
 
             if (distance >= camera_lookat_distance && relative_angle >= -M_PI/2 && relative_angle <= M_PI/2) {
                 found_lookat_position = true;
@@ -783,10 +848,11 @@ void Controller::update()
 
         if (found_lookat_position) {
             geometry_msgs::PointStamped lookat_msg;
-            lookat_msg.header = pose.header;
+            lookat_msg.header  = robot_state_header;
             lookat_msg.point.x = lookat.x;
             lookat_msg.point.y = lookat.y;
-            lookat_msg.point.z = pose.pose.position.z + camera_lookat_height;
+            lookat_msg.point.z =   robot_control_state.pose.position.z
+                                 + camera_lookat_height;
             lookatPublisher.publish(lookat_msg);
         } else {
             cameraOrientationPublisher.publish(cameraDefaultOrientation);

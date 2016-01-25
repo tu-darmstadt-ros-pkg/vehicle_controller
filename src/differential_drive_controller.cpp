@@ -1,6 +1,29 @@
-//
-// Created by paul on 30.04.15.
-//
+/*
+    Copyright (c) 2015, Paul Manns, Stefan Kohlbrecher
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+        * Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+        * Redistributions in binary form must reproduce the above copyright
+        notice, this list of conditions and the following disclaimer in the
+        documentation and/or other materials provided with the distribution.
+        * Neither the name of the <organization> nor the
+        names of its contributors may be used to endorse or promote products
+        derived from this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY Antons Rebguns <email> ''AS IS'' AND ANY
+    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL Antons Rebguns <email> BE LIABLE FOR ANY
+    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+    THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
 
 #include <vehicle_controller/differential_drive_controller.h>
 
@@ -60,12 +83,6 @@ void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_t
     cmd_vel_raw_pub_.publish(twist);
 }
 
-/**
- * @brief DifferentialDriveController::executePDControlledMotionCommand
- * @param e_angle the angular error which is assumed to lie inside [-pi,pi]
- * @param e_position the position error
- * @param dt time difference between two control loop iterates
- */
 void DifferentialDriveController::executePDControlledMotionCommand(double e_angle,
                                                                    double e_position,
                                                                    double dt,
@@ -119,40 +136,34 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     previous_e_position = e_position;
 }
 
-void DifferentialDriveController::executeMotionCommand(double ang_error_2_path,
-                                                       double ang_error_2_carrot,
-                                                       double carrot_distance,
-                                                       double speed,
-                                                       double signed_carrot_distance_2_robot,
-                                                       double dt,
-                                                       bool approaching_goal_point)
+void DifferentialDriveController::executeMotionCommand(RobotControlState rcs)
 {
-    double e_angle = ang_error_2_path;
+    double e_angle = rcs.error_2_path_angular;
     if(e_angle > M_PI + 1e-2 || e_angle < -M_PI - 1e-2)
     {
         ROS_WARN("[vehicle_controller] [differential_drive_controller] Invalid angle was given.");
     }
-    if(speed == 0.0)
+    if(rcs.desired_velocity_linear == 0.0)
     {
-        ROS_INFO("[vehicle_controller] [differential_drive_controller] Commanded speed is 0");
-        speed = 0.0;
+        ROS_DEBUG("[vehicle_controller] [differential_drive_controller] Commanded speed is 0");
+        rcs.desired_velocity_linear = 0.0;
     }
-    executePDControlledMotionCommand(e_angle, signed_carrot_distance_2_robot, dt, speed, approaching_goal_point);
-    // executeMotionCommand(carrot_relative_angle, carrot_orientation_error, carrot_distance, speed);
+    executePDControlledMotionCommand(e_angle,
+                                     rcs.signed_carrot_distance_2_robot,
+                                     rcs.dt,
+                                     rcs.desired_velocity_linear,
+                                     rcs.approaching_goal_point);
 }
 
-void DifferentialDriveController::executeMotionCommand(double ang_error_2_path,
-                                                       double ang_error_2_carrot,
-                                                       double carrot_distance,
-                                                       double speed)
+void DifferentialDriveController::executeMotionCommandSimple(RobotControlState rcs)
 {
-    double sign = speed < 0.0 ? -1.0 : 1.0;
+    double sign = rcs.desired_velocity_linear < 0.0 ? -1.0 : 1.0;
 
-    twist.linear.x = speed;
+    twist.linear.x = rcs.desired_velocity_linear;
     if (sign < 0)
-        twist.angular.z = ang_error_2_carrot / carrot_distance * 1.5 * 0.25;
+        twist.angular.z = rcs.error_2_carrot_angular / rcs.carrot_distance * 1.5 * 0.25;
     else
-        twist.angular.z = ang_error_2_path / carrot_distance * 1.5;
+        twist.angular.z = rcs.error_2_path_angular / rcs.carrot_distance * 1.5;
 
     limitTwist(twist, mp_->max_controller_speed_, mp_->max_controller_angular_rate_);
 

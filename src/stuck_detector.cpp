@@ -38,35 +38,35 @@ StuckDetector::StuckDetector(MotionParameters const & mp, double detection_windo
 
 void StuckDetector::update(geometry_msgs::PoseStamped const & pose)
 {
-    pose_history_.push_back(pose);
+    pose_history.push_back(pose);
 
     double secs_to_remove = elapsedSecs() - DETECTION_WINDOW;
 
     std::deque<double> time;
-    std::transform(pose_history_.begin(), pose_history_.end(), std::back_inserter(time),
+    std::transform(pose_history.begin(), pose_history.end(), std::back_inserter(time),
                    [this](geometry_msgs::PoseStamped const & p)
                    {
-                        return (p.header.stamp - pose_history_.begin()->header.stamp).toSec();
+                        return (p.header.stamp - pose_history.begin()->header.stamp).toSec();
                    });
     auto it = std::lower_bound(time.begin(), time.end(), secs_to_remove);
 
     if(it != time.end())
-        pose_history_.erase(pose_history_.begin(),
-                            pose_history_.begin() + std::distance(time.begin(), it));
+        pose_history.erase(pose_history.begin(),
+                            pose_history.begin() + std::distance(time.begin(), it));
 }
 
 double StuckDetector::elapsedSecs() const
 {
-    if(pose_history_.size() < 2)
+    if(pose_history.size() < 2)
         return 0.0;
-    ros::Time start = pose_history_.front().header.stamp;
-    ros::Time end   = pose_history_.back().header.stamp;
+    ros::Time start = pose_history.front().header.stamp;
+    ros::Time end   = pose_history.back().header.stamp;
     return (end - start).toSec();
 }
 
 void StuckDetector::reset()
 {
-    pose_history_.clear();
+    pose_history.clear();
 }
 
 double StuckDetector::quat2ZAngle(geometry_msgs::Quaternion const & q) const
@@ -78,11 +78,11 @@ double StuckDetector::quat2ZAngle(geometry_msgs::Quaternion const & q) const
 
 bool StuckDetector::operator ()() const
 {
-    if(pose_history_.size() < 2)
+    if(pose_history.size() < 2)
         return false;
 
-    auto const & start_pose = pose_history_.begin()->pose;
-    auto it_max_lin = std::max_element(pose_history_.begin() + 1, pose_history_.end(),
+    auto const & start_pose = pose_history.begin()->pose;
+    auto it_max_lin = std::max_element(pose_history.begin() + 1, pose_history.end(),
                         [this,start_pose](geometry_msgs::PoseStamped const & pl,
                                           geometry_msgs::PoseStamped const & pr)
                         {
@@ -90,9 +90,9 @@ bool StuckDetector::operator ()() const
                                    < euclideanDistance(start_pose.position, pr.pose.position);
                         });
 
-    auto it_max_ang = std::max_element(pose_history_.begin() + 1, pose_history_.end(),
+    auto it_max_ang = std::max_element(pose_history.begin() + 1, pose_history.end(),
                         [this,start_pose](geometry_msgs::PoseStamped const & pl,
-                                         geometry_msgs::PoseStamped const & pr)
+                                          geometry_msgs::PoseStamped const & pr)
                         {
                             double zstart = quat2ZAngle(start_pose.orientation);
                             double zl = quat2ZAngle(pl.pose.orientation);
@@ -105,5 +105,7 @@ bool StuckDetector::operator ()() const
                                                     - quat2ZAngle(start_pose.orientation)));
     double max_lin = euclideanDistance(it_max_lin->pose.position, start_pose.position);
     double time_diff = elapsedSecs();
-    return max_ang < M_PI / 5 && max_lin / time_diff < 0.1 * mp.commanded_speed && time_diff >= DETECTION_WINDOW;
+    return max_ang < MIN_ANGULAR_CHANGE
+        && max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * mp.commanded_speed
+        && time_diff >= DETECTION_WINDOW;
 }

@@ -48,7 +48,7 @@ protected:
   virtual void cleanup();
 
   virtual bool driveto(const geometry_msgs::PoseStamped&);
-  virtual bool drivepath(const nav_msgs::Path&);
+  virtual bool drivepath(const nav_msgs::Path&, bool fixed_path = true);
 
   virtual void stateCallback(const nav_msgs::Odometry&);
   virtual void drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&);
@@ -69,7 +69,7 @@ protected:
   void addLeg(geometry_msgs::Pose const&);
   void setDriveCommand(float speed, float kappa, float tan_gamma);
 
-  bool pathToBeSmoothed(const std::deque<geometry_msgs::Pose> &transformed_path);
+  bool pathToBeSmoothed(const std::deque<geometry_msgs::Pose> &transformed_path, bool fixed_path);
   bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
   geometry_msgs::Pose createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation);
 
@@ -89,7 +89,7 @@ private:
   ros::Subscriber cmd_flipper_toggle_sub_;
   ros::Subscriber joint_states_sub_;
 
-
+  ros::Publisher endPosePoublisher;
   ros::Publisher carrotPosePublisher;
   ros::Publisher lookatPublisher;
   ros::Publisher cameraOrientationPublisher;
@@ -111,8 +111,10 @@ private:
   ros::ServiceServer alternative_tolerances_service;
 
   State state;
-  geometry_msgs::PoseStamped pose;
-  geometry_msgs::Vector3Stamped velocity;
+  std_msgs::Header  robot_state_header;
+  RobotControlState robot_control_state;
+
+
   //monstertruck_msgs::MotionCommand drive;
   geometry_msgs::PoseStamped carrotPose;
   actionlib_msgs::GoalIDPtr goalID;
