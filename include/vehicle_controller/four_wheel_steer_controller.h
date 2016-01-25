@@ -48,7 +48,7 @@ class FourWheelSteerController: public VehicleControlInterface
 
     virtual void executeTwist(const geometry_msgs::Twist& velocity);
 
-    virtual void executeMotionCommand(double ang_error_2_path, double ang_error_2_carrot, double carrot_distance, double speed);
+    virtual void executeMotionCommand(RobotControlState rcs);
 
     virtual void stop();
 

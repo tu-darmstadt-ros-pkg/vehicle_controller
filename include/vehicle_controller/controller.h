@@ -106,8 +106,10 @@ private:
   ros::ServiceServer alternative_tolerances_service;
 
   State state;
-  geometry_msgs::PoseStamped pose;
-  geometry_msgs::Vector3Stamped velocity;
+  std_msgs::Header  robot_state_header;
+  RobotControlState robot_control_state;
+
+
   //monstertruck_msgs::MotionCommand drive;
   geometry_msgs::PoseStamped carrotPose;
   actionlib_msgs::GoalIDPtr goalID;

@@ -73,12 +73,9 @@ class DifferentialDriveController: public VehicleControlInterface
      */
     void executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed, bool approaching_goal_point);
 
-    virtual void executeMotionCommand(double ang_error_2_path, double ang_error_2_carrot,
-                                      double carrot_distance, double speed,
-                                      double signed_carrot_distance_2_robot, double dt,
-                                      bool approaching_goal_point);
+    virtual void executeMotionCommand(RobotControlState rcs);
 
-    virtual void executeMotionCommand(double ang_error_2_path, double ang_error_2_carrot, double carrot_distance, double speed);
+    virtual void executeMotionCommandSimple(RobotControlState rcs);
 
     virtual void stop();
 

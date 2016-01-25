@@ -3,6 +3,9 @@
 
 #include <cmath>
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/Quaternion.h>
+#include <Eigen/Dense>
+
 
 struct Point
 {
@@ -52,6 +55,11 @@ inline static double angularNorm(double diff)
 inline static double euclideanDistance(geometry_msgs::Point const & p0, geometry_msgs::Point const & p1)
 {
   return std::sqrt(std::pow(p1.x - p0.x, 2) + std::pow(p1.y - p0.y, 2) + pow(p1.z - p0.z, 2));
+}
+
+inline static Eigen::Quaterniond geomQuat2EigenQuat(geometry_msgs::Quaternion const & quat)
+{
+    return Eigen::Quaterniond(quat.w, quat.x, quat.y, quat.z);
 }
 
 #endif // UTILITY_H
