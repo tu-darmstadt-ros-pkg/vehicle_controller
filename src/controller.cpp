@@ -742,6 +742,14 @@ void Controller::update()
                                      robot_control_state.pose.position);
     bool approaching_goal_point = goal_position_error < 0.4;
 
+    if(state == DRIVETO && goal_position_error < 0.6)
+    { // TODO: Consider adding to condition: !mp_.isYSymmetric()
+        if(error_2_path > M_PI_2)
+            error_2_path = error_2_path - M_PI;
+        if(error_2_path < -M_PI_2)
+            error_2_path = M_PI + error_2_path;
+    }
+
     robot_control_state.setControlState(speed,
                                         desired_position,
                                         error_2_path,
@@ -750,13 +758,6 @@ void Controller::update()
                                         signed_carrot_distance_2_robot,
                                         approaching_goal_point);
 
-    if(state == DRIVETO && goal_position_error < 0.6)
-    { // TODO: Consider adding to condition: !mp_.isYSymmetric()
-        if(error_2_path > M_PI_2)
-            error_2_path = error_2_path - M_PI;
-        if(error_2_path < -M_PI_2)
-            error_2_path = M_PI + error_2_path;
-    }
     vehicle_control_interface_->executeMotionCommand(robot_control_state);
 
     if (check_stuck && !isDtInvalid())
