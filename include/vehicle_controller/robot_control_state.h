@@ -1,26 +1,27 @@
 #ifndef ROBOT_CONTROL_STATE_H
 #define ROBOT_CONTROL_STATE_H
 
+#include <geometry_msgs/Point.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Vector3.h>
 
 struct RobotControlState
 {
     // Current robot state variables
-    geometry_msgs::Vector3 velocity_linear;
-    geometry_msgs::Vector3 velocity_angular;
+    geometry_msgs::Point   velocity_linear;
+    geometry_msgs::Point   velocity_angular;
     geometry_msgs::Pose    pose;
     double                 dt;
 
-    inline void setRobotState(const geometry_msgs::Vector3 &velocity_linear,
-                              const geometry_msgs::Vector3 &velocity_angular,
+    inline void setRobotState(const geometry_msgs::Point &velocity_linear,
+                              const geometry_msgs::Point &velocity_angular,
                               const geometry_msgs::Pose &pose,
                               const double dt);
 
 
     // Current control state variables
     double                 desired_velocity_linear;
-    geometry_msgs::Vector3 desired_position;
+    geometry_msgs::Point   desired_position;
 
     double                 error_2_path_angular;
     double                 error_2_carrot_angular;
@@ -30,7 +31,7 @@ struct RobotControlState
 
     inline void clearControlState();
     inline void setControlState(double desired_velocity_linear,
-                                geometry_msgs::Vector3 desired_position,
+                                geometry_msgs::Point desired_position,
                                 double error_2_path_angular,
                                 double error_2_carrot_angular,
                                 double carrot_distance,
@@ -38,8 +39,8 @@ struct RobotControlState
                                 bool approaching_goal_point);
 };
 
-void RobotControlState::setRobotState(geometry_msgs::Vector3 const & velocity_linear,
-                                      geometry_msgs::Vector3 const & velocity_angular,
+void RobotControlState::setRobotState(geometry_msgs::Point const & velocity_linear,
+                                      geometry_msgs::Point const & velocity_angular,
                                       geometry_msgs::Pose const & pose,
                                       double const dt)
 {
@@ -50,7 +51,7 @@ void RobotControlState::setRobotState(geometry_msgs::Vector3 const & velocity_li
 }
 
 inline void RobotControlState::setControlState(double desired_velocity_linear,
-                            geometry_msgs::Vector3 desired_position,
+                            geometry_msgs::Point desired_position,
                             double error_2_path_angular,
                             double error_2_carrot_angular,
                             double carrot_distance,
@@ -69,7 +70,7 @@ inline void RobotControlState::setControlState(double desired_velocity_linear,
 void RobotControlState::clearControlState()
 {
     desired_velocity_linear = 0.0;
-    desired_position        = geometry_msgs::Vector3();
+    desired_position        = geometry_msgs::Point();
     error_2_path_angular    = 0.0;
     error_2_carrot_angular  = 0.0;
     carrot_distance         = 0.0;

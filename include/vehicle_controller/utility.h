@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/Vector3.h>
 #include <geometry_msgs/Quaternion.h>
 #include <Eigen/Dense>
 
@@ -60,6 +61,15 @@ inline static double euclideanDistance(geometry_msgs::Point const & p0, geometry
 inline static Eigen::Quaterniond geomQuat2EigenQuat(geometry_msgs::Quaternion const & quat)
 {
     return Eigen::Quaterniond(quat.w, quat.x, quat.y, quat.z);
+}
+
+inline static geometry_msgs::Point geomVec32GeomPoint(geometry_msgs::Vector3 const & v)
+{
+    geometry_msgs::Point p;
+    p.x = v.x;
+    p.y = v.y;
+    p.z = p.z;
+    return p;
 }
 
 #endif // UTILITY_H

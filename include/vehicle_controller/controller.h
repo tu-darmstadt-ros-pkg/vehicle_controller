@@ -100,6 +100,7 @@ private:
   ros::Publisher pathPosePublisher;
   ros::Publisher autonomy_level_pub_;
   ros::Publisher jointstate_cmd_pub_;
+  ros::Publisher trigger_mpc_pub;
 
   // action interface
   ros::Subscriber actionSubscriber;

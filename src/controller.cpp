@@ -6,6 +6,7 @@
 #include <tf/transform_datatypes.h>
 #include <limits>
 
+#include <monstertruck_msgs/MpcTrigger.h>
 #include <geometry_msgs/PointStamped.h>
 #include <std_msgs/Float32.h>
 #include <std_msgs/String.h>
@@ -113,6 +114,7 @@ bool Controller::configure()
     diagnosticsPublisher = params.advertise<std_msgs::Float32>("velocity_error", 1, true);
     autonomy_level_pub_ = nh.advertise<std_msgs::String>("/autonomy_level", 30);
     jointstate_cmd_pub_ = nh.advertise<sensor_msgs::JointState>("/jointstate_cmd", 1, true);
+    trigger_mpc_pub     = nh.advertise<monstertruck_msgs::MpcTrigger>("/trigger_mpc", 1, true);
 
     // action interface
     ros::NodeHandle action_nh("controller");
@@ -171,7 +173,9 @@ void Controller::stateCallback(const nav_msgs::Odometry& state)
         listener.transformVector(base_frame_id, velocity_angular, velocity_angular);
 
         robot_state_header = state.header;
-        robot_control_state.setRobotState(velocity_linear.vector, velocity_angular.vector, pose.pose, dt);
+        robot_control_state.setRobotState(geomVec32GeomPoint(velocity_linear.vector),
+                                          geomVec32GeomPoint(velocity_angular.vector),
+                                          pose.pose, dt);
         robot_control_state.clearControlState();
     }
     catch (tf::TransformException ex)
@@ -658,7 +662,7 @@ void Controller::update()
                 final_twist_trials++;
                 ROS_DEBUG("[vehicle_controller] Performing final twist.");
 
-                geometry_msgs::Vector3 desired_position;
+                geometry_msgs::Point desired_position;
                 desired_position.x = legs.back().p2.x;
                 desired_position.y = legs.back().p2.y;
 
@@ -747,7 +751,7 @@ void Controller::update()
     // error_2_carrot = carrot orientation - alpha    # error of robot orientation to carrot orientation   //
     // --------------------------------------------------------------------------------------------------- //
 
-    geometry_msgs::Vector3 desired_position;
+    geometry_msgs::Point desired_position;
     desired_position.x = carrot.x;
     desired_position.y = carrot.y;
     desired_position.z = 0.0;
@@ -786,11 +790,20 @@ void Controller::update()
     p_mpc.x = robot_control_state.pose.position.x;
     p_mpc.y = robot_control_state.pose.position.y;
     geometry_msgs::Twist twist;
-    if (mpc.feedbackStep(p_mpc, desired_position,
-                         ros::Time::now().toSec() - t_mpc, twist))
-        vehicle_control_interface_->executeUnlimitedTwist(twist);
-    else
-        vehicle_control_interface_->executeMotionCommand(robot_control_state);
+//    if (mpc.feedbackStep(p_mpc, desired_position,
+//                         ros::Time::now().toSec() - t_mpc, twist))
+//        vehicle_control_interface_->executeUnlimitedTwist(twist);
+//    else
+//        vehicle_control_interface_->executeMotionCommand(robot_control_state);
+
+    monstertruck_msgs::MpcTrigger msg;
+    msg.header = robot_state_header;
+    msg.header.stamp = ros::Time::now();
+    msg.position = robot_control_state.pose.position;
+    msg.orientation = robot_control_state.pose.orientation;
+    msg.target_position = desired_position;
+    msg.target_orientation = tf::createQuaternionMsgFromRollPitchYaw(0.0, 0.0, alpha);
+    trigger_mpc_pub.publish(msg);
 
     if (check_stuck && !isDtInvalid())
     {
