@@ -395,7 +395,7 @@ bool Controller::drivepath(const nav_msgs::Path& path, bool fixed_path)
     state_4_mpc.x = robot_control_state.pose.position.x;
     state_4_mpc.y = robot_control_state.pose.position.y;
     ROS_INFO("[vehicle_controller] Updating path ...");
-    legs.resize(std::min(15ul, legs.size()));
+    // legs.resize(std::min(100ul, legs.size()));
     mpc.updatePath(legs, state_4_mpc);
     t_mpc = ros::Time::now().toSec();
     ROS_INFO("[vehicle_controller] Updating path done.");
@@ -781,14 +781,16 @@ void Controller::update()
             error_2_path = M_PI + error_2_path;
     }
 
-    //        vehicle_control_interface_->executeMotionCommand(robot_control_state);
-
     Point p_mpc;
     p_mpc.orientation = angles[0];
     p_mpc.x = robot_control_state.pose.position.x;
     p_mpc.y = robot_control_state.pose.position.y;
-    geometry_msgs::Twist twist = mpc.feedbackStep(p_mpc, ros::Time::now().toSec() - t_mpc);
-    vehicle_control_interface_->executeUnlimitedTwist(twist);
+    geometry_msgs::Twist twist;
+    if (mpc.feedbackStep(p_mpc, desired_position,
+                         ros::Time::now().toSec() - t_mpc, twist))
+        vehicle_control_interface_->executeUnlimitedTwist(twist);
+    else
+        vehicle_control_interface_->executeMotionCommand(robot_control_state);
 
     if (check_stuck && !isDtInvalid())
     {

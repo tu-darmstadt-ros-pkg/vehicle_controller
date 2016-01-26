@@ -76,6 +76,7 @@ protected:
 private:
   MelmanMpcWrapper mpc;
   double t_mpc;
+  std::unique_ptr<StuckDetector> stuck;
 
   ros::NodeHandle nh;
   tf::TransformListener listener;
@@ -95,7 +96,6 @@ private:
   ros::Publisher cameraOrientationPublisher;
   ros::Publisher drivepathPublisher;
   ros::Publisher diagnosticsPublisher;
-  ros::Publisher endPosePoublisher;
 
   ros::Publisher pathPosePublisher;
   ros::Publisher autonomy_level_pub_;
@@ -165,7 +165,6 @@ private:
       return dt <= 0.0;
   }
 
-  std::unique_ptr<StuckDetector> stuck;
 
 };
 

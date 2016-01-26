@@ -17,14 +17,17 @@ private:
     double c = 1.0;
     double d = 0.00;
 
-    MotionParameters const & mp;
-
-    ACADO_NS::DifferentialState theta, xs, ys, xc, yc;
-    ACADO_NS::Control u1, u2;
-    ACADO_NS::DifferentialEquation f;
-
     ACADO_NS::DMatrix Q;
     ACADO_NS::DVector r;
+
+    MotionParameters const & mp;
+
+//    ACADO_NS::DifferentialState theta, xs, ys, xc, yc;
+
+    ACADO_NS::DifferentialState theta, x, y;
+    ACADO_NS::Control u1, u2;
+    ACADO_NS::Parameter T;
+    ACADO_NS::DifferentialEquation f;
 
     ACADO_NS::Function * h = 0;
     ACADO_NS::OCP      * ocp = 0;
@@ -32,6 +35,7 @@ private:
     ACADO_NS::VariablesGrid * ref_traj_grid = 0;
 
     ACADO_NS::RealTimeAlgorithm * alg = 0;
+    ACADO_NS::OptimizationAlgorithm * oalg = 0;
     ACADO_NS::Controller * controller = 0;
 
 protected:
@@ -42,7 +46,7 @@ public:
     ~MelmanMpcWrapper();
 
     void updatePath(Legs const & legs, Point state);
-    geometry_msgs::Twist feedbackStep(Point state, double t);
+    bool feedbackStep(Point state, geometry_msgs::Vector3 target, double t, geometry_msgs::Twist &twist);
 };
 
 #endif // MELMAN_MPC_WRAPPER_H
