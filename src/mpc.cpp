@@ -34,9 +34,7 @@ void MPC::setupAcadoMpc()
 
 void MPC::triggerCallback(monstertruck_msgs::MpcTrigger const & msg)
 {
-
-    ROS_WARN("void MPC::triggerCallback(monstertruck_msgs::MpcTrigger const & msg)");
-
+    ROS_INFO("START");
     geometry_msgs::Twist twist;
     if( acado_mpc.execute(msg.position, msg.orientation,
                           msg.target_position, msg.target_orientation, twist)
@@ -44,6 +42,7 @@ void MPC::triggerCallback(monstertruck_msgs::MpcTrigger const & msg)
         cmd_vel_raw_pub.publish(twist);
     else
         cmd_vel_raw_pub.publish(msg.alternative);
+    ROS_INFO("END");
 }
 
 int main(int argc, char **argv)
