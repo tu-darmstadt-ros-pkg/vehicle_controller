@@ -105,6 +105,7 @@ bool Controller::configure()
     endPosePoublisher   = nh.advertise<geometry_msgs::PoseStamped>("end_pose", 1, true);
     drivepathPublisher  = nh.advertise<nav_msgs::Path>("drivepath", 1, true);
     pathPosePublisher   = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
+    shifted_path_pub    = nh.advertise<nav_msgs::Path>("shifted_path", 1, true);
 
     cmd_flipper_toggle_sub_ = nh.subscribe("cmd_flipper_toggle", 10, &Controller::cmd_flipper_toggleCallback, this);
     joint_states_sub_   = nh.subscribe("joint_states", 1, &Controller::joint_statesCallback, this);
@@ -334,18 +335,20 @@ bool Controller::drivepath(const nav_msgs::Path& path, bool fixed_path)
 
         std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Controller::addLeg, this, _1));
 
-        nav_msgs::Path path2publish;
-        path2publish.header.frame_id = map_frame_id;
-        path2publish.header.stamp = ros::Time::now();
-        std::transform(smooth_path.begin(), smooth_path.end(), std::back_inserter(path2publish.poses),
-                       [path2publish](geometry_msgs::Pose const & pose)
+        nav_msgs::Path path_2_publish;
+        path_2_publish.header.frame_id = map_frame_id;
+        path_2_publish.header.stamp = ros::Time::now();
+        std::transform(smooth_path.begin(), smooth_path.end(), std::back_inserter(path_2_publish.poses),
+                       [path_2_publish](geometry_msgs::Pose const & pose)
                        {
                             geometry_msgs::PoseStamped ps;
-                            ps.header = path2publish.header;
+                            ps.header = path_2_publish.header;
                             ps.pose = pose;
                             return ps;
                        });
-        pathPosePublisher.publish(path2publish);
+        pathPosePublisher.publish(path_2_publish);
+        nav_msgs::Path shifted_path = computeShiftedPath(path_2_publish);
+        shifted_path_pub.publish(shifted_path);
     }
     else
     {
@@ -385,6 +388,54 @@ bool Controller::drivepath(const nav_msgs::Path& path, bool fixed_path)
     publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
     return true;
 }
+
+nav_msgs::Path Controller::computeShiftedPath(nav_msgs::Path path)
+{
+    nav_msgs::Path s_path;
+    s_path.header = path.header;
+    s_path.poses.reserve(path.poses.size());
+
+    double d = 0.15;
+
+    if(path.poses.size() > 1)
+    {
+//        auto & p = path.poses.begin()->pose;
+//        auto & pn = (path.poses.begin() + 1)->pose;
+//        geometry_msgs::PoseStamped ps;
+//        ps.header = path.poses.begin()->header;
+//        ps.pose.position = p.position;
+//        ps.pose.orientation = p.orientation;
+//        double dx = pn.position.x - p.position.x;
+//        double dy = pn.position.y - p.position.y;
+//        double dz = pn.position.z - p.position.z;
+//        double nrm = std::sqrt(dx * dx + dy * dy + dz * dz);
+//        ps.pose.position.x += d * dx / nrm;
+//        ps.pose.position.y += d * dy / nrm;
+//        ps.pose.position.z += d * dz / nrm;
+//        s_path.poses.push_back(ps);
+
+        for(auto it = path.poses.begin() + 1; it != path.poses.end(); it++)
+        {
+            auto & p = (it - 1)->pose;
+            auto & pn = it->pose;
+            geometry_msgs::PoseStamped ps;
+            ps.header = it->header;
+            ps.pose.position = pn.position;
+            ps.pose.orientation = pn.orientation;
+            double dx = pn.position.x - p.position.x;
+            double dy = pn.position.y - p.position.y;
+            double dz = pn.position.z - p.position.z;
+            double nrm = std::sqrt(dx * dx + dy * dy + dz * dz);
+            ps.pose.position.x += d * dx / nrm;
+            ps.pose.position.y += d * dy / nrm;
+            ps.pose.position.z += d * dz / nrm;
+            s_path.poses.push_back(ps);
+        }
+    }
+    return s_path;
+}
+
+
 
 geometry_msgs::Pose Controller::createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation)
 {

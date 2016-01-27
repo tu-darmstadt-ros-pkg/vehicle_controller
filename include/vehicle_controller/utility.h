@@ -62,4 +62,19 @@ inline static Eigen::Quaterniond geomQuat2EigenQuat(geometry_msgs::Quaternion co
     return Eigen::Quaterniond(quat.w, quat.x, quat.y, quat.z);
 }
 
+inline static Eigen::Vector3d geomPoint2EigenVec3(geometry_msgs::Point const & vec)
+{
+    return Eigen::Vector3d(vec.x, vec.y, vec.z);
+}
+
+inline static geometry_msgs::Point eigenVec32GeomPoint(Eigen::Vector3d const & vec)
+{
+    geometry_msgs::Point p;
+    p.x = vec(0);
+    p.y = vec(1);
+    p.z = vec(2);
+    return p;
+}
+
+
 #endif // UTILITY_H

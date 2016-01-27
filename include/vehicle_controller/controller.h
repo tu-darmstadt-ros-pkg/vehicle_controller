@@ -71,6 +71,8 @@ protected:
   bool pathToBeSmoothed(const std::deque<geometry_msgs::Pose> &transformed_path, bool fixed_path);
   bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
   geometry_msgs::Pose createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation);
+  nav_msgs::Path computeShiftedPath(nav_msgs::Path path);
+
 
 private:
   ros::NodeHandle nh;
@@ -95,6 +97,7 @@ private:
   ros::Publisher pathPosePublisher;
   ros::Publisher autonomy_level_pub_;
   ros::Publisher jointstate_cmd_pub_;
+  ros::Publisher shifted_path_pub;
 
   // action interface
   ros::Subscriber actionSubscriber;
