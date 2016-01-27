@@ -112,6 +112,7 @@ bool MelmanMpcWrapper::feedbackStep(Point state,
     ocp = new OCP(0.0, t_E, 10);
     ocp->subjectTo(f);
     // ocp->minimizeMayerTerm(T + u1 * u1 + u2 * u2);
+
     ocp->minimizeMayerTerm((x - target.x) * (x - target.x) + (y - target.y) * (y - target.y));
     ocp->subjectTo(AT_START, x == state.x);
     ocp->subjectTo(AT_START, y == state.y);

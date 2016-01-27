@@ -22,6 +22,10 @@ void AcadoMpcWrapper::setupODE()
     f << dot(theta) == u2;
     f << dot(x)    == c * u1 * cos(theta);
     f << dot(y)    == c * u1 * sin(theta);
+#ifdef INCLUDE_STEERING_POINT_OFFSET
+    f << dot(xc)   == c * u1 * cos(theta) + d * sin(theta) * u2;
+    f << dot(yc)   == c * u1 * sin(theta) + d * cos(theta) * u2;
+#endif
 }
 
 AcadoMpcWrapper::EXECUTE_RETC
@@ -58,6 +62,20 @@ AcadoMpcWrapper::EXECUTE_RETC
 
     std::unique_ptr<OCP> ocp(new OCP(0.0, t_upper_limit, 10));
     ocp->subjectTo(f);
+#ifdef INCLUDE_STEERING_POINT_OFFSET
+    ocp->minimizeMayerTerm(  (xc - target.x) * (xc - target.x)
+                           + (yc - target.y) * (yc - target.y)
+                           + (theta - target_ypr[0]) * (theta - target_ypr[0]));
+    ocp->subjectTo(AT_START, xc == position.x);
+    ocp->subjectTo(AT_START, yc == position.y);
+    ocp->subjectTo(AT_START, x  == ctr2Steer(position.x));
+    ocp->subjectTo(AT_START, y  == ctr2Steer(position.y));
+    ocp->subjectTo(AT_START, theta == ypr[0]);
+    ocp->subjectTo(-u_lin_M <= u1 <= u_lin_M);
+    ocp->subjectTo(-u_ang_M <= u2 <= u_ang_M);
+    ocp->subjectTo(-M_PI <= theta <= M_PI);
+
+#else
     ocp->minimizeMayerTerm((x - target_position.x) * (x - target_position.x)
                          + (y - target_position.y) * (y - target_position.y));
     ocp->subjectTo(AT_START, x == position.x);
@@ -66,6 +84,7 @@ AcadoMpcWrapper::EXECUTE_RETC
     ocp->subjectTo(-u_lin_M <= u1 <= u_lin_M);
     ocp->subjectTo(-u_ang_M <= u2 <= u_ang_M);
     ocp->subjectTo(-M_PI <= theta <= M_PI);
+#endif
 
     OptimizationAlgorithm * oalg = new OptimizationAlgorithm(*ocp);
     oalg->set( KKT_TOLERANCE, 1e-4 );
