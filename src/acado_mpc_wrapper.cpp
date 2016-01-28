@@ -43,8 +43,8 @@ AcadoMpcWrapper::EXECUTE_RETC
                              Quaternion const & target_orientation,
                              Twist & twist)
 {
-    double const u_lin_M = 0.4;
-    double const u_des   = 0.1;
+    double const u_lin_M = 0.3;
+    double const u_des   = 0.2;
     double const u_ang_M = 0.3;
 
     double target_ypr[3];

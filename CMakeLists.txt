@@ -4,7 +4,9 @@ project(vehicle_controller)
 find_package(catkin REQUIRED COMPONENTS tf dynamic_reconfigure nav_msgs geometry_msgs cmake_modules hector_move_base_msgs monstertruck_msgs)
 
 find_package(Eigen REQUIRED)
-include_directories(${EIGEN_INCLUDE_DIRS} include)
+find_package(Boost 1.54.0 REQUIRED COMPONENTS thread system)
+
+include_directories(${EIGEN_INCLUDE_DIRS} ${BOOST_INCLUDE_DIRS} include)
 add_definitions(${EIGEN_DEFINITIONS})
 
 ###################################
