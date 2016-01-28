@@ -73,6 +73,11 @@ AcadoMpcWrapper::EXECUTE_RETC
 //    std::cout << "TYAW = " << target_ypr[0] * 180.0 / M_PI << std::endl;
 //    std::cout << "TUPL = " << t_upper_limit << std::endl;
 
+    if (target_ypr[0] - ypr[0] > M_PI)
+        target_ypr[0] -= 2.0 * M_PI;
+    else if (target_ypr[0] - ypr[0]  < -M_PI)
+        target_ypr[0] += 2.0 * M_PI;
+
 
     double u[2] = {0, 0};
 
@@ -116,7 +121,6 @@ AcadoMpcWrapper::EXECUTE_RETC
     LogRecord lgr(LOG_AT_EACH_ITERATION);
     lgr << LOG_CONTROLS;
     (*oalg) << lgr;
-
 
     int retc = oalg->solve();
 
