@@ -802,7 +802,7 @@ void Controller::update()
     msg.position = robot_control_state.pose.position;
     msg.orientation = robot_control_state.pose.orientation;
     msg.target_position = desired_position;
-    msg.target_orientation = tf::createQuaternionMsgFromRollPitchYaw(0.0, 0.0, alpha);
+    msg.target_orientation = tf::createQuaternionMsgFromRollPitchYaw(0.0, 0.0, ypr[0]);
     trigger_mpc_pub.publish(msg);
 
     if (check_stuck && !isDtInvalid())

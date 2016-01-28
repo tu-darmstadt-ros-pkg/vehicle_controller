@@ -7,7 +7,6 @@
 #include <ros/ros.h>
 
 using geometry_msgs::Quaternion;
-using geometry_msgs::Point;
 using geometry_msgs::Twist;
 
 using namespace ACADO;
@@ -28,14 +27,24 @@ void AcadoMpcWrapper::setupODE()
 #endif
 }
 
+Point AcadoMpcWrapper::ctr2Steer(Point in)
+{
+    Point p;
+    p.x = in.x + d * cos(in.orientation);
+    p.y = in.y + d * sin(in.orientation);
+    p.orientation = in.orientation;
+    return p;
+}
+
 AcadoMpcWrapper::EXECUTE_RETC
-    AcadoMpcWrapper::execute(Point const & position,
+    AcadoMpcWrapper::execute(geometry_msgs::Point const & position,
                              Quaternion const & orientation,
-                             Point const & target_position,
+                             geometry_msgs::Point const & target_position,
                              Quaternion const & target_orientation,
                              Twist & twist)
 {
-    double const u_lin_M = 0.5;
+    double const u_lin_M = 0.4;
+    double const u_des   = 0.1;
     double const u_ang_M = 0.3;
 
     double target_ypr[3];
@@ -55,21 +64,38 @@ AcadoMpcWrapper::EXECUTE_RETC
 
     double x_diff = std::sqrt(std::pow(target_position.x - position.x, 2.0)
                             + std::pow(target_position.y - position.y, 2.0));
-    double t_upper_limit = x_diff / u_lin_M + std::abs(error_2_path) / u_ang_M;
-    t_upper_limit *= 1.2;
+    double t_upper_limit = x_diff / u_des /* + std::abs(error_2_path) / u_ang_M */;
+
+    //t_upper_limit = std::min(1.0, t_upper_limit);
+//    std::cout << "ELIN = " << x_diff << std::endl;
+//    std::cout << "EANG = " << constrainAngle_mpi_pi(target_ypr[0] - ypr[0])
+//                              * 180.0 / M_PI << std::endl;
+//    std::cout << "TYAW = " << target_ypr[0] * 180.0 / M_PI << std::endl;
+//    std::cout << "TUPL = " << t_upper_limit << std::endl;
+
 
     double u[2] = {0, 0};
 
     std::unique_ptr<OCP> ocp(new OCP(0.0, t_upper_limit, 10));
     ocp->subjectTo(f);
+
+
+
 #ifdef INCLUDE_STEERING_POINT_OFFSET
-    ocp->minimizeMayerTerm(  (xc - target.x) * (xc - target.x)
-                           + (yc - target.y) * (yc - target.y)
-                           + (theta - target_ypr[0]) * (theta - target_ypr[0]));
+    ocp->minimizeMayerTerm(  (xc - target_position.x) * (xc - target_position.x)
+                           + (yc - target_position.y) * (yc - target_position.y)
+                     + 1.0 * (theta - target_ypr[0]) * (theta - target_ypr[0])
+                             );
+    Point ctr;
+    ctr.x = position.x;
+    ctr.y = position.y;
+    ctr.orientation = ypr[0];
+    Point steer = ctr2Steer(ctr);
+
     ocp->subjectTo(AT_START, xc == position.x);
     ocp->subjectTo(AT_START, yc == position.y);
-    ocp->subjectTo(AT_START, x  == ctr2Steer(position.x));
-    ocp->subjectTo(AT_START, y  == ctr2Steer(position.y));
+    ocp->subjectTo(AT_START, x  == steer.x);
+    ocp->subjectTo(AT_START, y  == steer.y);
     ocp->subjectTo(AT_START, theta == ypr[0]);
     ocp->subjectTo(-u_lin_M <= u1 <= u_lin_M);
     ocp->subjectTo(-u_ang_M <= u2 <= u_ang_M);
@@ -87,8 +113,18 @@ AcadoMpcWrapper::EXECUTE_RETC
 #endif
 
     OptimizationAlgorithm * oalg = new OptimizationAlgorithm(*ocp);
-    oalg->set( KKT_TOLERANCE, 1e-4 );
+    oalg->set( KKT_TOLERANCE, 1e-5 );
+
+    LogRecord lgr(LOG_AT_EACH_ITERATION);
+    lgr << LOG_CONTROLS;
+    (*oalg) << lgr;
+
+
     int retc = oalg->solve();
+
+//    oalg->getLogRecord ( lgr) ;
+//    lgr.print();
+
     if (retc)
     {
         ROS_WARN("MPC Control computation failed.");

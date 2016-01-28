@@ -8,19 +8,29 @@
 #include <acado_optimal_control.hpp>
 #include <acado_toolkit.hpp>
 
+#include <vehicle_controller/utility.h>
+
+#define INCLUDE_STEERING_POINT_OFFSET
+
+
 class AcadoMpcWrapper
 {
 private:
     double c = 1.0;
-    double d = 0.00;
+    double d = 0.15;
 
     ACADO::DifferentialState theta, x, y;
+#ifdef INCLUDE_STEERING_POINT_OFFSET
+    ACADO::DifferentialState xc, yc;
+#endif
+
     ACADO::Control u1, u2;
     ACADO::Parameter T;
     ACADO::DifferentialEquation f;
 
 protected:
     void setupODE();
+    Point ctr2Steer(Point in);
 
 public:
     enum EXECUTE_RETC
