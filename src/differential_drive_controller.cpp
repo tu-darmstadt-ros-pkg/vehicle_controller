@@ -94,6 +94,8 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
 
     if(mp_->isYSymmetric())
     {
+        double e_ang_p = e_angle;
+
         if(e_angle > M_PI_2)
             e_angle = e_angle - M_PI;
         if(e_angle < -M_PI_2)

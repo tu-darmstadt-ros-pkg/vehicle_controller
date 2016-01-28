@@ -510,7 +510,8 @@ void Controller::publishActionResult(actionlib_msgs::GoalStatus::_status_type st
 
     actionResultPublisher.publish(result);
 
-    if (status != actionlib_msgs::GoalStatus::ACTIVE && status != actionlib_msgs::GoalStatus::PENDING)
+    if (status != actionlib_msgs::GoalStatus::ACTIVE
+     && status != actionlib_msgs::GoalStatus::PENDING)
         goalID.reset();
 }
 
@@ -605,10 +606,11 @@ void Controller::update()
                 std::pow(legs.back().p2.x - robot_control_state.pose.position.x, 2)
               + std::pow(legs.back().p2.y - robot_control_state.pose.position.y, 2));
     double goal_angle_error_   = angularNorm(legs.back().p2.orientation - angles[0]);
+
     if (goal_position_error < linear_tolerance_for_current_path
-     && vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path))
+     /*&& vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path)*/)
     {   // Reached goal point. This task is handled in the following loop
-        ROS_INFO("[vehicle_controller] Current position and orientation are within goal tolerance.");
+        ROS_INFO("[vehicle_controller] Current position is within goal tolerance.");
         current = legs.size();
     }
 
@@ -617,14 +619,16 @@ void Controller::update()
         if (current == legs.size())
         {
             goal_angle_error_ = constrainAngle_mpi_pi(goal_angle_error_);
-            ROS_INFO("[vehicle_controller] Reached goal point position. Angular error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI,
-                     angular_tolerance_for_current_path * 180.0 / M_PI);
+            // ROS_INFO("[vehicle_controller] Reached goal point position. Angular error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI, angular_tolerance_for_current_path * 180.0 / M_PI);
             if (final_twist_trials > mp_.FINAL_TWIST_TRIALS_MAX_
              || vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path)
              || !mp_.USE_FINAL_TWIST_)
             {
                 state = INACTIVE;
-                ROS_INFO("[vehicle_controller] Reached goal point orientation! error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI, angular_tolerance_for_current_path * 180.0 / M_PI);
+                ROS_INFO("[vehicle_controller] Finished orientation correction!"
+                         " error = %f, tol = %f",
+                         goal_angle_error_ * 180.0 / M_PI
+                         , angular_tolerance_for_current_path * 180.0 / M_PI);
                 final_twist_trials = 0;
                 stop();
                 publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
@@ -742,8 +746,8 @@ void Controller::update()
                                      robot_control_state.pose.position);
     bool approaching_goal_point = goal_position_error < 0.4;
 
-    if(state == DRIVETO && goal_position_error < 0.6)
-    { // TODO: Consider adding to condition: !mp_.isYSymmetric()
+    if (state == DRIVETO && goal_position_error < 0.6 && mp_.isYSymmetric())
+    { // TODO: Does mp_.isYSymmetric() really make sense here?
         if(error_2_path > M_PI_2)
             error_2_path = error_2_path - M_PI;
         if(error_2_path < -M_PI_2)
