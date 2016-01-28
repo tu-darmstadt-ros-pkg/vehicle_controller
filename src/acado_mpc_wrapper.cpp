@@ -79,8 +79,6 @@ AcadoMpcWrapper::EXECUTE_RETC
     std::unique_ptr<OCP> ocp(new OCP(0.0, t_upper_limit, 10));
     ocp->subjectTo(f);
 
-
-
 #ifdef INCLUDE_STEERING_POINT_OFFSET
     ocp->minimizeMayerTerm(  (xc - target_position.x) * (xc - target_position.x)
                            + (yc - target_position.y) * (yc - target_position.y)
