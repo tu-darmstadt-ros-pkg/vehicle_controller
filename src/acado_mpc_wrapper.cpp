@@ -1,3 +1,28 @@
+/*******************************************************************************
+ * Copyright (c) 2016, Paul Manns
+ *
+ * All rights reserved.
+ *   Redistribution and use in source and binary forms, with or without
+ *   modification, are permitted provided that the following conditions are met:
+ *   1. Redistributions of source code must retain the above copyright notice,
+ *      this list of conditions and the following disclaimer.
+ *   2. Redistributions in binary form must reproduce the above copyright
+ *      notice, this list of conditions and the following disclaimer in the
+ *      documentation and/or other materials provided with the distribution.
+ *
+ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ *   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ *   PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ *   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ *   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ *   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ *   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ *   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ *   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ *   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ ******************************************************************************/
+
 #include <vehicle_controller/acado_mpc_wrapper.h>
 #include <vehicle_controller/quaternions.h>
 #include <vehicle_controller/utility.h>
@@ -95,10 +120,10 @@ AcadoMpcWrapper::EXECUTE_RETC
     ctr.orientation = ypr[0];
     Point steer = ctr2Steer(ctr);
 
-    ocp->subjectTo(AT_START, xc == position.x);
-    ocp->subjectTo(AT_START, yc == position.y);
-    ocp->subjectTo(AT_START, x  == steer.x);
-    ocp->subjectTo(AT_START, y  == steer.y);
+    ocp->subjectTo(AT_START, xc    == position.x);
+    ocp->subjectTo(AT_START, yc    == position.y);
+    ocp->subjectTo(AT_START, x     == steer.x);
+    ocp->subjectTo(AT_START, y     == steer.y);
     ocp->subjectTo(AT_START, theta == ypr[0]);
     ocp->subjectTo(-u_lin_M <= u1 <= u_lin_M);
     ocp->subjectTo(-u_ang_M <= u2 <= u_ang_M);
@@ -106,7 +131,8 @@ AcadoMpcWrapper::EXECUTE_RETC
 
 #else
     ocp->minimizeMayerTerm((x - target_position.x) * (x - target_position.x)
-                         + (y - target_position.y) * (y - target_position.y));
+                         + (y - target_position.y) * (y - target_position.y)
+                   + 1.0 * (theta - target_ypr[0]) * (theta - target_ypr[0]));
     ocp->subjectTo(AT_START, x == position.x);
     ocp->subjectTo(AT_START, y == position.y);
     ocp->subjectTo(AT_START, theta == ypr[0]);
@@ -118,9 +144,9 @@ AcadoMpcWrapper::EXECUTE_RETC
     OptimizationAlgorithm * oalg = new OptimizationAlgorithm(*ocp);
     oalg->set( KKT_TOLERANCE, 1e-5 );
 
-    LogRecord lgr(LOG_AT_EACH_ITERATION);
-    lgr << LOG_CONTROLS;
-    (*oalg) << lgr;
+//    LogRecord lgr(LOG_AT_EACH_ITERATION);
+//    lgr << LOG_CONTROLS;
+//    (*oalg) << lgr;
 
     int retc = oalg->solve();
 
@@ -129,7 +155,6 @@ AcadoMpcWrapper::EXECUTE_RETC
 
     if (retc)
     {
-        ROS_WARN("MPC Control computation failed.");
         std::cout << "  TUPL = " << t_upper_limit << std::endl;
         std::cout << "  XDIF = " << x_diff << std::endl;
         std::cout << "  RETC = " << retc << std::endl;

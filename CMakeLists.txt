@@ -3,8 +3,14 @@ project(vehicle_controller)
 
 find_package(catkin REQUIRED COMPONENTS tf dynamic_reconfigure nav_msgs geometry_msgs cmake_modules hector_move_base_msgs monstertruck_msgs)
 
+
 find_package(Eigen REQUIRED)
 find_package(Boost 1.54.0 REQUIRED COMPONENTS thread system)
+
+set(CMAKE_MODULE_PATH1 ${CMAKE_MODULE_PATH})
+set(CMAKE_MODULE_PATH "${vehicle_controller_SOURCE_DIR}/cmake/Modules")
+find_package(ACADOToolkit REQUIRED)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH1})
 
 include_directories(${EIGEN_INCLUDE_DIRS} ${BOOST_INCLUDE_DIRS} include)
 add_definitions(${EIGEN_DEFINITIONS})
