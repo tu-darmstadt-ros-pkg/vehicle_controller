@@ -1,8 +1,5 @@
 include_directories(${catkin_INCLUDE_DIRS} include)
 
-#include_directories("/home/paul/ACADOtoolkit"
-#                    "/home/paul/ACADOtoolkit/acado"
-#                    "/home/paul/ACADOtoolkit/acado/bindings")
 
 include_directories(${ACADOToolkit_INCLUDE_DIRS})
 

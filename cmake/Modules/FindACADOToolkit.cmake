@@ -3,7 +3,7 @@
 # This script assumes ACADO Toolkit to be installed according to the Linux
 # installation instructions and having called
 # $ sudo make install
-# on ACADO
+# after make.
 # 
 # It defines the following variables:
 #  ACADOToolkit_FOUND 

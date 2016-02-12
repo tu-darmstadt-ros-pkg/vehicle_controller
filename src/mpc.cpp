@@ -83,30 +83,27 @@ void MPC::publishTwist(Twist const & twist)
 
 void MPC::triggerCallback(monstertruck_msgs::MpcTrigger const & msg)
 {
-    geometry_msgs::Twist twist;
-
+    start = system_clock::now();
     executing = true;
-    start = std::chrono::system_clock::now();
 
+    geometry_msgs::Twist twist;
     AcadoMpcWrapper::EXECUTE_RETC retc =
             acado_mpc.execute(msg.position,
                               msg.orientation,
                               msg.target_position,
                               msg.target_orientation,
                               twist);
-
-    if( retc == AcadoMpcWrapper::RET_SUCCESS)
+    if(retc == AcadoMpcWrapper::RET_SUCCESS)
         publishTwist(twist);
     else
     {
         ROS_WARN("ACADO failed with return code %d.", retc);
         publishTwist(msg.alternative);
     }
-    executing = false;
 
+    executing = false;
     auto end = system_clock::now();
-    ROS_INFO("Elapsed Time = %fs",
-             std::chrono::duration<double>(end - start).count());
+    ROS_INFO("Elapsed Time = %fs", duration<double>(end - start).count());
 }
 
 int main(int argc, char **argv)
