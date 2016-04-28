@@ -1,7 +1,12 @@
 <?xml version="1.0"?>
 
 <launch>
+  
+  <arg name="state_topic" default="/state" />
+  
   <node pkg="vehicle_controller" type="controller_node" name="vehicle_controller" output="screen">
+    
+    <remap from="state" to="$(arg state_topic)"/>
     
     <param name="frame_id" value="map" />
     
