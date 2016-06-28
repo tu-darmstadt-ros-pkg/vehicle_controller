@@ -276,7 +276,8 @@ bool Controller::drivepath(const nav_msgs::Path& path, bool fixed_path)
     {
         ROS_WARN("[vehicle_controller] Received empty path");
         stop();
-        publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
+	if (fixed_path)
+        	publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
         return false;
     }
 
@@ -382,7 +383,8 @@ bool Controller::drivepath(const nav_msgs::Path& path, bool fixed_path)
         ROS_INFO("[vehicle_controller] Received new path to goal point (x = %.2f, y = %.2f)", legs.back().p2.x, legs.back().p2.y);
     else
         ROS_WARN("[vehicle_controller] Controller::drivepath produced empty legs array.");
-    publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
+    if (fixed_path)
+    	publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
     return true;
 }
 
