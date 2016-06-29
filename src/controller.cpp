@@ -258,14 +258,16 @@ bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transf
     double lu = 0.05 - 1e-5;
     double lo = std::sqrt(2.0) * 0.05 + 1e-5;
     bool path_to_be_smoothed = transformed_path.size() > 2;
-    std::stringstream sstr;
-    for(unsigned i = 1; path_to_be_smoothed && i < transformed_path.size() - 1; ++i)
-    {
-        double d = euclideanDistance(transformed_path[i].position,transformed_path[i - 1].position);
-        path_to_be_smoothed = path_to_be_smoothed && lu < d && d < lo;
-        sstr << " " << d << ":" << (lu < d && d < lo ? "T" : "F");
-    }
+
     return path_to_be_smoothed;
+//    std::stringstream sstr;
+//    for(unsigned i = 1; path_to_be_smoothed && i < transformed_path.size() - 1; ++i)
+//    {
+//        double d = euclideanDistance(transformed_path[i].position,transformed_path[i - 1].position);
+//        path_to_be_smoothed = path_to_be_smoothed && lu < d && d < lo;
+//        sstr << " " << d << ":" << (lu < d && d < lo ? "T" : "F");
+//    }
+//    return path_to_be_smoothed;
 }
 
 bool Controller::drivepath(const nav_msgs::Path& path, bool fixed_path)
