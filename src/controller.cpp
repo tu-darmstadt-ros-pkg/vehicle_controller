@@ -552,7 +552,8 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
     }
 
-    leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
+    // remove backward for hector tracker since it causes strange drivepaths when driving back a recorded path
+    leg.backward = false;//fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
     if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0
      && pose.orientation.y == 0.0 && pose.orientation.z == 0.0)
     {
