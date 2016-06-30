@@ -48,8 +48,8 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
     params.getParam("max_controller_angular_rate", mp_->max_controller_angular_rate_);
     params.getParam("max_unlimited_angular_rate", mp_->max_unlimited_angular_rate_);
 
-    KP_ANGLE_ = 2.0;
-    KD_ANGLE_ = 0.5;
+    KP_ANGLE_    = 2.0;
+    KD_ANGLE_    = 0.5;
     KP_POSITION_ = 0.5;
     KD_POSITION_ = 0.0;
     SPEED_REDUCTION_GAIN_ = 2.0;

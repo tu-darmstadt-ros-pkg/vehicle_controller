@@ -79,7 +79,7 @@ bool Controller::configure()
     params.getParam("goal_angle_tolerance", goal_angle_tolerance);
     params.getParam("speed", mp_.commanded_speed);
     params.param("pd_params", mp_.pd_params, std::string("PdParams"));
-    params.param("y_symmetry", mp_.y_symmetry, false);
+    params.param("y_symmetry", mp_.y_symmetry, true);
     vehicle_control_type = "differential_steering";
     params.getParam("vehicle_control_type", vehicle_control_type);
     double stuck_detection_window = StuckDetector::DEFAULT_DETECTION_WINDOW;
@@ -553,7 +553,10 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
     }
 
     // remove backward for hector tracker since it causes strange drivepaths when driving back a recorded path
-    leg.backward = false;//fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
+//    std::cout << std::setw(10) << leg.course * 180. / M_PI << "   " << leg.p1.orientation * 180. / M_PI << std::endl;
+//    std::cout << "    " << leg.course * 180. / M_PI - leg.p1.orientation * 180. / M_PI << std::endl;
+    leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
+//    std::cout << (leg.backward ? "backward" : "forward") << std::endl;
     if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0
      && pose.orientation.y == 0.0 && pose.orientation.z == 0.0)
     {
