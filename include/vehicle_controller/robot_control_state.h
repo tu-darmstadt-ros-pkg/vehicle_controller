@@ -17,7 +17,6 @@ struct RobotControlState
                               const geometry_msgs::Pose &pose,
                               const double dt);
 
-
     // Current control state variables
     double                 desired_velocity_linear;
     geometry_msgs::Vector3 desired_position;
@@ -27,6 +26,7 @@ struct RobotControlState
     double                 carrot_distance;
     double                 signed_carrot_distance_2_robot;
     bool                   approaching_goal_point;
+    bool                   reverse_allowed;
 
     inline void clearControlState();
     inline void setControlState(double desired_velocity_linear,
@@ -35,7 +35,8 @@ struct RobotControlState
                                 double error_2_carrot_angular,
                                 double carrot_distance,
                                 double signed_carrot_distance_2_robot,
-                                bool approaching_goal_point);
+                                bool approaching_goal_point,
+                                bool reverse_allowed);
 };
 
 void RobotControlState::setRobotState(geometry_msgs::Vector3 const & velocity_linear,
@@ -55,7 +56,8 @@ inline void RobotControlState::setControlState(double desired_velocity_linear,
                             double error_2_carrot_angular,
                             double carrot_distance,
                             double signed_carrot_distance_2_robot,
-                            bool approaching_goal_point)
+                            bool approaching_goal_point,
+                            bool reverse_allowed)
 {
     this->desired_velocity_linear = desired_velocity_linear;
     this->desired_position        = desired_position;
@@ -64,6 +66,7 @@ inline void RobotControlState::setControlState(double desired_velocity_linear,
     this->carrot_distance         = carrot_distance;
     this->signed_carrot_distance_2_robot = signed_carrot_distance_2_robot;
     this->approaching_goal_point  = approaching_goal_point;
+    this->reverse_allowed         = reverse_allowed;
 }
 
 void RobotControlState::clearControlState()
@@ -75,6 +78,7 @@ void RobotControlState::clearControlState()
     carrot_distance         = 0.0;
     signed_carrot_distance_2_robot = 0.0;
     approaching_goal_point  = false;
+    reverse_allowed         = false;
 }
 
 #endif // ROBOT_CONTROL_STATE_H

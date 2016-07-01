@@ -87,12 +87,13 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
                                                                    double e_position,
                                                                    double dt,
                                                                    double cmded_speed,
-                                                                   bool approaching_goal_point)
+                                                                   bool approaching_goal_point,
+                                                                   bool reverse_allowed)
 {
     static double previous_e_angle = e_angle;
     static double previous_e_position = e_position;
 
-    if(mp_->isYSymmetric())
+    if(mp_->isYSymmetric() || reverse_allowed)
     {
         //double e_ang_p = e_angle;
 
@@ -154,7 +155,8 @@ void DifferentialDriveController::executeMotionCommand(RobotControlState rcs)
                                      rcs.signed_carrot_distance_2_robot,
                                      rcs.dt,
                                      rcs.desired_velocity_linear,
-                                     rcs.approaching_goal_point);
+                                     rcs.approaching_goal_point,
+                                     rcs.reverse_allowed);
 }
 
 void DifferentialDriveController::executeMotionCommandSimple(RobotControlState rcs)

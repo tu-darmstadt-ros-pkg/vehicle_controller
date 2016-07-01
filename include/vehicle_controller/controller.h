@@ -134,6 +134,7 @@ private:
   geometry_msgs::QuaternionStamped cameraDefaultOrientation;
 
   bool check_stuck;
+  bool reverse_allowed;
   double dt;
 
   double velocity_error;

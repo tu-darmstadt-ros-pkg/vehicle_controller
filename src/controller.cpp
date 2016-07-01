@@ -77,8 +77,8 @@ bool Controller::configure()
     params.getParam("inclination_speed_reduction_time_constant", mp_.inclination_speed_reduction_time_constant);
     params.getParam("goal_position_tolerance", goal_position_tolerance);
     params.getParam("goal_angle_tolerance", goal_angle_tolerance);
-    params.getParam("speed", mp_.commanded_speed);
-    params.param("pd_params", mp_.pd_params, std::string("PdParams"));
+    params.getParam("speed",   mp_.commanded_speed);
+    params.param("pd_params",  mp_.pd_params, std::string("PdParams"));
     params.param("y_symmetry", mp_.y_symmetry, false);
     vehicle_control_type = "differential_steering";
     params.getParam("vehicle_control_type", vehicle_control_type);
@@ -466,6 +466,7 @@ bool Controller::alternativeTolerancesService(monstertruck_msgs::SetAlternativeT
 void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGeneric& action)
 {
     ROS_WARN("[vehicle_controller] Action callback!");
+    reverse_allowed = true;
 
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new action");
     this->goalID.reset(new actionlib_msgs::GoalID(action.goal_id));    
@@ -487,6 +488,7 @@ void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGener
 
 void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal& goal_action)
 {
+    reverse_allowed = true;
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new goal.");
     this->goalID.reset(new actionlib_msgs::GoalID(goal_action.goal_id));
     driveto(goal_action.goal.target_pose);
@@ -495,6 +497,7 @@ void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionG
 
 void Controller::actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath& path_action)
 {
+    reverse_allowed = path_action.reverse_allowed;
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new path.");
     this->goalID.reset(new actionlib_msgs::GoalID(path_action.goal_id));
     drivepath(path_action.goal.target_path, path_action.goal.fixed);
@@ -656,7 +659,8 @@ void Controller::update()
                                                     goal_angle_error_,
                                                     mp_.carrot_distance,
                                                     0.0,
-                                                    true);
+                                                    true,
+                                                    reverse_allowed);
 
                 vehicle_control_interface_->executeMotionCommand(robot_control_state);
                 return;
@@ -753,7 +757,7 @@ void Controller::update()
                                      robot_control_state.pose.position);
     bool approaching_goal_point = goal_position_error < 0.4;
 
-    if (state == DRIVETO && goal_position_error < 0.6 && mp_.isYSymmetric())
+    if (state == DRIVETO && goal_position_error < 0.6 /* && mp_.isYSymmetric() */)
     { // TODO: Does mp_.isYSymmetric() really make sense here?
         if(error_2_path > M_PI_2)
             error_2_path = error_2_path - M_PI;
@@ -767,7 +771,8 @@ void Controller::update()
                                         error_2_carrot,
                                         mp_.carrot_distance,
                                         signed_carrot_distance_2_robot,
-                                        approaching_goal_point);
+                                        approaching_goal_point,
+                                        reverse_allowed);
 
     vehicle_control_interface_->executeMotionCommand(robot_control_state);
 
@@ -849,6 +854,7 @@ void Controller::update()
 void Controller::stop()
 {
     this->vehicle_control_interface_->stop();
+    stuck->reset();
     drivepathPublisher.publish(empty_path);
     if (camera_control)
         cameraOrientationPublisher.publish(cameraDefaultOrientation);

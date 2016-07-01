@@ -71,7 +71,7 @@ class DifferentialDriveController: public VehicleControlInterface
      * @param e_position the position error
      * @param dt time difference between two control loop iterates
      */
-    void executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed, bool approaching_goal_point);
+    void executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed, bool approaching_goal_point, bool reverse_allowed);
 
     virtual void executeMotionCommand(RobotControlState rcs);
 
