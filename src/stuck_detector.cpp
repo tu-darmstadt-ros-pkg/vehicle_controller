@@ -107,9 +107,6 @@ bool StuckDetector::operator ()() const
                                                     - quat2ZAngle(start_pose.orientation)));
     double max_lin = euclideanDistance(it_max_lin->pose.position, start_pose.position);
     double time_diff = elapsedSecs();
-    std::cout << "Stuck : " << (max_ang < MIN_ANGULAR_CHANGE) << "  " <<
-                 (max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * mp.commanded_speed)
-              << "  " << (time_diff >= DETECTION_WINDOW) << "  " << time_diff << std::endl;
     return max_ang < MIN_ANGULAR_CHANGE
         && max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * mp.commanded_speed
         && time_diff >= DETECTION_WINDOW;
