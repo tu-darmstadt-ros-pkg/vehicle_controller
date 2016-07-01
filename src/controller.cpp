@@ -79,7 +79,7 @@ bool Controller::configure()
     params.getParam("goal_angle_tolerance", goal_angle_tolerance);
     params.getParam("speed", mp_.commanded_speed);
     params.param("pd_params", mp_.pd_params, std::string("PdParams"));
-    params.param("y_symmetry", mp_.y_symmetry, true);
+    params.param("y_symmetry", mp_.y_symmetry, false);
     vehicle_control_type = "differential_steering";
     params.getParam("vehicle_control_type", vehicle_control_type);
     double stuck_detection_window = StuckDetector::DEFAULT_DETECTION_WINDOW;
