@@ -22,7 +22,7 @@ Controller::Controller(const std::string& ns)
     : nh(ns), state(INACTIVE), stuck(new StuckDetector(mp_))
 {
     mp_.carrot_distance = 1.0;
-    mp_.min_speed = 0.1;
+    mp_.min_speed = 0.01;
     mp_.commanded_speed = 0.0;
     mp_.max_controller_speed_ = 0.25;
     mp_.max_unlimited_speed_ = 2.0;
