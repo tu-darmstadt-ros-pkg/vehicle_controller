@@ -465,13 +465,14 @@ bool Controller::alternativeTolerancesService(monstertruck_msgs::SetAlternativeT
 
 void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGeneric& action)
 {
-    ROS_WARN("[vehicle_controller] Action callback!");
+    ROS_WARN("[vehicle_controller] actionCallback");
     reverse_allowed = true;
 
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new action");
     this->goalID.reset(new actionlib_msgs::GoalID(action.goal_id));    
 
-    hector_move_base_msgs::MoveBasePathPtr path_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBasePath>(action);
+    hector_move_base_msgs::MoveBasePathPtr path_action =
+            hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBasePath>(action);
     if (path_action)
     {
         drivepath(path_action->target_path, path_action->speed, path_action->fixed);
@@ -481,6 +482,7 @@ void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGener
     hector_move_base_msgs::MoveBaseGoalPtr goal_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBaseGoal>(action);
     if (goal_action)
     {
+        reverse_allowed = goal_action->reverse_allowed;
         driveto(goal_action->target_pose, goal_action->speed);
         drivepathPublisher.publish(empty_path);
     }
@@ -488,7 +490,8 @@ void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGener
 
 void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal& goal_action)
 {
-    reverse_allowed = true;
+    reverse_allowed = goal_action.goal.reverse_allowed;
+    ROS_WARN("[vehicle_controller] actionGoalCallback, reverse_allowed = %d!", reverse_allowed);
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new goal.");
     this->goalID.reset(new actionlib_msgs::GoalID(goal_action.goal_id));
     driveto(goal_action.goal.target_pose, goal_action.goal.speed);
@@ -498,6 +501,7 @@ void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionG
 void Controller::actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath& path_action)
 {
     reverse_allowed = path_action.reverse_allowed;
+    ROS_WARN("[vehicle_controller] actionPathCallback, reverse_allowed = %d!", reverse_allowed);
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new path.");
     this->goalID.reset(new actionlib_msgs::GoalID(path_action.goal_id));
     drivepath(path_action.goal.target_path, path_action.goal.speed, path_action.goal.fixed);
@@ -631,7 +635,8 @@ void Controller::update()
             goal_angle_error_ = constrainAngle_mpi_pi(goal_angle_error_);
             // ROS_INFO("[vehicle_controller] Reached goal point position. Angular error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI, angular_tolerance_for_current_path * 180.0 / M_PI);
             if (final_twist_trials > mp_.FINAL_TWIST_TRIALS_MAX_
-             || vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path)
+             || vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_,
+                    angular_tolerance_for_current_path, reverse_allowed)
              || !mp_.USE_FINAL_TWIST_)
             {
                 state = INACTIVE;

@@ -84,11 +84,8 @@ void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_t
 }
 
 void DifferentialDriveController::executePDControlledMotionCommand(double e_angle,
-                                                                   double e_position,
-                                                                   double dt,
-                                                                   double cmded_speed,
-                                                                   bool approaching_goal_point,
-                                                                   bool reverse_allowed)
+    double e_position, double dt, double cmded_speed, bool approaching_goal_point,
+    bool reverse_allowed)
 {
     static double previous_e_angle = e_angle;
     static double previous_e_position = e_position;

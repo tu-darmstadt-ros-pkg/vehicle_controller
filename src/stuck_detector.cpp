@@ -92,22 +92,32 @@ bool StuckDetector::operator ()(double cmded_speed) const
                                    < euclideanDistance(start_pose.position, pr.pose.position);
                         });
 
+    double zstart = constrainAngle_mpi_pi(quat2ZAngle(start_pose.orientation));
+
     auto it_max_ang = std::max_element(pose_history.begin() + 1, pose_history.end(),
-                        [this,start_pose](geometry_msgs::PoseStamped const & pl,
+                        [this,start_pose,zstart](geometry_msgs::PoseStamped const & pl,
                                           geometry_msgs::PoseStamped const & pr)
                         {
-                            double zstart = quat2ZAngle(start_pose.orientation);
                             double zl = constrainAngle_mpi_pi(quat2ZAngle(pl.pose.orientation));
                             double zr = constrainAngle_mpi_pi(quat2ZAngle(pr.pose.orientation));
                             return std::abs(constrainAngle_mpi_pi(zl - zstart))
                                     < std::abs(constrainAngle_mpi_pi(zr - zstart));
                         });
 
-    double max_ang = std::abs(constrainAngle_mpi_pi(quat2ZAngle(it_max_ang->pose.orientation)
-                                                    - quat2ZAngle(start_pose.orientation)));
+    double max_ang = std::abs(constrainAngle_mpi_pi(
+                                  constrainAngle_mpi_pi(quat2ZAngle(it_max_ang->pose.orientation))
+                                  - zstart));
     double max_lin = euclideanDistance(it_max_lin->pose.position, start_pose.position);
     double time_diff = elapsedSecs();
+    if (max_ang < MIN_ANGULAR_CHANGE
+        && max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * std::abs(cmded_speed)
+        && time_diff >= DETECTION_WINDOW) {
+        std::cout << "ang  " << max_ang << MIN_ANGULAR_CHANGE << " < " << MIN_ANGULAR_CHANGE
+                  << "  ,  "
+                  << "vlin  " << max_lin / time_diff << " < " << std::abs(cmded_speed) << std::endl;
+    }
+
     return max_ang < MIN_ANGULAR_CHANGE
-        && max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * cmded_speed
+        && max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * std::abs(cmded_speed)
         && time_diff >= DETECTION_WINDOW;
 }
