@@ -16,6 +16,7 @@
     <param name="max_unlimited_angular_rate" value="0.4" />
     <param name="max_controller_angular_rate" value="0.35" />
     <param name="min_speed" value="0.0" />
+    <param name="y_symmetry" value="True" />
     <param name="vehicle_type" value="tracked" />
     <param name="vehicle_control_type" value="differential_steering"/>
 
