@@ -22,7 +22,7 @@ Controller::Controller(const std::string& ns)
     : nh(ns), state(INACTIVE), stuck(new StuckDetector(mp_))
 {
     mp_.carrot_distance = 1.0;
-    mp_.min_speed = 0.1;
+    mp_.min_speed       = 0.0;
     mp_.commanded_speed = 0.0;
     mp_.max_controller_speed_ = 0.25;
     mp_.max_unlimited_speed_ = 2.0;
@@ -195,10 +195,10 @@ void Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStam
     geometry_msgs::PoseStampedConstPtr goal = event.getConstMessage();
 
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received a new goal.");
-    driveto(*goal);
+    driveto(*goal, 0.0);
 }
 
-bool Controller::driveto(const geometry_msgs::PoseStamped& goal)
+bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
 {
     reset();
 
@@ -217,7 +217,7 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal)
     }
 
     start = robot_control_state.pose;
-    addLeg(goal_transformed.pose);
+    addLeg(goal_transformed.pose, speed);
     state = DRIVETO;
 
     ROS_INFO("[vehicle_controller] Received new goal point (x = %.2f, y = %.2f), backward = %d.",
@@ -234,7 +234,7 @@ void Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& even
     nav_msgs::PathConstPtr path = event.getConstMessage();
 
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new path");
-    drivepath(*path);
+    drivepath(*path, 0.0);
 }
 
 void Controller::cmd_flipper_toggleCallback(std_msgs::Empty const &)
@@ -270,7 +270,7 @@ bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transf
 //    return path_to_be_smoothed;
 }
 
-bool Controller::drivepath(const nav_msgs::Path& path, bool fixed_path)
+bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_path)
 {
     reset();
 
@@ -334,7 +334,7 @@ bool Controller::drivepath(const nav_msgs::Path& path, bool fixed_path)
                        out_smoothed_orientations.begin(), std::back_inserter(smooth_path),
                        boost::bind(&Controller::createPoseFromQuatAndPosition, this, _1, _2));
 
-        std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Controller::addLeg, this, _1));
+        std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Controller::addLeg, this, _1, speed));
 
         nav_msgs::Path path2publish;
         path2publish.header.frame_id = map_frame_id;
@@ -370,7 +370,7 @@ bool Controller::drivepath(const nav_msgs::Path& path, bool fixed_path)
             if (path.poses.size() == 1) // TODO: Consider calling driveto instead for small paths instead.
             {
                 transformed_waypoint.position.x += 0.01;
-                addLeg(transformed_waypoint);
+                addLeg(transformed_waypoint, speed);
             }
         }
         nav_msgs::Path path;
@@ -474,14 +474,14 @@ void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGener
     hector_move_base_msgs::MoveBasePathPtr path_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBasePath>(action);
     if (path_action)
     {
-        drivepath(path_action->target_path, path_action->fixed);
+        drivepath(path_action->target_path, path_action->speed, path_action->fixed);
         drivepathPublisher.publish(path_action->target_path);
     }
 
     hector_move_base_msgs::MoveBaseGoalPtr goal_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBaseGoal>(action);
     if (goal_action)
     {
-        driveto(goal_action->target_pose);
+        driveto(goal_action->target_pose, goal_action->speed);
         drivepathPublisher.publish(empty_path);
     }
 }
@@ -491,7 +491,7 @@ void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionG
     reverse_allowed = true;
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new goal.");
     this->goalID.reset(new actionlib_msgs::GoalID(goal_action.goal_id));
-    driveto(goal_action.goal.target_pose);
+    driveto(goal_action.goal.target_pose, goal_action.goal.speed);
     drivepathPublisher.publish(empty_path);
 }
 
@@ -500,7 +500,7 @@ void Controller::actionPathCallback(const hector_move_base_msgs::MoveBaseActionP
     reverse_allowed = path_action.reverse_allowed;
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new path.");
     this->goalID.reset(new actionlib_msgs::GoalID(path_action.goal_id));
-    drivepath(path_action.goal.target_path, path_action.goal.fixed);
+    drivepath(path_action.goal.target_path, path_action.goal.speed, path_action.goal.fixed);
     drivepathPublisher.publish(path_action.goal.target_path);
 }
 
@@ -521,7 +521,7 @@ void Controller::publishActionResult(actionlib_msgs::GoalStatus::_status_type st
         goalID.reset();
 }
 
-void Controller::addLeg(geometry_msgs::Pose const& pose)
+void Controller::addLeg(geometry_msgs::Pose const& pose, double speed)
 {
     Leg leg;
     double angles[3];
@@ -571,7 +571,7 @@ void Controller::addLeg(geometry_msgs::Pose const& pose)
         leg.p2.orientation = angles[0];
     }
 
-    leg.speed   = mp_.commanded_speed;
+    leg.speed   = speed == 0.0 ? mp_.commanded_speed : speed;
     leg.length2 = std::pow(leg.p2.x - leg.p1.x, 2) + std::pow(leg.p2.y - leg.p1.y, 2);
     leg.length  = std::sqrt(leg.length2);
     leg.percent = 0.0f;

@@ -46,8 +46,8 @@ protected:
   virtual void stop();
   virtual void cleanup();
 
-  virtual bool driveto(const geometry_msgs::PoseStamped&);
-  virtual bool drivepath(const nav_msgs::Path&, bool fixed_path = true);
+  virtual bool driveto(const geometry_msgs::PoseStamped&, double speed);
+  virtual bool drivepath(const nav_msgs::Path&, double speed, bool fixed_path = true);
 
   virtual void stateCallback(const nav_msgs::Odometry&);
   virtual void drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&);
@@ -65,7 +65,14 @@ protected:
   virtual void actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath&);
   virtual void publishActionResult(actionlib_msgs::GoalStatus::_status_type, const std::string& text = std::string());
 
-  void addLeg(geometry_msgs::Pose const&);
+  /**
+   * @brief addLeg to current tracking path
+   * @param pose to be added
+   * @param speed 0 indicates that the speed from the configuration is used as
+   *        desired linear speed in the lower controllers, otherwise the given
+   *        value is used for this purpose
+   */
+  void addLeg(geometry_msgs::Pose const& pose, double speed = 0.0);
   void setDriveCommand(float speed, float kappa, float tan_gamma);
 
   bool pathToBeSmoothed(const std::deque<geometry_msgs::Pose> &transformed_path, bool fixed_path);

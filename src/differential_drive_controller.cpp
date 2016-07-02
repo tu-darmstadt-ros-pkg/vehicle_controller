@@ -96,7 +96,6 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     if(mp_->isYSymmetric() || reverse_allowed)
     {
         //double e_ang_p = e_angle;
-
         if(e_angle > M_PI_2)
             e_angle = e_angle - M_PI;
         if(e_angle < -M_PI_2)
@@ -111,7 +110,9 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     double z_angular_rate = KP_ANGLE_ * e_angle + KD_ANGLE_ * de_angle_dt;
 
     if(fabs(speed) > fabs(cmded_speed))
-        speed = (speed < 0 ? -1.0 : 1.0) * fabs(mp_->commanded_speed);
+    {
+        speed = (speed < 0 ? -1.0 : 1.0) * fabs(cmded_speed);
+    }
 
     twist.linear.x = speed;
     twist.angular.z = z_angular_rate;
