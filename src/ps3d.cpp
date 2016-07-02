@@ -64,7 +64,7 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path,
                             quat const & in_end_orientation,
                             vector_vec3 & out_smooth_positions,
                             vector_quat & out_smooth_orientations,
-                            bool forbid_reverse_path) const
+                            bool reverse) const
 {
     // Missing
     // forbid_reverse_path has to switched on by the user if the robot is too far away from the path.
@@ -75,12 +75,11 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path,
     vector<double> distances = computeAccumulatedDistances(in_path);
     smoothed_positions = computeSmoothedPositions(distances, in_path);
 
-    bool reverse = false;
-    if(allow_reverse_paths && !forbid_reverse_path)
+    if(allow_reverse_paths)
     {
         if(in_path.size() >= 2 && smoothed_positions.size() >= in_path.size())
         {
-            if(mp->isYSymmetric())
+            if(mp->isYSymmetric() || reverse)
             {
                 vec3 start_path_delta = (smoothed_positions[0] - smoothed_positions[1]).normalized();
                 double start_projection = start_path_delta.dot(in_start_orientation * local_robot_direction);

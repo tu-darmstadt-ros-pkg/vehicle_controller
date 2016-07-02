@@ -327,7 +327,7 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
         vector_vec3 out_smoothed_positions;
         vector_quat out_smoothed_orientations;
         ps3d.smooth(in_path, in_start_orientation, in_end_orientation,
-                    out_smoothed_positions, out_smoothed_orientations, false);
+                    out_smoothed_positions, out_smoothed_orientations, reverse_allowed);
 
         std::vector<geometry_msgs::Pose> smooth_path;
         std::transform(out_smoothed_positions.begin(), out_smoothed_positions.end(),
@@ -491,7 +491,6 @@ void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGener
 void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal& goal_action)
 {
     reverse_allowed = goal_action.goal.reverse_allowed;
-    ROS_WARN("[vehicle_controller] actionGoalCallback, reverse_allowed = %d!", reverse_allowed);
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new goal.");
     this->goalID.reset(new actionlib_msgs::GoalID(goal_action.goal_id));
     driveto(goal_action.goal.target_pose, goal_action.goal.speed);
@@ -501,7 +500,6 @@ void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionG
 void Controller::actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath& path_action)
 {
     reverse_allowed = path_action.reverse_allowed;
-    ROS_WARN("[vehicle_controller] actionPathCallback, reverse_allowed = %d!", reverse_allowed);
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new path.");
     this->goalID.reset(new actionlib_msgs::GoalID(path_action.goal_id));
     drivepath(path_action.goal.target_path, path_action.goal.speed, path_action.goal.fixed);
