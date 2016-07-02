@@ -19,7 +19,7 @@
 #include <functional>
 
 Controller::Controller(const std::string& ns)
-    : nh(ns), state(INACTIVE), stuck(new StuckDetector(mp_))
+    : nh(ns), state(INACTIVE), stuck(new StuckDetector)
 {
     mp_.carrot_distance = 1.0;
     mp_.min_speed       = 0.0;
@@ -84,7 +84,7 @@ bool Controller::configure()
     params.getParam("vehicle_control_type", vehicle_control_type);
     double stuck_detection_window = StuckDetector::DEFAULT_DETECTION_WINDOW;
     params.param("stuck_detection_window", stuck_detection_window, StuckDetector::DEFAULT_DETECTION_WINDOW);
-    stuck.reset(new StuckDetector(mp_, stuck_detection_window));
+    stuck.reset(new StuckDetector(stuck_detection_window));
 
     if (vehicle_control_type == "differential_steering")
         vehicle_control_interface_.reset(new DifferentialDriveController());
@@ -782,7 +782,7 @@ void Controller::update()
         ps.header = robot_state_header;
         ps.pose   = robot_control_state.pose;
         stuck->update(ps);
-        if((*stuck)())
+        if((*stuck)(robot_control_state.desired_velocity_linear))
         {
             ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal.");
             state = INACTIVE;

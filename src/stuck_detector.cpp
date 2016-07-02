@@ -31,7 +31,7 @@
 
 const double StuckDetector::DEFAULT_DETECTION_WINDOW = 8.0;
 
-StuckDetector::StuckDetector(MotionParameters const & mp, double detection_window) : mp(mp), DETECTION_WINDOW(detection_window)
+StuckDetector::StuckDetector(double detection_window) :DETECTION_WINDOW(detection_window)
 {
 
 }
@@ -78,7 +78,7 @@ double StuckDetector::quat2ZAngle(geometry_msgs::Quaternion const & q) const
     return a[0];
 }
 
-bool StuckDetector::operator ()() const
+bool StuckDetector::operator ()(double cmded_speed) const
 {
     if(pose_history.size() < 2)
         return false;
@@ -108,6 +108,6 @@ bool StuckDetector::operator ()() const
     double max_lin = euclideanDistance(it_max_lin->pose.position, start_pose.position);
     double time_diff = elapsedSecs();
     return max_ang < MIN_ANGULAR_CHANGE
-        && max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * mp.commanded_speed
+        && max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * cmded_speed
         && time_diff >= DETECTION_WINDOW;
 }
