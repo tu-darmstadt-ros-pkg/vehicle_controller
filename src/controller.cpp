@@ -19,7 +19,7 @@
 #include <functional>
 
 Controller::Controller(const std::string& ns)
-    : nh(ns), state(INACTIVE), stuck(new StuckDetector(mp_))
+    : nh(ns), state(INACTIVE), stuck(new StuckDetector)
 {
     mp_.carrot_distance = 1.0;
     mp_.min_speed       = 0.0;
@@ -84,7 +84,7 @@ bool Controller::configure()
     params.getParam("vehicle_control_type", vehicle_control_type);
     double stuck_detection_window = StuckDetector::DEFAULT_DETECTION_WINDOW;
     params.param("stuck_detection_window", stuck_detection_window, StuckDetector::DEFAULT_DETECTION_WINDOW);
-    stuck.reset(new StuckDetector(mp_, stuck_detection_window));
+    stuck.reset(new StuckDetector(stuck_detection_window));
 
     if (vehicle_control_type == "differential_steering")
         vehicle_control_interface_.reset(new DifferentialDriveController());
@@ -327,7 +327,7 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
         vector_vec3 out_smoothed_positions;
         vector_quat out_smoothed_orientations;
         ps3d.smooth(in_path, in_start_orientation, in_end_orientation,
-                    out_smoothed_positions, out_smoothed_orientations, false);
+                    out_smoothed_positions, out_smoothed_orientations, reverse_allowed);
 
         std::vector<geometry_msgs::Pose> smooth_path;
         std::transform(out_smoothed_positions.begin(), out_smoothed_positions.end(),
@@ -465,13 +465,14 @@ bool Controller::alternativeTolerancesService(monstertruck_msgs::SetAlternativeT
 
 void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGeneric& action)
 {
-    ROS_WARN("[vehicle_controller] Action callback!");
+    ROS_WARN("[vehicle_controller] actionCallback");
     reverse_allowed = true;
 
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new action");
     this->goalID.reset(new actionlib_msgs::GoalID(action.goal_id));    
 
-    hector_move_base_msgs::MoveBasePathPtr path_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBasePath>(action);
+    hector_move_base_msgs::MoveBasePathPtr path_action =
+            hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBasePath>(action);
     if (path_action)
     {
         drivepath(path_action->target_path, path_action->speed, path_action->fixed);
@@ -481,6 +482,7 @@ void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGener
     hector_move_base_msgs::MoveBaseGoalPtr goal_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBaseGoal>(action);
     if (goal_action)
     {
+        reverse_allowed = goal_action->reverse_allowed;
         driveto(goal_action->target_pose, goal_action->speed);
         drivepathPublisher.publish(empty_path);
     }
@@ -488,7 +490,7 @@ void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGener
 
 void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal& goal_action)
 {
-    reverse_allowed = true;
+    reverse_allowed = goal_action.goal.reverse_allowed;
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new goal.");
     this->goalID.reset(new actionlib_msgs::GoalID(goal_action.goal_id));
     driveto(goal_action.goal.target_pose, goal_action.goal.speed);
@@ -631,7 +633,8 @@ void Controller::update()
             goal_angle_error_ = constrainAngle_mpi_pi(goal_angle_error_);
             // ROS_INFO("[vehicle_controller] Reached goal point position. Angular error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI, angular_tolerance_for_current_path * 180.0 / M_PI);
             if (final_twist_trials > mp_.FINAL_TWIST_TRIALS_MAX_
-             || vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path)
+             || vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_,
+                    angular_tolerance_for_current_path, reverse_allowed)
              || !mp_.USE_FINAL_TWIST_)
             {
                 state = INACTIVE;
@@ -782,7 +785,7 @@ void Controller::update()
         ps.header = robot_state_header;
         ps.pose   = robot_control_state.pose;
         stuck->update(ps);
-        if((*stuck)())
+        if((*stuck)(robot_control_state.desired_velocity_linear))
         {
             ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal.");
             state = INACTIVE;

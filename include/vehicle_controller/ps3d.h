@@ -71,7 +71,7 @@ public:
      * @param forbid_reverse_path allows the caller to forbid to interpret the path to be tracked by driving reversely (affects the orientations)
      */
     void smooth(deque_vec3 const & in_path, quat const & in_start_orientation, quat const & in_end_orientation, vector_vec3 & out_smooth_positions,
-                vector_quat & out_smooth_orientations, bool forbid_reverse_path) const;
+                vector_quat & out_smooth_orientations, bool reverse) const;
 
 protected:
     std::vector<double> computeAccumulatedDistances(deque_vec3 const & positions) const;

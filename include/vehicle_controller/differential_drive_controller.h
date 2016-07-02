@@ -49,9 +49,9 @@ class DifferentialDriveController: public VehicleControlInterface
 
     virtual void configure(ros::NodeHandle& params, MotionParameters* mp);
 
-    inline virtual bool hasReachedFinalOrientation(double goal_angle_error, double tol)
+    inline virtual bool hasReachedFinalOrientation(double goal_angle_error, double tol, bool reverse_allowed)
     {
-        if(mp_->isYSymmetric())
+        if (mp_->isYSymmetric() || reverse_allowed)
         {
             return std::abs(goal_angle_error) < tol || std::abs(goal_angle_error - M_PI) < tol || std::abs(goal_angle_error + M_PI) < tol;
         }

@@ -61,7 +61,7 @@ class FourWheelSteerController: public VehicleControlInterface
 
     void setDriveCommand(double speed, double kappa, double tan_gamma);
 
-    inline virtual bool hasReachedFinalOrientation(double goal_angle_error, double tol)
+    inline virtual bool hasReachedFinalOrientation(double goal_angle_error, double tol, bool reverse_allowed)
     {
         /// for nonsymmetric 4 wheel robot!
         return std::abs(goal_angle_error) < tol;
