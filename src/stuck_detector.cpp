@@ -97,8 +97,8 @@ bool StuckDetector::operator ()(double cmded_speed) const
                                           geometry_msgs::PoseStamped const & pr)
                         {
                             double zstart = quat2ZAngle(start_pose.orientation);
-                            double zl = quat2ZAngle(pl.pose.orientation);
-                            double zr = quat2ZAngle(pr.pose.orientation);
+                            double zl = constrainAngle_mpi_pi(quat2ZAngle(pl.pose.orientation));
+                            double zr = constrainAngle_mpi_pi(quat2ZAngle(pr.pose.orientation));
                             return std::abs(constrainAngle_mpi_pi(zl - zstart))
                                     < std::abs(constrainAngle_mpi_pi(zr - zstart));
                         });
