@@ -147,6 +147,8 @@ void Controller::joint_statesCallback(sensor_msgs::JointStateConstPtr msg)
 
 void Controller::stateCallback(const nav_msgs::Odometry& state)
 {
+    if (state < DRIVETO) return;
+
     dt = (state.header.stamp - robot_state_header.stamp).toSec();
     if (dt < 0.0 || dt > 1.0)
         invalidateDt();
