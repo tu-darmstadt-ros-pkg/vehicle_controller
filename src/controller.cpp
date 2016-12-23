@@ -145,33 +145,33 @@ void Controller::joint_statesCallback(sensor_msgs::JointStateConstPtr msg)
     }
 }
 
-void Controller::stateCallback(const nav_msgs::Odometry& state)
+void Controller::stateCallback(const nav_msgs::Odometry& odom_state)
 {
     if (state < DRIVETO) return;
 
-    dt = (state.header.stamp - robot_state_header.stamp).toSec();
+    dt = (odom_state.header.stamp - robot_state_header.stamp).toSec();
     if (dt < 0.0 || dt > 1.0)
         invalidateDt();
 
     geometry_msgs::PoseStamped pose;
     geometry_msgs::Vector3Stamped velocity_linear;
     geometry_msgs::Vector3Stamped velocity_angular;
-    pose.header = state.header;
-    pose.pose = state.pose.pose;
-    velocity_linear.header = state.header;
-    velocity_linear.vector = state.twist.twist.linear;
-    velocity_angular.header = state.header;
-    velocity_angular.vector = state.twist.twist.angular;
+    pose.header = odom_state.header;
+    pose.pose = odom_state.pose.pose;
+    velocity_linear.header = odom_state.header;
+    velocity_linear.vector = odom_state.twist.twist.linear;
+    velocity_angular.header = odom_state.header;
+    velocity_angular.vector = odom_state.twist.twist.angular;
 
     try
     {
-        listener.waitForTransform(map_frame_id, state.header.frame_id, state.header.stamp, ros::Duration(3.0));
-        listener.waitForTransform(base_frame_id, state.header.frame_id, state.header.stamp, ros::Duration(3.0));
+        listener.waitForTransform(map_frame_id, odom_state.header.frame_id, odom_state.header.stamp, ros::Duration(3.0));
+        listener.waitForTransform(base_frame_id, odom_state.header.frame_id, odom_state.header.stamp, ros::Duration(3.0));
         listener.transformPose(map_frame_id, pose, pose);
         listener.transformVector(base_frame_id, velocity_linear, velocity_linear);
         listener.transformVector(base_frame_id, velocity_angular, velocity_angular);
 
-        robot_state_header = state.header;
+        robot_state_header = odom_state.header;
         robot_control_state.setRobotState(velocity_linear.vector, velocity_angular.vector, pose.pose, dt);
         robot_control_state.clearControlState();
     }
