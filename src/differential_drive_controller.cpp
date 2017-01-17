@@ -104,6 +104,13 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
 
     double de_angle_dt    = (e_angle - previous_e_angle) / dt; // causes discontinuity @ orientation_error vs relative_angle switch
     double de_position_dt = (e_position - previous_e_position) / dt;
+    if (dt <= 0.0) // TODO: Maybe replace by dt < epsilon for some small epsilon
+    {
+        ROS_WARN("[vehicle_controller] [differential_drive_controller] dt between two measurements is 0, ignoring D-part of control law.");
+        de_angle_dt = 0.0;
+        de_position_dt = 0.0;
+    }
+
 
     double speed   = approaching_goal_point ? std::abs(cmded_speed) * (e_position < 0 ? -1.0 : 1.0) :
                                               KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;
