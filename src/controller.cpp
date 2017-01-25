@@ -434,7 +434,7 @@ void Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
 {
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
     reset();
-    state = velocity.linear.x == 0.0 ? INACTIVE : VELOCITY;
+    state = ((velocity.linear.x == 0.0) && (velocity.angular.z == 0.0)) ? INACTIVE : VELOCITY;
     vehicle_control_interface_->executeTwist(velocity);
 }
 
@@ -442,7 +442,7 @@ void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 {
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
     reset();
-    state = velocity.linear.x == 0.0 ? INACTIVE : VELOCITY;
+    state = ((velocity.linear.x == 0.0) && (velocity.angular.z == 0.0)) ? INACTIVE : VELOCITY;
 
     std_msgs::String autonomy_level;
     autonomy_level.data = "teleop";
