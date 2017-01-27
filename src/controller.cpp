@@ -615,7 +615,7 @@ void Controller::update()
     if (goal_position_error < linear_tolerance_for_current_path
      /*&& vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path)*/)
     {   // Reached goal point. This task is handled in the following loop
-        ROS_INFO("[vehicle_controller] Current position is within goal tolerance.");
+        ROS_INFO_THROTTLE(1.0, "[vehicle_controller] Current position is within goal tolerance.");
         current = legs.size();
     }
 
