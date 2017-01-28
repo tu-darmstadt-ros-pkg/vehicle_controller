@@ -18,7 +18,7 @@ generate_dynamic_reconfigure_options(
 
 catkin_package(
   INCLUDE_DIRS include
-#  LIBRARIES test
+  LIBRARIES vehicle_controller_lib
 #  CATKIN_DEPENDS other_catkin_pkg
 #  DEPENDS system_lib
 )
