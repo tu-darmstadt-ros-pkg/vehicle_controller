@@ -145,31 +145,33 @@ void Controller::joint_statesCallback(sensor_msgs::JointStateConstPtr msg)
     }
 }
 
-void Controller::stateCallback(const nav_msgs::Odometry& state)
+void Controller::stateCallback(const nav_msgs::Odometry& odom_state)
 {
-    dt = (state.header.stamp - robot_state_header.stamp).toSec();
+    if (state < DRIVETO) return;
+
+    dt = (odom_state.header.stamp - robot_state_header.stamp).toSec();
     if (dt < 0.0 || dt > 1.0)
         invalidateDt();
 
     geometry_msgs::PoseStamped pose;
     geometry_msgs::Vector3Stamped velocity_linear;
     geometry_msgs::Vector3Stamped velocity_angular;
-    pose.header = state.header;
-    pose.pose = state.pose.pose;
-    velocity_linear.header = state.header;
-    velocity_linear.vector = state.twist.twist.linear;
-    velocity_angular.header = state.header;
-    velocity_angular.vector = state.twist.twist.angular;
+    pose.header = odom_state.header;
+    pose.pose = odom_state.pose.pose;
+    velocity_linear.header = odom_state.header;
+    velocity_linear.vector = odom_state.twist.twist.linear;
+    velocity_angular.header = odom_state.header;
+    velocity_angular.vector = odom_state.twist.twist.angular;
 
     try
     {
-        listener.waitForTransform(map_frame_id, state.header.frame_id, state.header.stamp, ros::Duration(3.0));
-        listener.waitForTransform(base_frame_id, state.header.frame_id, state.header.stamp, ros::Duration(3.0));
+        listener.waitForTransform(map_frame_id, odom_state.header.frame_id, odom_state.header.stamp, ros::Duration(3.0));
+        listener.waitForTransform(base_frame_id, odom_state.header.frame_id, odom_state.header.stamp, ros::Duration(3.0));
         listener.transformPose(map_frame_id, pose, pose);
         listener.transformVector(base_frame_id, velocity_linear, velocity_linear);
         listener.transformVector(base_frame_id, velocity_angular, velocity_angular);
 
-        robot_state_header = state.header;
+        robot_state_header = odom_state.header;
         robot_control_state.setRobotState(velocity_linear.vector, velocity_angular.vector, pose.pose, dt);
         robot_control_state.clearControlState();
     }
@@ -432,7 +434,7 @@ void Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
 {
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
     reset();
-    state = velocity.linear.x == 0.0 ? INACTIVE : VELOCITY;
+    state = ((velocity.linear.x == 0.0) && (velocity.angular.z == 0.0)) ? INACTIVE : VELOCITY;
     vehicle_control_interface_->executeTwist(velocity);
 }
 
@@ -440,7 +442,7 @@ void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 {
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
     reset();
-    state = velocity.linear.x == 0.0 ? INACTIVE : VELOCITY;
+    state = ((velocity.linear.x == 0.0) && (velocity.angular.z == 0.0)) ? INACTIVE : VELOCITY;
 
     std_msgs::String autonomy_level;
     autonomy_level.data = "teleop";
@@ -622,7 +624,7 @@ void Controller::update()
     if (goal_position_error < linear_tolerance_for_current_path
      /*&& vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path)*/)
     {   // Reached goal point. This task is handled in the following loop
-        ROS_INFO("[vehicle_controller] Current position is within goal tolerance.");
+        ROS_INFO_THROTTLE(1.0, "[vehicle_controller] Current position is within goal tolerance.");
         current = legs.size();
     }
 
