@@ -145,11 +145,9 @@ void Controller::joint_statesCallback(sensor_msgs::JointStateConstPtr msg)
     }
 }
 
-void Controller::stateCallback(const nav_msgs::Odometry& odom_state)
+bool Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
 {
-    if (state < DRIVETO) return;
-
-    dt = (odom_state.header.stamp - robot_state_header.stamp).toSec();
+  dt = (odom_state.header.stamp - robot_state_header.stamp).toSec();
     if (dt < 0.0 || dt > 1.0)
         invalidateDt();
 
@@ -178,7 +176,7 @@ void Controller::stateCallback(const nav_msgs::Odometry& odom_state)
     catch (tf::TransformException ex)
     {
         ROS_ERROR("%s", ex.what());
-        return;
+        return false;
     }
 
     double inclination = acos(pose.pose.orientation.w * pose.pose.orientation.w - pose.pose.orientation.x * pose.pose.orientation.x
@@ -188,6 +186,18 @@ void Controller::stateCallback(const nav_msgs::Odometry& odom_state)
     else
         mp_.current_inclination = (mp_.inclination_speed_reduction_time_constant * mp_.current_inclination + dt * inclination)
                                   / (mp_.inclination_speed_reduction_time_constant + dt);
+
+    return true;
+
+}
+
+void Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
+{
+    latest_odom_ = odom_state;
+
+    if (state < DRIVETO) return;
+
+    this->updateRobotState(*latest_odom_);
 
     update();    
 }
@@ -275,6 +285,15 @@ bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transf
 bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_path)
 {
     reset();
+
+    if (!latest_odom_.get()){
+      ROS_ERROR("No latest odom message received, aborting path planning in drivepath!");
+      stop();
+      publishActionResult(actionlib_msgs::GoalStatus::ABORTED);
+      return false;
+    }
+
+    this->updateRobotState(*latest_odom_);
 
     if (path.poses.size() == 0)
     {

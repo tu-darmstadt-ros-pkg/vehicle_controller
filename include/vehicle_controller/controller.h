@@ -49,7 +49,8 @@ protected:
   virtual bool driveto(const geometry_msgs::PoseStamped&, double speed);
   virtual bool drivepath(const nav_msgs::Path&, double speed, bool fixed_path = true);
 
-  virtual void stateCallback(const nav_msgs::Odometry&);
+  virtual bool updateRobotState(const nav_msgs::Odometry& odom_state);
+  virtual void stateCallback(const nav_msgs::OdometryConstPtr& odom_state);
   virtual void drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&);
   virtual void drivepathCallback(const ros::MessageEvent<nav_msgs::Path>&);
   virtual void cmd_velCallback(const geometry_msgs::Twist&);
@@ -157,6 +158,8 @@ private:
 
   std::string vehicle_control_type;
   int final_twist_trials;
+
+  nav_msgs::OdometryConstPtr latest_odom_;
 
   inline void invalidateDt()
   {
