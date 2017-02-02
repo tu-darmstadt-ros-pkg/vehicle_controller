@@ -484,7 +484,8 @@ void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGener
     hector_move_base_msgs::MoveBaseGoalPtr goal_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBaseGoal>(action);
     if (goal_action)
     {
-        reverse_allowed = goal_action->reverse_allowed;
+        //reverse_allowed = goal_action->reverse_allowed;
+        reverse_allowed = true;
         driveto(goal_action->target_pose, goal_action->speed);
         drivepathPublisher.publish(empty_path);
     }
@@ -492,7 +493,8 @@ void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGener
 
 void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal& goal_action)
 {
-    reverse_allowed = goal_action.goal.reverse_allowed;
+    //reverse_allowed = goal_action.goal.reverse_allowed;
+    reverse_allowed = true;
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new goal.");
     this->goalID.reset(new actionlib_msgs::GoalID(goal_action.goal_id));
     driveto(goal_action.goal.target_pose, goal_action.goal.speed);
@@ -501,7 +503,8 @@ void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionG
 
 void Controller::actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath& path_action)
 {
-    reverse_allowed = path_action.reverse_allowed;
+    //reverse_allowed = path_action.reverse_allowed;
+    reverse_allowed = true;
     publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new path.");
     this->goalID.reset(new actionlib_msgs::GoalID(path_action.goal_id));
     drivepath(path_action.goal.target_path, path_action.goal.speed, path_action.goal.fixed);
