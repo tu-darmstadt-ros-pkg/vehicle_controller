@@ -161,11 +161,6 @@ private:
 
   nav_msgs::OdometryConstPtr latest_odom_;
 
-  inline void invalidateDt()
-  {
-      dt = 0.0;
-  }
-
   inline bool isDtInvalid()
   {
       return dt <= 0.0;

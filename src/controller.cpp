@@ -147,9 +147,12 @@ void Controller::joint_statesCallback(sensor_msgs::JointStateConstPtr msg)
 
 bool Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
 {
-  dt = (odom_state.header.stamp - robot_state_header.stamp).toSec();
-    if (dt < 0.0 || dt > 1.0)
-        invalidateDt();
+    dt = (odom_state.header.stamp - robot_state_header.stamp).toSec();
+
+    if (dt < 0.0 || dt > 0.2){
+      ROS_INFO("[vehicle_controller] dt between old robot state and new is %f seconds, setting to 0.0 for this iteration", dt);
+      dt = 0.0;
+    }
 
     geometry_msgs::PoseStamped pose;
     geometry_msgs::Vector3Stamped velocity_linear;
