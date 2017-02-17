@@ -14,7 +14,9 @@
 
   <!-- Dependencies needed to compile this package. -->
   <build_depend>tf</build_depend>
+  <build_depend>actionlib</build_depend>
   <build_depend>hector_move_base_msgs</build_depend>
+  <build_depend>move_base_lite_msgs</build_depend>
   <build_depend>monstertruck_msgs</build_depend>
   <build_depend>nav_msgs</build_depend>
   <build_depend>geometry_msgs</build_depend>
@@ -23,7 +25,9 @@
 
   <!-- Dependencies needed after this package is compiled. -->
   <run_depend>tf</run_depend>
+  <run_depend>actionlib</run_depend>
   <run_depend>hector_move_base_msgs</run_depend>
+  <run_depend>move_base_lite_msgs</run_depend>
   <run_depend>monstertruck_msgs</run_depend>
   <run_depend>nav_msgs</run_depend>
   <run_depend>geometry_msgs</run_depend>

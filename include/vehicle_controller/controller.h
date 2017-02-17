@@ -12,10 +12,13 @@
 #include <std_msgs/Empty.h>
 #include <sensor_msgs/JointState.h>
 
-#include <hector_move_base_msgs/MoveBaseActionGeneric.h>
-#include <hector_move_base_msgs/MoveBaseActionGoal.h>
-#include <hector_move_base_msgs/MoveBaseActionPath.h>
-#include <hector_move_base_msgs/MoveBaseActionResult.h>
+//#include <hector_move_base_msgs/MoveBaseActionGeneric.h>
+//#include <hector_move_base_msgs/MoveBaseActionGoal.h>
+//#include <hector_move_base_msgs/MoveBaseActionPath.h>
+//#include <hector_move_base_msgs/MoveBaseActionResult.h>
+
+#include <move_base_lite_msgs/FollowPathAction.h>
+#include <actionlib/server/simple_action_server.h>
 
 #include <ros/ros.h>
 #include <tf/transform_listener.h>
@@ -61,10 +64,12 @@ protected:
   void joint_statesCallback(sensor_msgs::JointStateConstPtr msg);
   void cmd_flipper_toggleCallback(const std_msgs::Empty&);
 
-  virtual void actionCallback(const hector_move_base_msgs::MoveBaseActionGeneric&);
-  virtual void actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal&);
-  virtual void actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath&);
-  virtual void publishActionResult(actionlib_msgs::GoalStatus::_status_type, const std::string& text = std::string());
+  //virtual void actionCallback(const hector_move_base_msgs::MoveBaseActionGeneric&);
+  //virtual void actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal&);
+  //virtual void actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath&);
+  //virtual void publishActionResult(actionlib_msgs::GoalStatus::_status_type, const std::string& text = std::string());
+  void followPathGoalCallback();
+  void followPathPreemptCallback();
 
   /**
    * @brief addLeg to current tracking path
@@ -105,10 +110,11 @@ private:
   ros::Publisher jointstate_cmd_pub_;
 
   // action interface
-  ros::Subscriber actionSubscriber;
-  ros::Subscriber actionGoalSubscriber;
-  ros::Subscriber actionPathSubscriber;
-  ros::Publisher actionResultPublisher;
+  //ros::Subscriber actionSubscriber;
+  //ros::Subscriber actionGoalSubscriber;
+  //ros::Subscriber actionPathSubscriber;
+  //ros::Publisher actionResultPublisher;
+  boost::shared_ptr<actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction> > follow_path_server_;
 
   //Service Provider
   ros::ServiceServer alternative_tolerances_service;

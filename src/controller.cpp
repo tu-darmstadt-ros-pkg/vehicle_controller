@@ -56,6 +56,13 @@ Controller::Controller(const std::string& ns)
     tf::Quaternion cameraOrientationQuaternion;
     cameraOrientationQuaternion.setEuler(0.0, 25.0*M_PI/180.0, 0.0);
     tf::quaternionTFToMsg(cameraOrientationQuaternion, cameraDefaultOrientation.quaternion);
+
+    follow_path_server_.reset(new actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>(nh, "/controller/follow_path", 0, false));
+
+    follow_path_server_->registerGoalCallback(boost::bind(&Controller::followPathGoalCallback, this));
+    follow_path_server_->registerPreemptCallback(boost::bind(&Controller::followPathPreemptCallback, this));
+
+    follow_path_server_->start();
 }
 
 Controller::~Controller()
@@ -115,10 +122,10 @@ bool Controller::configure()
 
     // action interface
     ros::NodeHandle action_nh("controller");
-    actionSubscriber      = action_nh.subscribe("generic", 10, &Controller::actionCallback,     this);
-    actionGoalSubscriber  = action_nh.subscribe("goal",    10, &Controller::actionGoalCallback, this);
-    actionPathSubscriber  = action_nh.subscribe("path",    10, &Controller::actionPathCallback, this);
-    actionResultPublisher = action_nh.advertise<hector_move_base_msgs::MoveBaseActionResult>("result", 1);
+    //actionSubscriber      = action_nh.subscribe("generic", 10, &Controller::actionCallback,     this);
+    //actionGoalSubscriber  = action_nh.subscribe("goal",    10, &Controller::actionGoalCallback, this);
+    //actionPathSubscriber  = action_nh.subscribe("path",    10, &Controller::actionPathCallback, this);
+    //actionResultPublisher = action_nh.advertise<hector_move_base_msgs::MoveBaseActionResult>("result", 1);
 
     // alternative_tolerances_service
     alternative_goal_position_tolerance = goal_position_tolerance;
@@ -209,7 +216,10 @@ void Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStam
 {
     geometry_msgs::PoseStampedConstPtr goal = event.getConstMessage();
 
-    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received a new goal.");
+    //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received a new goal.");
+    if (follow_path_server_->isActive()){
+      follow_path_server_->setPreempted();
+    }
     driveto(*goal, 0.0);
 }
 
@@ -227,7 +237,10 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
     {
         ROS_ERROR("[vehicle_controller] %s", ex.what());
         stop();
-        publishActionResult(actionlib_msgs::GoalStatus::REJECTED);
+        //publishActionResult(actionlib_msgs::GoalStatus::REJECTED);
+        if (follow_path_server_->isActive()){
+          follow_path_server_->setAborted();
+        }
         return false;
     }
 
@@ -239,7 +252,7 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
              goal_transformed.pose.position.x, goal_transformed.pose.position.y, legs.back().backward);
 
     final_twist_trials = 0;
-    publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
+    //publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
     return true;
 }
 
@@ -248,7 +261,11 @@ void Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& even
     if (event.getPublisherName() == ros::this_node::getName()) return;
     nav_msgs::PathConstPtr path = event.getConstMessage();
 
-    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new path");
+    //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new path");
+    if (follow_path_server_->isActive()){
+      ROS_INFO("Received new path while Action running, preemepted.");
+      follow_path_server_->setPreempted();
+    }
     drivepath(*path, 0.0);
 }
 
@@ -292,7 +309,10 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
     if (!latest_odom_.get()){
       ROS_ERROR("No latest odom message received, aborting path planning in drivepath!");
       stop();
-      publishActionResult(actionlib_msgs::GoalStatus::ABORTED);
+      //publishActionResult(actionlib_msgs::GoalStatus::ABORTED);
+      if (follow_path_server_->isActive()){
+        follow_path_server_->setAborted();
+      }
       return false;
     }
 
@@ -302,7 +322,10 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
     {
         ROS_WARN("[vehicle_controller] Received empty path");
         stop();
-       	publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
+        //publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
+        if (follow_path_server_->isActive()){
+          follow_path_server_->setSucceeded();
+        }
         return false;
     }
 
@@ -409,7 +432,7 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
     else
         ROS_WARN("[vehicle_controller] Controller::drivepath produced empty legs array.");
 
-    publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
+    //publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
     return true;
 }
 
@@ -440,7 +463,10 @@ bool Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, 
             ROS_ERROR("[vehicle_controller] Drivepath transformation to map frame failed: "
                       "%s", ex.what());
             stop();
-            publishActionResult(actionlib_msgs::GoalStatus::REJECTED);
+            //publishActionResult(actionlib_msgs::GoalStatus::REJECTED);
+            if (follow_path_server_->isActive()){
+              follow_path_server_->setAborted();
+            }
             return false;
         }
     }
@@ -454,7 +480,11 @@ bool Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, 
 
 void Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
 {
-    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
+    //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
+    if (follow_path_server_->isActive()){
+      ROS_INFO("Direct cmd_vel received, preempting running Action!");
+      follow_path_server_->setPreempted();
+    }
     reset();
     state = ((velocity.linear.x == 0.0) && (velocity.angular.z == 0.0)) ? INACTIVE : VELOCITY;
     vehicle_control_interface_->executeTwist(velocity);
@@ -462,7 +492,10 @@ void Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
 
 void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 {
-    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
+    if (follow_path_server_->isActive()){
+      ROS_INFO("Direct teleop cmd_vel received, preempting running Action!");
+      follow_path_server_->setPreempted();
+    }
     reset();
     state = ((velocity.linear.x == 0.0) && (velocity.angular.z == 0.0)) ? INACTIVE : VELOCITY;
 
@@ -487,6 +520,7 @@ bool Controller::alternativeTolerancesService(monstertruck_msgs::SetAlternativeT
     return true;
 }
 
+/*
 void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGeneric& action)
 {
     ROS_WARN("[vehicle_controller] actionCallback");
@@ -548,6 +582,22 @@ void Controller::publishActionResult(actionlib_msgs::GoalStatus::_status_type st
     if (status != actionlib_msgs::GoalStatus::ACTIVE
      && status != actionlib_msgs::GoalStatus::PENDING)
         goalID.reset();
+}
+*/
+
+void Controller::followPathGoalCallback()
+{
+  actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>::GoalConstPtr goal = follow_path_server_->acceptNewGoal();
+
+  drivepath(goal->target_path, 0.2, false);//path_action->speed, path_action->fixed);
+  drivepathPublisher.publish(goal->target_path);
+
+}
+
+void Controller::followPathPreemptCallback()
+{
+  follow_path_server_->setPreempted();
+  reset();
 }
 
 void Controller::addLeg(geometry_msgs::Pose const& pose, double speed)
@@ -671,7 +721,9 @@ void Controller::update()
                          , angular_tolerance_for_current_path * 180.0 / M_PI);
                 final_twist_trials = 0;
                 stop();
-                publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
+                if (follow_path_server_->isActive()){
+                  follow_path_server_->setSucceeded();
+                }
                 return;
             }
             else // Perform twist at end of path to obtain a desired orientation
@@ -818,8 +870,11 @@ void Controller::update()
             state = INACTIVE;
             stop();
             stuck->reset();
-            publishActionResult(actionlib_msgs::GoalStatus::ABORTED,
-                                vehicle_control_type == "differential_steering" ? "blocked_tracked" : "blocked");
+            //publishActionResult(actionlib_msgs::GoalStatus::ABORTED,
+            //                    vehicle_control_type == "differential_steering" ? "blocked_tracked" : "blocked");
+            if (follow_path_server_->isActive()){
+              follow_path_server_->setAborted();
+            }
         }
     }
 
