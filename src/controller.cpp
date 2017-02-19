@@ -587,10 +587,11 @@ void Controller::publishActionResult(actionlib_msgs::GoalStatus::_status_type st
 
 void Controller::followPathGoalCallback()
 {
-  actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>::GoalConstPtr goal = follow_path_server_->acceptNewGoal();
+  //actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>::GoalConstPtr goal = follow_path_server_->acceptNewGoal();
+  follow_path_goal_ = follow_path_server_->acceptNewGoal();
 
-  drivepath(goal->target_path, 0.2, false);//path_action->speed, path_action->fixed);
-  drivepathPublisher.publish(goal->target_path);
+  drivepath(follow_path_goal_->target_path, follow_path_goal_->follow_path_options.desired_speed, false);//path_action->speed, path_action->fixed);
+  drivepathPublisher.publish(follow_path_goal_->target_path);
 
 }
 
@@ -679,7 +680,18 @@ void Controller::update()
     double linear_tolerance_for_current_path = goal_position_tolerance;
     double angular_tolerance_for_current_path = goal_angle_tolerance;
 
+    if (follow_path_server_->isActive()){
+      if (follow_path_goal_->follow_path_options.goal_pose_position_tolerance > 0.0){
+        linear_tolerance_for_current_path = follow_path_goal_->follow_path_options.goal_pose_position_tolerance;
+      }
+
+      if (follow_path_goal_->follow_path_options.goal_pose_angle_tolerance > 0.0){
+        angular_tolerance_for_current_path = follow_path_goal_->follow_path_options.goal_pose_angle_tolerance;
+      }
+    }
+
     // Check if alternative tolerance is set by Service
+    /*
     if (alternative_tolerance_goalID && goalID && alternative_tolerance_goalID->id == goalID->id)
     {
         ROS_DEBUG("[vehicle_controller]: goalIDs are equal, using alternative tolerance.");
@@ -688,6 +700,7 @@ void Controller::update()
         linear_tolerance_for_current_path = alternative_goal_position_tolerance;
         angular_tolerance_for_current_path = alternative_angle_tolerance;
     }
+    */
 
     // Check if goal has been reached based on goal_position_tolerance/goal_angle_tolerance
     double goal_position_error =
@@ -839,6 +852,22 @@ void Controller::update()
                                      robot_control_state.pose.position);
     bool approaching_goal_point = goal_position_error < 0.4;
 
+
+
+    if(std::abs(signed_carrot_distance_2_robot) > (mp_.carrot_distance * 1.5))
+    {
+        ROS_WARN("[vehicle_controller] Control failed, distance to carrot is %f", signed_carrot_distance_2_robot);
+        state = INACTIVE;
+        stop();
+
+        if (follow_path_server_->isActive()){
+          move_base_lite_msgs::FollowPathResult result;
+          result.result.val = move_base_lite_msgs::ErrorCodes::CONTROL_FAILED;
+          follow_path_server_->setAborted(result, std::string("Control failed, distance between trajectory and robot too large."));
+        }
+        return;
+    }
+
     if (state == DRIVETO && goal_position_error < 0.6 /* && mp_.isYSymmetric() */)
     { // TODO: Does mp_.isYSymmetric() really make sense here?
         if(error_2_path > M_PI_2)
@@ -873,7 +902,9 @@ void Controller::update()
             //publishActionResult(actionlib_msgs::GoalStatus::ABORTED,
             //                    vehicle_control_type == "differential_steering" ? "blocked_tracked" : "blocked");
             if (follow_path_server_->isActive()){
-              follow_path_server_->setAborted();
+              move_base_lite_msgs::FollowPathResult result;
+              result.result.val = move_base_lite_msgs::ErrorCodes::STUCK_DETECTED;
+              follow_path_server_->setAborted(result, std::string("I think I am blocked! Terminating current drive goal."));
             }
         }
     }

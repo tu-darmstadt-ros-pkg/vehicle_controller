@@ -115,6 +115,7 @@ private:
   //ros::Subscriber actionPathSubscriber;
   //ros::Publisher actionResultPublisher;
   boost::shared_ptr<actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction> > follow_path_server_;
+  actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>::GoalConstPtr follow_path_goal_;
 
   //Service Provider
   ros::ServiceServer alternative_tolerances_service;
