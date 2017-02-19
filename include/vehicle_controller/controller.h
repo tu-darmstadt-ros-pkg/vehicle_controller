@@ -59,10 +59,9 @@ protected:
   virtual void cmd_velCallback(const geometry_msgs::Twist&);
   virtual void cmd_velTeleopCallback(const geometry_msgs::Twist&);
   virtual void speedCallback(const std_msgs::Float32&);
-  virtual bool alternativeTolerancesService(monstertruck_msgs::SetAlternativeTolerance::Request& req, monstertruck_msgs::SetAlternativeTolerance::Response& res);
 
-  void joint_statesCallback(sensor_msgs::JointStateConstPtr msg);
-  void cmd_flipper_toggleCallback(const std_msgs::Empty&);
+  //void joint_statesCallback(sensor_msgs::JointStateConstPtr msg);
+  //void cmd_flipper_toggleCallback(const std_msgs::Empty&);
 
   //virtual void actionCallback(const hector_move_base_msgs::MoveBaseActionGeneric&);
   //virtual void actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal&);
@@ -95,8 +94,8 @@ private:
   ros::Subscriber cmd_velSubscriber;
   ros::Subscriber cmd_velTeleopSubscriber;
   ros::Subscriber speedSubscriber;
-  ros::Subscriber cmd_flipper_toggle_sub_;
-  ros::Subscriber joint_states_sub_;
+  //ros::Subscriber cmd_flipper_toggle_sub_;
+  //ros::Subscriber joint_states_sub_;
 
   ros::Publisher endPosePoublisher;
   ros::Publisher carrotPosePublisher;
@@ -107,7 +106,7 @@ private:
 
   ros::Publisher pathPosePublisher;
   ros::Publisher autonomy_level_pub_;
-  ros::Publisher jointstate_cmd_pub_;
+  //ros::Publisher jointstate_cmd_pub_;
 
   // action interface
   //ros::Subscriber actionSubscriber;
@@ -156,10 +155,6 @@ private:
 
   double goal_position_tolerance;
   double goal_angle_tolerance;
-
-  actionlib_msgs::GoalIDPtr alternative_tolerance_goalID;
-  double alternative_goal_position_tolerance;
-  double alternative_angle_tolerance;
 
   boost::shared_ptr<VehicleControlInterface> vehicle_control_interface_;
 

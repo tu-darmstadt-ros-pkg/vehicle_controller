@@ -49,8 +49,6 @@ Controller::Controller(const std::string& ns)
 
     goal_position_tolerance = 0.0;
     goal_angle_tolerance = 0.0;
-    alternative_goal_position_tolerance = 0.0;
-    alternative_angle_tolerance = 0.0;
 
     cameraDefaultOrientation.header.frame_id = "base_stabilized";
     tf::Quaternion cameraOrientationQuaternion;
@@ -113,12 +111,12 @@ bool Controller::configure()
     drivepathPublisher  = nh.advertise<nav_msgs::Path>("drivepath", 1, true);
     pathPosePublisher   = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
 
-    cmd_flipper_toggle_sub_ = nh.subscribe("cmd_flipper_toggle", 10, &Controller::cmd_flipper_toggleCallback, this);
-    joint_states_sub_   = nh.subscribe("joint_states", 1, &Controller::joint_statesCallback, this);
+    //cmd_flipper_toggle_sub_ = nh.subscribe("cmd_flipper_toggle", 10, &Controller::cmd_flipper_toggleCallback, this);
+    //joint_states_sub_   = nh.subscribe("joint_states", 1, &Controller::joint_statesCallback, this);
 
     diagnosticsPublisher = params.advertise<std_msgs::Float32>("velocity_error", 1, true);
     autonomy_level_pub_ = nh.advertise<std_msgs::String>("/autonomy_level", 30);
-    jointstate_cmd_pub_ = nh.advertise<sensor_msgs::JointState>("/jointstate_cmd", 1, true);
+    //jointstate_cmd_pub_ = nh.advertise<sensor_msgs::JointState>("/jointstate_cmd", 1, true);
 
     // action interface
     ros::NodeHandle action_nh("controller");
@@ -126,11 +124,6 @@ bool Controller::configure()
     //actionGoalSubscriber  = action_nh.subscribe("goal",    10, &Controller::actionGoalCallback, this);
     //actionPathSubscriber  = action_nh.subscribe("path",    10, &Controller::actionPathCallback, this);
     //actionResultPublisher = action_nh.advertise<hector_move_base_msgs::MoveBaseActionResult>("result", 1);
-
-    // alternative_tolerances_service
-    alternative_goal_position_tolerance = goal_position_tolerance;
-    alternative_angle_tolerance = goal_angle_tolerance;
-    alternative_tolerances_service = action_nh.advertiseService("set_alternative_tolerances", &Controller::alternativeTolerancesService, this);
 
     if (camera_control)
     {
@@ -143,6 +136,7 @@ bool Controller::configure()
     return true;
 }
 
+/*
 void Controller::joint_statesCallback(sensor_msgs::JointStateConstPtr msg)
 {
     auto it = std::find(msg->name.begin(), msg->name.end(), mp_.flipper_name);
@@ -151,6 +145,7 @@ void Controller::joint_statesCallback(sensor_msgs::JointStateConstPtr msg)
         flipper_state = msg->position[std::distance(msg->name.begin(), it)];
     }
 }
+*/
 
 bool Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
 {
@@ -263,12 +258,13 @@ void Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& even
 
     //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new path");
     if (follow_path_server_->isActive()){
-      ROS_INFO("Received new path while Action running, preemepted.");
+      ROS_INFO("Received new path while Action running, preempted.");
       follow_path_server_->setPreempted();
     }
     drivepath(*path, 0.0);
 }
 
+/*
 void Controller::cmd_flipper_toggleCallback(std_msgs::Empty const &)
 {
     sensor_msgs::JointState msg;
@@ -276,6 +272,7 @@ void Controller::cmd_flipper_toggleCallback(std_msgs::Empty const &)
     msg.position = { flipper_state < mp_.flipper_switch_position ? mp_.flipper_high_position : mp_.flipper_low_position };
     jointstate_cmd_pub_.publish(msg);
 }
+*/
 
 bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transformed_path, bool fixed_path)
 {
@@ -287,11 +284,12 @@ bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transf
     if(transformed_path.size() < 2 || fixed_path)
         return false;
 
-    double lu = 0.05 - 1e-5;
-    double lo = std::sqrt(2.0) * 0.05 + 1e-5;
     bool path_to_be_smoothed = transformed_path.size() > 2;
 
     return path_to_be_smoothed;
+
+//    double lu = 0.05 - 1e-5;
+//    double lo = std::sqrt(2.0) * 0.05 + 1e-5;
 //    std::stringstream sstr;
 //    for(unsigned i = 1; path_to_be_smoothed && i < transformed_path.size() - 1; ++i)
 //    {
@@ -511,80 +509,6 @@ void Controller::speedCallback(const std_msgs::Float32& speed)
     mp_.commanded_speed = speed.data;
 }
 
-bool Controller::alternativeTolerancesService(monstertruck_msgs::SetAlternativeTolerance::Request& req,
-                                              monstertruck_msgs::SetAlternativeTolerance::Response& res)
-{
-    alternative_tolerance_goalID.reset(new actionlib_msgs::GoalID(req.goalID));
-    alternative_goal_position_tolerance = req.linearTolerance;
-    alternative_angle_tolerance = req.angularTolerance;
-    return true;
-}
-
-/*
-void Controller::actionCallback(const hector_move_base_msgs::MoveBaseActionGeneric& action)
-{
-    ROS_WARN("[vehicle_controller] actionCallback");
-    reverse_allowed = true;
-
-    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new action");
-    this->goalID.reset(new actionlib_msgs::GoalID(action.goal_id));    
-
-    hector_move_base_msgs::MoveBasePathPtr path_action =
-            hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBasePath>(action);
-    if (path_action)
-    {
-        drivepath(path_action->target_path, path_action->speed, path_action->fixed);
-        drivepathPublisher.publish(path_action->target_path);
-    }
-
-    hector_move_base_msgs::MoveBaseGoalPtr goal_action = hector_move_base_msgs::getAction<hector_move_base_msgs::MoveBaseGoal>(action);
-    if (goal_action)
-    {
-        //reverse_allowed = goal_action->reverse_allowed;
-        reverse_allowed = true;
-        driveto(goal_action->target_pose, goal_action->speed);
-        drivepathPublisher.publish(empty_path);
-    }
-}
-
-void Controller::actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal& goal_action)
-{
-    //reverse_allowed = goal_action.goal.reverse_allowed;
-    reverse_allowed = true;
-    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new goal.");
-    this->goalID.reset(new actionlib_msgs::GoalID(goal_action.goal_id));
-    driveto(goal_action.goal.target_pose, goal_action.goal.speed);
-    drivepathPublisher.publish(empty_path);
-}
-
-void Controller::actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath& path_action)
-{
-    //reverse_allowed = path_action.reverse_allowed;
-    reverse_allowed = true;
-    publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received new path.");
-    this->goalID.reset(new actionlib_msgs::GoalID(path_action.goal_id));
-    drivepath(path_action.goal.target_path, path_action.goal.speed, path_action.goal.fixed);
-    drivepathPublisher.publish(path_action.goal.target_path);
-}
-
-void Controller::publishActionResult(actionlib_msgs::GoalStatus::_status_type status, const std::string& text)
-{
-    if (!goalID) return;
-
-    hector_move_base_msgs::MoveBaseActionResult result;
-    result.header.stamp = robot_state_header.stamp;
-    result.status.goal_id = *goalID;
-    result.status.status = status;
-    result.status.text = text;
-
-    actionResultPublisher.publish(result);
-
-    if (status != actionlib_msgs::GoalStatus::ACTIVE
-     && status != actionlib_msgs::GoalStatus::PENDING)
-        goalID.reset();
-}
-*/
-
 void Controller::followPathGoalCallback()
 {
   //actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>::GoalConstPtr goal = follow_path_server_->acceptNewGoal();
@@ -689,18 +613,6 @@ void Controller::update()
         angular_tolerance_for_current_path = follow_path_goal_->follow_path_options.goal_pose_angle_tolerance;
       }
     }
-
-    // Check if alternative tolerance is set by Service
-    /*
-    if (alternative_tolerance_goalID && goalID && alternative_tolerance_goalID->id == goalID->id)
-    {
-        ROS_DEBUG("[vehicle_controller]: goalIDs are equal, using alternative tolerance.");
-        ROS_INFO("[vehicle_controller] using tolerances = %f deg %f",
-                 alternative_angle_tolerance * 180.0 / M_PI, alternative_goal_position_tolerance);
-        linear_tolerance_for_current_path = alternative_goal_position_tolerance;
-        angular_tolerance_for_current_path = alternative_angle_tolerance;
-    }
-    */
 
     // Check if goal has been reached based on goal_position_tolerance/goal_angle_tolerance
     double goal_position_error =
@@ -856,7 +768,7 @@ void Controller::update()
 
     if(std::abs(signed_carrot_distance_2_robot) > (mp_.carrot_distance * 1.5))
     {
-        ROS_WARN("[vehicle_controller] Control failed, distance to carrot is %f", signed_carrot_distance_2_robot);
+        ROS_WARN("[vehicle_controller] Control failed, distance to carrot is %f (allowed: %f)", signed_carrot_distance_2_robot, (mp_.carrot_distance * 1.5));
         state = INACTIVE;
         stop();
 
