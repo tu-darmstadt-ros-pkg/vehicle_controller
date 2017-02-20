@@ -214,7 +214,9 @@ void Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStam
 
     //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received a new goal.");
     if (follow_path_server_->isActive()){
-      follow_path_server_->setPreempted();
+      move_base_lite_msgs::FollowPathResult result;
+      result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
+      follow_path_server_->setPreempted(result, "drive to callback");
     }
     driveto(*goal, 0.0);
 }
@@ -235,7 +237,9 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
         stop();
         //publishActionResult(actionlib_msgs::GoalStatus::REJECTED);
         if (follow_path_server_->isActive()){
-          follow_path_server_->setAborted();
+          move_base_lite_msgs::FollowPathResult result;
+          result.result.val = move_base_lite_msgs::ErrorCodes::TF_LOOKUP_FAILURE;
+          follow_path_server_->setAborted(result, ex.what());
         }
         return false;
     }
@@ -260,7 +264,9 @@ void Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& even
     //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new path");
     if (follow_path_server_->isActive()){
       ROS_INFO("Received new path while Action running, preempted.");
-      follow_path_server_->setPreempted();
+      move_base_lite_msgs::FollowPathResult result;
+      result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
+      follow_path_server_->setPreempted(result, "drive path callback");
     }
     drivepath(*path, 0.0);
 }
@@ -310,7 +316,9 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
       stop();
       //publishActionResult(actionlib_msgs::GoalStatus::ABORTED);
       if (follow_path_server_->isActive()){
-        follow_path_server_->setAborted();
+        move_base_lite_msgs::FollowPathResult result;
+        result.result.val = move_base_lite_msgs::ErrorCodes::FAILURE;
+        follow_path_server_->setAborted(result, "no odom message received");
       }
       return false;
     }
@@ -323,7 +331,9 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
         stop();
         //publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
         if (follow_path_server_->isActive()){
-          follow_path_server_->setSucceeded();
+          move_base_lite_msgs::FollowPathResult result;
+          result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
+          follow_path_server_->setSucceeded(result, "empty path received, automatic success.");
         }
         return false;
     }
@@ -464,7 +474,9 @@ bool Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, 
             stop();
             //publishActionResult(actionlib_msgs::GoalStatus::REJECTED);
             if (follow_path_server_->isActive()){
-              follow_path_server_->setAborted();
+              move_base_lite_msgs::FollowPathResult result;
+              result.result.val = move_base_lite_msgs::ErrorCodes::TF_LOOKUP_FAILURE;
+              follow_path_server_->setAborted(result, ex.what());
             }
             return false;
         }
@@ -482,7 +494,9 @@ void Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
     //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
     if (follow_path_server_->isActive()){
       ROS_INFO("Direct cmd_vel received, preempting running Action!");
-      follow_path_server_->setPreempted();
+      move_base_lite_msgs::FollowPathResult result;
+      result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
+      follow_path_server_->setPreempted(result, "cmd_vel callback");
     }
     reset();
     state = ((velocity.linear.x == 0.0) && (velocity.angular.z == 0.0)) ? INACTIVE : VELOCITY;
@@ -493,7 +507,9 @@ void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 {
     if (follow_path_server_->isActive()){
       ROS_INFO("Direct teleop cmd_vel received, preempting running Action!");
-      follow_path_server_->setPreempted();
+      move_base_lite_msgs::FollowPathResult result;
+      result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
+      follow_path_server_->setPreempted(result, "cmd_vel teleop callback");
     }
     reset();
     state = ((velocity.linear.x == 0.0) && (velocity.angular.z == 0.0)) ? INACTIVE : VELOCITY;
@@ -522,7 +538,9 @@ void Controller::followPathGoalCallback()
 
 void Controller::followPathPreemptCallback()
 {
-  follow_path_server_->setPreempted();
+  move_base_lite_msgs::FollowPathResult result;
+  result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
+  follow_path_server_->setPreempted(result, "preempt from incoming message to server");
   reset();
 }
 
@@ -648,7 +666,9 @@ void Controller::update()
                 final_twist_trials = 0;
                 stop();
                 if (follow_path_server_->isActive()){
-                  follow_path_server_->setSucceeded();
+                  move_base_lite_msgs::FollowPathResult result;
+                  result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
+                  follow_path_server_->setSucceeded(result, "reached goal");
                 }
                 return;
             }
