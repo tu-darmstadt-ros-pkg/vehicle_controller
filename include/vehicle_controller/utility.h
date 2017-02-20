@@ -57,6 +57,12 @@ inline static double euclideanDistance(geometry_msgs::Point const & p0, geometry
   return std::sqrt(std::pow(p1.x - p0.x, 2) + std::pow(p1.y - p0.y, 2) + pow(p1.z - p0.z, 2));
 }
 
+inline static double euclideanDistance2D(geometry_msgs::Point const & p0, geometry_msgs::Point const & p1)
+{
+  return std::sqrt(std::pow(p1.x - p0.x, 2) + std::pow(p1.y - p0.y, 2));
+}
+
+
 inline static Eigen::Quaterniond geomQuat2EigenQuat(geometry_msgs::Quaternion const & quat)
 {
     return Eigen::Quaterniond(quat.w, quat.x, quat.y, quat.z);

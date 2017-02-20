@@ -773,7 +773,7 @@ void Controller::update()
     double sign  = legs[current].backward ? -1.0 : 1.0;
     double speed = sign * legs[current].speed;
     double signed_carrot_distance_2_robot =
-            sign * euclideanDistance(carrotPose.pose.position,
+            sign * euclideanDistance2D(carrotPose.pose.position,
                                      robot_control_state.pose.position);
     bool approaching_goal_point = goal_position_error < 0.4;
 
