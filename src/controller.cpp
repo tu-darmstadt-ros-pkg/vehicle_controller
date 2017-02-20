@@ -20,6 +20,7 @@
 
 Controller::Controller(const std::string& ns)
     : nh(ns), state(INACTIVE), stuck(new StuckDetector)
+    , reverse_allowed(true)
 {
     mp_.carrot_distance = 1.0;
     mp_.min_speed       = 0.0;
