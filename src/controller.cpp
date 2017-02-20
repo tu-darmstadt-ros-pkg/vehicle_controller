@@ -10,7 +10,6 @@
 #include <std_msgs/Float32.h>
 #include <std_msgs/String.h>
 
-#include <hector_move_base_msgs/move_base_action.h>
 #include <vehicle_controller/four_wheel_steer_controller.h>
 #include <vehicle_controller/differential_drive_controller.h>
 
@@ -118,13 +117,6 @@ bool Controller::configure()
     diagnosticsPublisher = params.advertise<std_msgs::Float32>("velocity_error", 1, true);
     autonomy_level_pub_ = nh.advertise<std_msgs::String>("/autonomy_level", 30);
     //jointstate_cmd_pub_ = nh.advertise<sensor_msgs::JointState>("/jointstate_cmd", 1, true);
-
-    // action interface
-    ros::NodeHandle action_nh("controller");
-    //actionSubscriber      = action_nh.subscribe("generic", 10, &Controller::actionCallback,     this);
-    //actionGoalSubscriber  = action_nh.subscribe("goal",    10, &Controller::actionGoalCallback, this);
-    //actionPathSubscriber  = action_nh.subscribe("path",    10, &Controller::actionPathCallback, this);
-    //actionResultPublisher = action_nh.advertise<hector_move_base_msgs::MoveBaseActionResult>("result", 1);
 
     if (camera_control)
     {

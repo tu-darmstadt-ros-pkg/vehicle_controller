@@ -12,11 +12,6 @@
 #include <std_msgs/Empty.h>
 #include <sensor_msgs/JointState.h>
 
-//#include <hector_move_base_msgs/MoveBaseActionGeneric.h>
-//#include <hector_move_base_msgs/MoveBaseActionGoal.h>
-//#include <hector_move_base_msgs/MoveBaseActionPath.h>
-//#include <hector_move_base_msgs/MoveBaseActionResult.h>
-
 #include <move_base_lite_msgs/FollowPathAction.h>
 #include <actionlib/server/simple_action_server.h>
 
@@ -63,10 +58,6 @@ protected:
   //void joint_statesCallback(sensor_msgs::JointStateConstPtr msg);
   //void cmd_flipper_toggleCallback(const std_msgs::Empty&);
 
-  //virtual void actionCallback(const hector_move_base_msgs::MoveBaseActionGeneric&);
-  //virtual void actionGoalCallback(const hector_move_base_msgs::MoveBaseActionGoal&);
-  //virtual void actionPathCallback(const hector_move_base_msgs::MoveBaseActionPath&);
-  //virtual void publishActionResult(actionlib_msgs::GoalStatus::_status_type, const std::string& text = std::string());
   void followPathGoalCallback();
   void followPathPreemptCallback();
 
