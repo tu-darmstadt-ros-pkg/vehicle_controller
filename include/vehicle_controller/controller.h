@@ -79,8 +79,9 @@ protected:
   {
       if (this->map_frame_id != map_frame_id)
       {
-        this->map_frame_id = map_frame_id;
-        this->vehicle_control_interface_->reset();
+          ROS_INFO("Map Frame Changed, new map frame = %s", map_frame_id.c_str());
+          this->map_frame_id = map_frame_id;
+          this->vehicle_control_interface_->reset();
       }
   }
 
