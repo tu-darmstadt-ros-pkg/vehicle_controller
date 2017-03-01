@@ -771,6 +771,24 @@ void Controller::update()
     double error_2_path   = constrainAngle_mpi_pi( beta - alpha );
     double error_2_carrot = constrainAngle_mpi_pi( carrot.orientation - alpha);
     double sign  = legs[current].backward ? -1.0 : 1.0;
+
+    if (this->mp_.isYSymmetric() || this->reverse_allowed) {
+        vec3 rdp(desired_position.x - robot_control_state.pose.position.x, desired_position.y - robot_control_state.pose.position.y, 0.0);
+        rdp.normalize();
+        quat rq(robot_control_state.pose.orientation.w, robot_control_state.pose.orientation.x, robot_control_state.pose.orientation.y, robot_control_state.pose.orientation.z);
+
+        vec3 rpath = /*rq **/ rdp;
+        vec3 rpos = rq * vec3(1,0,0);
+//        ROS_ERROR("rpath = %f  %f  %f", rpath(0), rpath(1), rpath(2));
+//        ROS_ERROR("rpos  = %f  %f  %f", rpos(0), rpos(1), rpos(2));
+//        ROS_ERROR("rpos^T rpath = %f" , rpos.dot(rpath));
+//        ROS_ERROR("alpha = %f" , alpha * 180 / M_PI);
+//        ROS_ERROR("beta = %f" , beta * 180 / M_PI);
+//        ROS_ERROR("beta - alpha = %f" , (beta - alpha) * 180 / M_PI);
+//        ROS_ERROR("ang path = %f" , error_2_path * 180 / M_PI);
+        sign = rpos.dot(rpath) >= 0.0 ? 1.0 : -1.0;
+    }
+
     double speed = sign * legs[current].speed;
     double signed_carrot_distance_2_robot =
             sign * euclideanDistance2D(carrotPose.pose.position,
