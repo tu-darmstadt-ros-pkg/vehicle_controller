@@ -18,8 +18,8 @@
 #include <functional>
 
 Controller::Controller(const std::string& ns)
-    : nh(ns), state(INACTIVE), stuck(new StuckDetector)
-    , reverse_allowed(true)
+    : nh(ns), state(INACTIVE)
+    , reverse_allowed(true), stuck(new StuckDetector)
 {
     mp_.carrot_distance = 1.0;
     mp_.min_speed       = 0.0;
@@ -570,11 +570,7 @@ void Controller::addLeg(geometry_msgs::Pose const& pose, double speed)
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
     }
 
-    // remove backward for hector tracker since it causes strange drivepaths when driving back a recorded path
-//    std::cout << std::setw(10) << leg.course * 180. / M_PI << "   " << leg.p1.orientation * 180. / M_PI << std::endl;
-//    std::cout << "    " << leg.course * 180. / M_PI - leg.p1.orientation * 180. / M_PI << std::endl;
     leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
-//    std::cout << (leg.backward ? "backward" : "forward") << std::endl;
     if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0
      && pose.orientation.y == 0.0 && pose.orientation.z == 0.0)
     {
