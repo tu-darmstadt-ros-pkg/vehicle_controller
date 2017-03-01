@@ -33,7 +33,7 @@ Controller::Controller(const std::string& ns)
     mp_.flipper_name = "flipper_front";
     mp_.pd_params = "PdParams";
 
-    map_frame_id = "nav";
+    default_map_frame_id = "nav";
     base_frame_id = "base_link";
 
     final_twist_trials = 0;
@@ -72,7 +72,8 @@ bool Controller::configure()
     ros::NodeHandle params("~");
     params.getParam("carrot_distance", mp_.carrot_distance);
     params.getParam("min_speed", mp_.min_speed);
-    params.getParam("frame_id", map_frame_id);
+    params.getParam("frame_id", default_map_frame_id);
+    setMapFrameId(default_map_frame_id);
     params.getParam("base_frame_id", base_frame_id);
     params.getParam("camera_control", camera_control);
     params.getParam("camera_lookat_distance", camera_lookat_distance);
@@ -202,6 +203,7 @@ void Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
 
 void Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
 {
+    setMapFrameId(default_map_frame_id);
     geometry_msgs::PoseStampedConstPtr goal = event.getConstMessage();
 
     //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received a new goal.");
@@ -250,6 +252,7 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
 
 void Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& event)
 {
+    setMapFrameId(default_map_frame_id);
     if (event.getPublisherName() == ros::this_node::getName()) return;
     nav_msgs::PathConstPtr path = event.getConstMessage();
 
@@ -522,10 +525,9 @@ void Controller::followPathGoalCallback()
 {
   //actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>::GoalConstPtr goal = follow_path_server_->acceptNewGoal();
   follow_path_goal_ = follow_path_server_->acceptNewGoal();
-
+  setMapFrameId(follow_path_goal_->target_path.header.frame_id);
   drivepath(follow_path_goal_->target_path, follow_path_goal_->follow_path_options.desired_speed, false);//path_action->speed, path_action->fixed);
   drivepathPublisher.publish(follow_path_goal_->target_path);
-
 }
 
 void Controller::followPathPreemptCallback()
@@ -534,6 +536,7 @@ void Controller::followPathPreemptCallback()
   result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
   follow_path_server_->setPreempted(result, "preempt from incoming message to server");
   reset();
+  setMapFrameId(default_map_frame_id);
 }
 
 void Controller::addLeg(geometry_msgs::Pose const& pose, double speed)

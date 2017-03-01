@@ -67,6 +67,8 @@ class FourWheelSteerController: public VehicleControlInterface
         return std::abs(goal_angle_error) < tol;
     }
 
+    inline virtual void reset() {}
+
   protected:
     ros::Publisher drivePublisher_;
 

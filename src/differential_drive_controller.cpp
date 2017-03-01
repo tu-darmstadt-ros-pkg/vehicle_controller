@@ -54,6 +54,8 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
     KD_POSITION_ = 0.0;
     SPEED_REDUCTION_GAIN_ = 2.0;
 
+    reset();
+
     if(mp_->pd_params == "PdParamsArgo")
     {
         dr_argo_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsArgoConfig>;
@@ -87,9 +89,6 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     double e_position, double dt, double cmded_speed, bool approaching_goal_point,
     bool reverse_allowed)
 {
-    static double previous_e_angle = e_angle;
-    static double previous_e_position = e_position;
-
     if(mp_->isYSymmetric() || reverse_allowed)
     {
         //double e_ang_p = e_angle;
@@ -107,7 +106,6 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
         de_angle_dt = 0.0;
         de_position_dt = 0.0;
     }
-
 
     double speed   = approaching_goal_point ? std::abs(cmded_speed) * (e_position < 0 ? -1.0 : 1.0) :
                                               KP_POSITION_ * e_position + KD_POSITION_ * de_position_dt;

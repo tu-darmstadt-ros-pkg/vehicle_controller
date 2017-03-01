@@ -75,6 +75,15 @@ protected:
   bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
   geometry_msgs::Pose createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation);
 
+  inline void setMapFrameId(std::string map_frame_id)
+  {
+      if (this->map_frame_id != map_frame_id)
+      {
+        this->map_frame_id = map_frame_id;
+        this->vehicle_control_interface_->reset();
+      }
+  }
+
 private:
   ros::NodeHandle nh;
   tf::TransformListener listener;
@@ -114,7 +123,6 @@ private:
   std_msgs::Header  robot_state_header;
   RobotControlState robot_control_state;
 
-
   //monstertruck_msgs::MotionCommand drive;
   geometry_msgs::PoseStamped carrotPose;
   actionlib_msgs::GoalIDPtr goalID;
@@ -130,6 +138,7 @@ private:
   // motion parameters (set at launch)
   MotionParameters mp_;
 
+  std::string default_map_frame_id;
   std::string map_frame_id;
   std::string base_frame_id;
 

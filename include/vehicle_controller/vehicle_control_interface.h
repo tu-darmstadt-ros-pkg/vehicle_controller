@@ -44,6 +44,8 @@ class VehicleControlInterface
     virtual void executeMotionCommand(RobotControlState rcs) = 0;
 
     virtual void stop() = 0;
+    virtual void reset() = 0;
+
     virtual double getCommandedSpeed() const = 0;
     virtual std::string getName() = 0;
 

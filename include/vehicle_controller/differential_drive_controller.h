@@ -89,6 +89,12 @@ class DifferentialDriveController: public VehicleControlInterface
       return "Differential Drive Controller";
     }
 
+    inline virtual void reset()
+    {
+        previous_e_angle = 0.0;
+        previous_e_position = 0.0;
+    }
+
   protected:
     ros::Publisher cmd_vel_raw_pub_;
     ros::Publisher pdout_pub_;
@@ -120,6 +126,9 @@ class DifferentialDriveController: public VehicleControlInterface
     double KP_POSITION_;
     double KD_POSITION_;
     double SPEED_REDUCTION_GAIN_;
+
+    double previous_e_angle = 0.0;
+    double previous_e_position = 0.0;
 
     //
     // TODO
