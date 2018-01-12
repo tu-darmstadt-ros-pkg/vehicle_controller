@@ -25,6 +25,7 @@ struct Leg
   float length2;
   float length;
   float percent;
+  ros::Time finish_time;
 };
 
 typedef std::vector<Leg> Legs;

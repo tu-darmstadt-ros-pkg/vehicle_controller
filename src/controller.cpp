@@ -236,8 +236,9 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
         return false;
     }
 
-    start = robot_control_state.pose;
-    addLeg(goal_transformed.pose, speed);
+    start = geometry_msgs::PoseStamped();
+    start.pose = robot_control_state.pose;
+    addLeg(goal_transformed, speed);
     state = DRIVETO;
 
     ROS_INFO("[vehicle_controller] Received new goal point (x = %.2f, y = %.2f), backward = %d.",
@@ -273,19 +274,21 @@ void Controller::cmd_flipper_toggleCallback(std_msgs::Empty const &)
 }
 */
 
-bool Controller::pathToBeSmoothed(std::deque<geometry_msgs::Pose> const & transformed_path, bool fixed_path)
+bool Controller::pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped>& transformed_path, bool fixed_path)
 {
     // Check if this path shall be smoothed
     // <=> path has length >= 2 and path is output of exploration planner
     //     and hence, the points lie in the centers of neighbouring grid cells.
     // Note: This function not robust to changes in the exploration planner
 
-    if(transformed_path.size() < 2 || fixed_path)
-        return false;
+//    if(transformed_path.size() < 2 || fixed_path)
+//        return false;
 
-    bool path_to_be_smoothed = transformed_path.size() > 2;
+//    bool path_to_be_smoothed = transformed_path.size() > 2;
 
-    return path_to_be_smoothed;
+//    return path_to_be_smoothed;
+
+    return transformed_path.size() > 2 && ! fixed_path;
 
 //    double lu = 0.05 - 1e-5;
 //    double lo = std::sqrt(2.0) * 0.05 + 1e-5;
@@ -334,31 +337,31 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
     if(!createDrivepath2MapTransform(transform, path))
         return false;
 
-    std::deque<geometry_msgs::Pose> map_path(path.poses.size());
+    std::deque<geometry_msgs::PoseStamped> map_path(path.poses.size());
     std::transform(path.poses.begin(), path.poses.end(), map_path.begin(),
                    [transform](geometry_msgs::PoseStamped const & ps)
                    {
                         tf::Pose tf_waypoint;
-                        geometry_msgs::Pose transformed_waypoint;
+                        geometry_msgs::PoseStamped transformed_waypoint;
                         tf::poseMsgToTF(ps.pose, tf_waypoint);
                         tf_waypoint = transform * tf_waypoint;
-                        tf::poseTFToMsg(tf_waypoint, transformed_waypoint);
+                        tf::poseTFToMsg(tf_waypoint, transformed_waypoint.pose);
                         return transformed_waypoint;
                    });
 
     geometry_msgs::PoseStamped ptbp;
     ptbp.header.stamp = ros::Time::now();
     ptbp.header.frame_id = map_frame_id;
-    ptbp.pose.position = map_path.back().position;
-    ptbp.pose.orientation = map_path.back().orientation;
+    ptbp.pose.position = map_path.back().pose.position;
+    ptbp.pose.orientation = map_path.back().pose.orientation;
     endPosePoublisher.publish(ptbp);
+
+    start = map_path[0];
+    start.pose. orientation = robot_control_state.pose.orientation;
 
     if(pathToBeSmoothed(map_path, fixed_path))
     {
         ROS_DEBUG("[vehicle_controller] Using PathSmoother.");
-        start = map_path[0];
-        start.orientation = robot_control_state.pose.orientation;
-
         Pathsmoother3D ps3d(vehicle_control_type == "differential_steering", &mp_);
 
         quat in_start_orientation;
@@ -366,18 +369,18 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
 
         deque_vec3 in_path;
         std::transform(map_path.begin(), map_path.end(), std::back_inserter(in_path),
-                       [](geometry_msgs::Pose const & pose_)
-                       { return vec3(pose_.position.x, pose_.position.y, pose_.position.z); });
+                       [](geometry_msgs::PoseStamped const & pose_)
+                       { return vec3(pose_.pose.position.x, pose_.pose.position.y, pose_.pose.position.z); });
 
         in_start_orientation = geomQuat2EigenQuat(robot_control_state.pose.orientation);
-        in_end_orientation   = geomQuat2EigenQuat(map_path.back().orientation);
+        in_end_orientation   = geomQuat2EigenQuat(map_path.back().pose.orientation);
 
         vector_vec3 out_smoothed_positions;
         vector_quat out_smoothed_orientations;
         ps3d.smooth(in_path, in_start_orientation, in_end_orientation,
                     out_smoothed_positions, out_smoothed_orientations, reverse_allowed);
 
-        std::vector<geometry_msgs::Pose> smooth_path;
+        std::vector<geometry_msgs::PoseStamped> smooth_path;
         std::transform(out_smoothed_positions.begin(), out_smoothed_positions.end(),
                        out_smoothed_orientations.begin(), std::back_inserter(smooth_path),
                        boost::bind(&Controller::createPoseFromQuatAndPosition, this, _1, _2));
@@ -388,37 +391,27 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
         path2publish.header.frame_id = map_frame_id;
         path2publish.header.stamp = ros::Time::now();
         std::transform(smooth_path.begin(), smooth_path.end(), std::back_inserter(path2publish.poses),
-                       [path2publish](geometry_msgs::Pose const & pose)
+                       [path2publish](geometry_msgs::PoseStamped const & pose)
                        {
                             geometry_msgs::PoseStamped ps;
                             ps.header = path2publish.header;
-                            ps.pose = pose;
+                            ps.pose = pose.pose;
                             return ps;
                        });
         pathPosePublisher.publish(path2publish);
     }
     else
     {
-        for(nav_msgs::Path::_poses_type::const_iterator waypoint = path.poses.begin(); waypoint != path.poses.end(); ++waypoint)
+        for(std::deque<geometry_msgs::PoseStamped>::const_iterator it = map_path.begin()+1; it != map_path.end(); ++it)
         {
-            tf::Pose tf_waypoint;
-            geometry_msgs::Pose transformed_waypoint;
-            tf::poseMsgToTF(waypoint->pose, tf_waypoint);
-            tf_waypoint = transform * tf_waypoint;
-            tf::poseTFToMsg(tf_waypoint, transformed_waypoint);
-            if (waypoint == path.poses.begin())
+            const geometry_msgs::PoseStamped& waypoint = *it;
+//                ros::Duration dt =
+            addLeg(waypoint);
+            if (map_path.size() == 1) // TODO: Consider calling driveto instead for small paths instead.
             {
-                start = transformed_waypoint;
-                start.orientation = robot_control_state.pose.orientation;
-            }
-            else
-            {
-                addLeg(transformed_waypoint);
-            }
-            if (path.poses.size() == 1) // TODO: Consider calling driveto instead for small paths instead.
-            {
-                transformed_waypoint.position.x += 0.01;
-                addLeg(transformed_waypoint, speed);
+                geometry_msgs::PoseStamped p = waypoint;
+                p.pose.position.x += 0.01;
+                addLeg(p, speed);
             }
         }
         nav_msgs::Path path;
@@ -437,16 +430,16 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
     return true;
 }
 
-geometry_msgs::Pose Controller::createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation)
+geometry_msgs::PoseStamped Controller::createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation)
 {
-    geometry_msgs::Pose pose;
-    pose.position.x = position(0);
-    pose.position.y = position(1);
-    pose.position.z = position(2);
-    pose.orientation.w = orientation.w();
-    pose.orientation.x = orientation.x();
-    pose.orientation.y = orientation.y();
-    pose.orientation.z = orientation.z();
+    geometry_msgs::PoseStamped pose;
+    pose.pose.position.x = position(0);
+    pose.pose.position.y = position(1);
+    pose.pose.position.z = position(2);
+    pose.pose.orientation.w = orientation.w();
+    pose.pose.orientation.x = orientation.x();
+    pose.pose.orientation.y = orientation.y();
+    pose.pose.orientation.z = orientation.z();
     return pose;
 }
 
@@ -523,7 +516,8 @@ void Controller::followPathGoalCallback()
   //actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>::GoalConstPtr goal = follow_path_server_->acceptNewGoal();
   follow_path_goal_ = follow_path_server_->acceptNewGoal();
 
-  drivepath(follow_path_goal_->target_path, follow_path_goal_->follow_path_options.desired_speed, false);//path_action->speed, path_action->fixed);
+//  follow_path_goal_->follow
+  drivepath(follow_path_goal_->target_path, follow_path_goal_->follow_path_options.desired_speed, follow_path_goal_->follow_path_options.is_fixed);//path_action->speed, path_action->fixed);
   drivepathPublisher.publish(follow_path_goal_->target_path);
 
 }
@@ -536,34 +530,38 @@ void Controller::followPathPreemptCallback()
   reset();
 }
 
-void Controller::addLeg(geometry_msgs::Pose const& pose, double speed)
+void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
 {
     Leg leg;
+    leg.finish_time = pose.header.stamp;
     double angles[3];
 
-    leg.p2.x = pose.position.x;
-    leg.p2.y = pose.position.y;
+    leg.p2.x = pose.pose.position.x;
+    leg.p2.y = pose.pose.position.y;
 
+    ros::Duration dt;
     if (legs.size() == 0)
     {
-        leg.p1.x = start.position.x;
-        leg.p1.y = start.position.y;
+        dt = pose.header.stamp - start.header.stamp;
+        leg.p1.x = start.pose.position.x;
+        leg.p1.y = start.pose.position.y;
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
 
-        if (start.orientation.w == 0.0 && start.orientation.x == 0.0
-         && start.orientation.y == 0.0 && start.orientation.z == 0.0)
+        if (start.pose.orientation.w == 0.0 && start.pose.orientation.x == 0.0
+         && start.pose.orientation.y == 0.0 && start.pose.orientation.z == 0.0)
         {
             leg.p1.orientation = leg.course;
         }
         else
         {
-            quaternion2angles(start.orientation, angles);
+            quaternion2angles(start.pose.orientation, angles);
             leg.p1.orientation = angles[0];
         }
     }
     else
     {
         const Leg& last = legs.back();
+        dt = pose.header.stamp - last.finish_time;
         leg.p1.x = last.p2.x;
         leg.p1.y = last.p2.y;
         leg.p1.orientation = last.p2.orientation;
@@ -571,20 +569,30 @@ void Controller::addLeg(geometry_msgs::Pose const& pose, double speed)
     }
 
     leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
-    if (pose.orientation.w == 0.0 && pose.orientation.x == 0.0
-     && pose.orientation.y == 0.0 && pose.orientation.z == 0.0)
+    if (pose.pose.orientation.w == 0.0 && pose.pose.orientation.x == 0.0
+     && pose.pose.orientation.y == 0.0 && pose.pose.orientation.z == 0.0)
     {
         leg.p2.orientation = leg.backward ? angularNorm(leg.course + M_PI) : leg.course;
     }
     else
     {
-        quaternion2angles(pose.orientation, angles);
+        quaternion2angles(pose.pose.orientation, angles);
         leg.p2.orientation = angles[0];
     }
 
-    leg.speed   = speed == 0.0 ? mp_.commanded_speed : speed;
     leg.length2 = std::pow(leg.p2.x - leg.p1.x, 2) + std::pow(leg.p2.y - leg.p1.y, 2);
     leg.length  = std::sqrt(leg.length2);
+
+    if (leg.finish_time != ros::Time(0)) {
+      double dt_s = dt.toSec();
+      leg.speed = leg.length / dt_s;
+      ROS_INFO_STREAM("dt: " << dt_s);
+      ROS_INFO_STREAM("dx: " << leg.length);
+      ROS_INFO_STREAM("Calculated speed: " << leg.speed);
+    } else {
+      leg.speed   = speed == 0.0 ? mp_.commanded_speed : speed;
+    }
+
     leg.percent = 0.0f;
 
     if (leg.length2 == 0.0f) return;

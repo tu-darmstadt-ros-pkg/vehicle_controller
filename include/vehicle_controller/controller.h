@@ -68,12 +68,12 @@ protected:
    *        desired linear speed in the lower controllers, otherwise the given
    *        value is used for this purpose
    */
-  void addLeg(geometry_msgs::Pose const& pose, double speed = 0.0);
+  void addLeg(const geometry_msgs::PoseStamped &pose, double speed = 0.0);
   void setDriveCommand(float speed, float kappa, float tan_gamma);
 
-  bool pathToBeSmoothed(const std::deque<geometry_msgs::Pose> &transformed_path, bool fixed_path);
+  bool pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped> &transformed_path, bool fixed_path);
   bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
-  geometry_msgs::Pose createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation);
+  geometry_msgs::PoseStamped createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation);
 
 private:
   ros::NodeHandle nh;
@@ -122,7 +122,7 @@ private:
   nav_msgs::Path empty_path;
 
   unsigned int current;
-  geometry_msgs::Pose start;
+  geometry_msgs::PoseStamped start;
   Legs legs;
 
   double flipper_state;
