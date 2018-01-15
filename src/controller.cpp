@@ -337,29 +337,38 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
     if(!createDrivepath2MapTransform(transform, path))
         return false;
 
-    std::deque<geometry_msgs::PoseStamped> map_path(path.poses.size());
+    std::vector<geometry_msgs::PoseStamped> map_path(path.poses.size());
     std::transform(path.poses.begin(), path.poses.end(), map_path.begin(),
-                   [transform](geometry_msgs::PoseStamped const & ps)
+                   [&transform, this](geometry_msgs::PoseStamped const & ps)
                    {
-                        tf::Pose tf_waypoint;
                         geometry_msgs::PoseStamped transformed_waypoint;
+                        transformed_waypoint.header.stamp = ps.header.stamp;
+                        transformed_waypoint.header.frame_id = this->map_frame_id;
+
+                        tf::Pose tf_waypoint;
                         tf::poseMsgToTF(ps.pose, tf_waypoint);
                         tf_waypoint = transform * tf_waypoint;
                         tf::poseTFToMsg(tf_waypoint, transformed_waypoint.pose);
+
                         return transformed_waypoint;
                    });
 
+    // Publish end pose
     geometry_msgs::PoseStamped ptbp;
     ptbp.header.stamp = ros::Time::now();
     ptbp.header.frame_id = map_frame_id;
-    ptbp.pose.position = map_path.back().pose.position;
-    ptbp.pose.orientation = map_path.back().pose.orientation;
+    ptbp.pose = map_path.back().pose;
     endPosePoublisher.publish(ptbp);
 
-    start = map_path[0];
-    start.pose. orientation = robot_control_state.pose.orientation;
+    // If path is too short, drive directly to last point
+    if (map_path.size() <= 2) {
+      driveto(map_path.back(), speed);
+    }
 
-    if(pathToBeSmoothed(map_path, fixed_path))
+    start = map_path[0];
+    start.pose.orientation = robot_control_state.pose.orientation;
+
+    if(!fixed_path)
     {
         ROS_DEBUG("[vehicle_controller] Using PathSmoother.");
         Pathsmoother3D ps3d(vehicle_control_type == "differential_steering", &mp_);
@@ -402,26 +411,20 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
     }
     else
     {
-        for(std::deque<geometry_msgs::PoseStamped>::const_iterator it = map_path.begin()+1; it != map_path.end(); ++it)
+        for(std::vector<geometry_msgs::PoseStamped>::const_iterator it = map_path.begin()+1; it != map_path.end(); ++it)
         {
             const geometry_msgs::PoseStamped& waypoint = *it;
-//                ros::Duration dt =
-            addLeg(waypoint);
-            if (map_path.size() == 1) // TODO: Consider calling driveto instead for small paths instead.
-            {
-                geometry_msgs::PoseStamped p = waypoint;
-                p.pose.position.x += 0.01;
-                addLeg(p, speed);
-            }
+            addLeg(waypoint, speed);
         }
         nav_msgs::Path path;
         path.header.frame_id = map_frame_id;
         path.header.stamp = ros::Time::now();
+        path.poses = map_path;
         pathPosePublisher.publish(path);
     }
 
     state = DRIVEPATH;
-    if(legs.size() >= 1)
+    if(!legs.empty())
         ROS_INFO("[vehicle_controller] Received new path to goal point (x = %.2f, y = %.2f)", legs.back().p2.x, legs.back().p2.y);
     else
         ROS_WARN("[vehicle_controller] Controller::drivepath produced empty legs array.");
@@ -513,13 +516,9 @@ void Controller::speedCallback(const std_msgs::Float32& speed)
 
 void Controller::followPathGoalCallback()
 {
-  //actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>::GoalConstPtr goal = follow_path_server_->acceptNewGoal();
   follow_path_goal_ = follow_path_server_->acceptNewGoal();
-
-//  follow_path_goal_->follow
-  drivepath(follow_path_goal_->target_path, follow_path_goal_->follow_path_options.desired_speed, follow_path_goal_->follow_path_options.is_fixed);//path_action->speed, path_action->fixed);
+  drivepath(follow_path_goal_->target_path, follow_path_goal_->follow_path_options.desired_speed, follow_path_goal_->follow_path_options.is_fixed);
   drivepathPublisher.publish(follow_path_goal_->target_path);
-
 }
 
 void Controller::followPathPreemptCallback()
@@ -583,14 +582,24 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
     leg.length2 = std::pow(leg.p2.x - leg.p1.x, 2) + std::pow(leg.p2.y - leg.p1.y, 2);
     leg.length  = std::sqrt(leg.length2);
 
-    if (leg.finish_time != ros::Time(0)) {
-      double dt_s = dt.toSec();
-      leg.speed = leg.length / dt_s;
-      ROS_INFO_STREAM("dt: " << dt_s);
-      ROS_INFO_STREAM("dx: " << leg.length);
-      ROS_INFO_STREAM("Calculated speed: " << leg.speed);
+    if (speed == 0) {
+      if (leg.finish_time != ros::Time(0)) {
+        double dt_s = dt.toSec();
+        if (dt_s > 0) {
+          leg.speed = leg.length / dt_s;
+//          ROS_INFO_STREAM("dt: " << dt_s);
+//          ROS_INFO_STREAM("dx: " << leg.length);
+//          ROS_INFO_STREAM("Calculated speed: " << leg.speed);
+        } else {
+          ROS_WARN_STREAM("Waypoint time is not monotonic. Can't compute speed.");
+          leg.speed = mp_.commanded_speed;
+        }
+
+      } else {
+        leg.speed = mp_.commanded_speed;
+      }
     } else {
-      leg.speed   = speed == 0.0 ? mp_.commanded_speed : speed;
+      leg.speed = speed;
     }
 
     leg.percent = 0.0f;
