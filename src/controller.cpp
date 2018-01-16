@@ -538,10 +538,9 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
     leg.p2.x = pose.pose.position.x;
     leg.p2.y = pose.pose.position.y;
 
-    ros::Duration dt;
     if (legs.size() == 0)
     {
-        dt = pose.header.stamp - start.header.stamp;
+        leg.start_time = start.header.stamp; // start time is goal time of start state
         leg.p1.x = start.pose.position.x;
         leg.p1.y = start.pose.position.y;
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
@@ -560,12 +559,14 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
     else
     {
         const Leg& last = legs.back();
-        dt = pose.header.stamp - last.finish_time;
+        leg.start_time = last.finish_time; // start after last leg finished
         leg.p1.x = last.p2.x;
         leg.p1.y = last.p2.y;
         leg.p1.orientation = last.p2.orientation;
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
     }
+
+    ros::Duration dt = leg.finish_time - leg.start_time;
 
     leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
     if (pose.pose.orientation.w == 0.0 && pose.pose.orientation.x == 0.0
@@ -621,6 +622,14 @@ void Controller::update()
 {
     if (state < DRIVETO) return;
 
+    ros::Time current_time = ros::Time::now();
+    if (current < legs.size()) {
+      if (current_time < legs[current].start_time) {
+        ROS_INFO_STREAM("[vehicle_controller] Start time of waypoint " << current << " not reached yet, waiting..");
+        return;
+      }
+    }
+
     // get current orientation
     double angles[3];
     quaternion2angles(robot_control_state.pose.orientation, angles);
@@ -645,8 +654,7 @@ void Controller::update()
               + std::pow(legs.back().p2.y - robot_control_state.pose.position.y, 2));
     double goal_angle_error_   = angularNorm(legs.back().p2.orientation - angles[0]);
 
-    if (goal_position_error < linear_tolerance_for_current_path
-     /*&& vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_, angular_tolerance_for_current_path)*/)
+    if (goal_position_error < linear_tolerance_for_current_path)
     {   // Reached goal point. This task is handled in the following loop
         ROS_INFO_THROTTLE(1.0, "[vehicle_controller] Current position is within goal tolerance.");
         current = legs.size();
