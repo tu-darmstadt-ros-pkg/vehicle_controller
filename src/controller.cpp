@@ -566,7 +566,6 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
     }
 
-    ros::Duration dt = leg.finish_time - leg.start_time;
 
     leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
     if (pose.pose.orientation.w == 0.0 && pose.pose.orientation.x == 0.0
@@ -583,24 +582,21 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
     leg.length2 = std::pow(leg.p2.x - leg.p1.x, 2) + std::pow(leg.p2.y - leg.p1.y, 2);
     leg.length  = std::sqrt(leg.length2);
 
-    if (speed == 0) {
-      if (leg.finish_time != ros::Time(0)) {
-        double dt_s = dt.toSec();
-        if (dt_s > 0) {
-          leg.speed = leg.length / dt_s;
+    if (leg.finish_time != ros::Time(0)) {
+      ros::Duration dt = leg.finish_time - leg.start_time;
+      double dt_s = dt.toSec();
+      if (dt_s > 0) {
+        leg.speed = leg.length / dt_s;
 //          ROS_INFO_STREAM("dt: " << dt_s);
 //          ROS_INFO_STREAM("dx: " << leg.length);
 //          ROS_INFO_STREAM("Calculated speed: " << leg.speed);
-        } else {
-          ROS_WARN_STREAM("Waypoint time is not monotonic. Can't compute speed.");
-          leg.speed = mp_.commanded_speed;
-        }
-
       } else {
+        ROS_WARN_STREAM("Waypoint time is not monotonic. Can't compute speed.");
         leg.speed = mp_.commanded_speed;
       }
+
     } else {
-      leg.speed = speed;
+      leg.speed = (speed != 0)? speed : mp_.commanded_speed;
     }
 
     leg.percent = 0.0f;
@@ -621,14 +617,6 @@ void Controller::reset()
 void Controller::update()
 {
     if (state < DRIVETO) return;
-
-    ros::Time current_time = ros::Time::now();
-    if (current < legs.size()) {
-      if (current_time < legs[current].start_time) {
-        ROS_INFO_STREAM("[vehicle_controller] Start time of waypoint " << current << " not reached yet, waiting..");
-        return;
-      }
-    }
 
     // get current orientation
     double angles[3];
@@ -800,17 +788,38 @@ void Controller::update()
 
         vec3 rpath = /*rq **/ rdp;
         vec3 rpos = rq * vec3(1,0,0);
-//        ROS_ERROR("rpath = %f  %f  %f", rpath(0), rpath(1), rpath(2));
-//        ROS_ERROR("rpos  = %f  %f  %f", rpos(0), rpos(1), rpos(2));
-//        ROS_ERROR("rpos^T rpath = %f" , rpos.dot(rpath));
-//        ROS_ERROR("alpha = %f" , alpha * 180 / M_PI);
-//        ROS_ERROR("beta = %f" , beta * 180 / M_PI);
-//        ROS_ERROR("beta - alpha = %f" , (beta - alpha) * 180 / M_PI);
-//        ROS_ERROR("ang path = %f" , error_2_path * 180 / M_PI);
         sign = rpos.dot(rpath) >= 0.0 ? 1.0 : -1.0;
     }
 
-    double speed = sign * legs[current].speed;
+    // Check if we need to wait
+    ros::Time current_time = ros::Time::now();
+    double speed;
+    if (current_time < legs[current].start_time) {
+      ROS_DEBUG_STREAM("[vehicle_controller] Start time of waypoint " << current << " not reached yet, waiting..");
+      speed = 0;
+    } else {
+      // if we are lagging behind the trajectory, increase speed accordingly
+      if (legs[current].finish_time != ros::Time(0)) {
+        ros::Duration dt = legs[current].finish_time - current_time;
+        if (dt.toSec() > 0.0) {
+          double dx = std::sqrt(std::pow(legs[current].p2.x - robot_control_state.pose.position.x, 2)
+                                + std::pow(legs[current].p2.y - robot_control_state.pose.position.y, 2));
+
+          speed = std::min(dx/dt.toSec(), mp_.max_controller_speed_);
+        } else {
+          speed = mp_.max_controller_speed_;
+        }
+
+      } else {
+        speed = legs[current].speed;
+      }
+      speed = sign * speed;
+    }
+
+
+
+
+
     double signed_carrot_distance_2_robot =
             sign * euclideanDistance2D(carrotPose.pose.position,
                                      robot_control_state.pose.position);
@@ -871,6 +880,24 @@ void Controller::update()
               follow_path_server_->setAborted(result, std::string("I think I am blocked! Terminating current drive goal."));
             }
         }
+    }
+
+    // publish feedback
+    if (legs[current].finish_time != ros::Time(0)) {
+//      ROS_INFO_STREAM_THROTTLE(1, "Current lagg: " << lagg.toSec());
+      move_base_lite_msgs::FollowPathFeedback feedback;
+      feedback.current_waypoint = current;
+      feedback.current_percent_complete = legs[current].percent;
+//      feedback.total_percent_completer
+
+      ros::Duration total_dt = legs[current].finish_time - legs[current].start_time;
+      ros::Duration time_in_path = total_dt * legs[current].percent;
+      feedback.actual_duration_since_start = time_in_path;
+      ros::Duration current_time_since_start = current_time - legs[current].start_time;
+      ros::Duration lagg =  current_time_since_start - time_in_path;
+      feedback.current_lagg = lagg;
+
+      follow_path_server_->publishFeedback(feedback);
     }
 
     // camera control

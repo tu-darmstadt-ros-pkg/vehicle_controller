@@ -21,10 +21,10 @@ struct Leg
   float course;
 
   bool backward;
-  float speed;
-  float length2;
-  float length;
-  float percent;
+  double speed;
+  double length2;
+  double length;
+  double percent;
   ros::Time start_time;
   ros::Time finish_time;
 };
