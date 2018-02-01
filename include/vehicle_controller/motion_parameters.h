@@ -39,14 +39,10 @@
 class MotionParameters : public PS3dMotionParameters
 {
   public:
-    bool USE_FINAL_TWIST_;
-    int FINAL_TWIST_TRIALS_MAX_;
+    bool use_final_twist;
+    int final_twist_trials_max;
 
     bool y_symmetry;
-    double flipper_low_position;
-    double flipper_switch_position;
-    double flipper_high_position;
-    std::string flipper_name;
     std::string pd_params;
 
     double carrot_distance;
@@ -55,10 +51,10 @@ class MotionParameters : public PS3dMotionParameters
     double inclination_speed_reduction_factor;
     double inclination_speed_reduction_time_constant;
     double current_inclination;
-    double max_controller_speed_;
-    double max_unlimited_speed_;
-    double max_controller_angular_rate_;
-    double max_unlimited_angular_rate_;
+    double max_controller_speed;
+    double max_unlimited_speed;
+    double max_controller_angular_rate;
+    double max_unlimited_angular_rate;
 
     inline virtual bool isYSymmetric()
     {

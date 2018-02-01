@@ -51,7 +51,7 @@ class DifferentialDriveController: public VehicleControlInterface
 
     inline virtual bool hasReachedFinalOrientation(double goal_angle_error, double tol, bool reverse_allowed)
     {
-        if (mp_->isYSymmetric() || reverse_allowed)
+        if (reverse_allowed)
         {
             return std::abs(goal_angle_error) < tol || std::abs(goal_angle_error - M_PI) < tol || std::abs(goal_angle_error + M_PI) < tol;
         }
@@ -71,7 +71,7 @@ class DifferentialDriveController: public VehicleControlInterface
      * @param e_position the position error
      * @param dt time difference between two control loop iterates
      */
-    void executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed, bool approaching_goal_point, bool reverse_allowed);
+    void executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed, bool approaching_goal_point);
 
     virtual void executeMotionCommand(RobotControlState rcs);
 
@@ -104,11 +104,8 @@ class DifferentialDriveController: public VehicleControlInterface
         KD_POSITION_ = config.position_d_gain;
         mp_->commanded_speed = config.speed;
         SPEED_REDUCTION_GAIN_ = config.speed_reduction_gain;
-        mp_->USE_FINAL_TWIST_ = config.use_final_twist;
-        mp_->FINAL_TWIST_TRIALS_MAX_ = config.final_twist_trials_max;
-        mp_->flipper_low_position = config.flipper_low_position;
-        mp_->flipper_high_position = config.flipper_high_position;
-        mp_->flipper_switch_position = config.flipper_switch_position;
+        mp_->use_final_twist = config.use_final_twist;
+        mp_->final_twist_trials_max = config.final_twist_trials_max;
     }
 
     void limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate) const;

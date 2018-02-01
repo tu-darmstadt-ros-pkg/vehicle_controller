@@ -45,7 +45,7 @@ protected:
   virtual void cleanup();
 
   virtual bool driveto(const geometry_msgs::PoseStamped&, double speed);
-  virtual bool drivepath(const nav_msgs::Path&, double speed, bool fixed_path = true);
+  virtual bool drivepath(const nav_msgs::Path& path);
 
   virtual bool updateRobotState(const nav_msgs::Odometry& odom_state);
   virtual void stateCallback(const nav_msgs::OdometryConstPtr& odom_state);
@@ -54,9 +54,6 @@ protected:
   virtual void cmd_velCallback(const geometry_msgs::Twist&);
   virtual void cmd_velTeleopCallback(const geometry_msgs::Twist&);
   virtual void speedCallback(const std_msgs::Float32&);
-
-  //void joint_statesCallback(sensor_msgs::JointStateConstPtr msg);
-  //void cmd_flipper_toggleCallback(const std_msgs::Empty&);
 
   void followPathGoalCallback();
   void followPathPreemptCallback();
@@ -71,6 +68,7 @@ protected:
   void addLeg(const geometry_msgs::PoseStamped &pose, double speed = 0.0);
   void setDriveCommand(float speed, float kappa, float tan_gamma);
 
+  bool reverseAllowed();
   bool pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped> &transformed_path, bool fixed_path);
   bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
   geometry_msgs::PoseStamped createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation);
@@ -85,8 +83,6 @@ private:
   ros::Subscriber cmd_velSubscriber;
   ros::Subscriber cmd_velTeleopSubscriber;
   ros::Subscriber speedSubscriber;
-  //ros::Subscriber cmd_flipper_toggle_sub_;
-  //ros::Subscriber joint_states_sub_;
 
   ros::Publisher endPosePoublisher;
   ros::Publisher carrotPosePublisher;
@@ -97,13 +93,8 @@ private:
 
   ros::Publisher pathPosePublisher;
   ros::Publisher autonomy_level_pub_;
-  //ros::Publisher jointstate_cmd_pub_;
 
   // action interface
-  //ros::Subscriber actionSubscriber;
-  //ros::Subscriber actionGoalSubscriber;
-  //ros::Subscriber actionPathSubscriber;
-  //ros::Publisher actionResultPublisher;
   boost::shared_ptr<actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction> > follow_path_server_;
   actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>::GoalConstPtr follow_path_goal_;
 
@@ -129,6 +120,8 @@ private:
 
   // motion parameters (set at launch)
   MotionParameters mp_;
+  // path-specific settings
+  move_base_lite_msgs::FollowPathOptions default_path_options_;
 
   std::string map_frame_id;
   std::string base_frame_id;
@@ -139,13 +132,10 @@ private:
   geometry_msgs::QuaternionStamped cameraDefaultOrientation;
 
   bool check_stuck;
-  bool reverse_allowed;
   double dt;
 
   double velocity_error;
 
-  double goal_position_tolerance;
-  double goal_angle_tolerance;
 
   boost::shared_ptr<VehicleControlInterface> vehicle_control_interface_;
 

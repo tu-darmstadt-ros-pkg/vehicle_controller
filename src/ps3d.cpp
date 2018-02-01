@@ -79,7 +79,7 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path,
     {
         if(in_path.size() >= 2 && smoothed_positions.size() >= in_path.size())
         {
-            if(mp->isYSymmetric() || reverse)
+            if(reverse)
             {
                 vec3 start_path_delta = (smoothed_positions[0] - smoothed_positions[1]).normalized();
                 double start_projection = start_path_delta.dot(in_start_orientation * local_robot_direction);

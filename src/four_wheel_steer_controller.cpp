@@ -7,7 +7,7 @@
 void FourWheelSteerController::configure(ros::NodeHandle& params, MotionParameters* mp)
 {
   mp_ = mp;
-  mp_->USE_FINAL_TWIST_ = false;
+  mp_->use_final_twist = false;
 
   ros::NodeHandle nh;
   drivePublisher_ = nh.advertise<monstertruck_msgs::MotionCommand>("drive", 1);
@@ -20,11 +20,11 @@ void FourWheelSteerController::limitSpeed(double & speed)
 {
     double inclination_max_speed = std::max(fabs(speed) * (1.0 - mp_->current_inclination * mp_->inclination_speed_reduction_factor), 0.0);
     if (speed > 0.0) {
-      if (speed > mp_->max_controller_speed_) speed = mp_->max_controller_speed_;
+      if (speed > mp_->max_controller_speed) speed = mp_->max_controller_speed;
       if (speed > inclination_max_speed) speed = inclination_max_speed;
       if (speed < mp_->min_speed) speed = mp_->min_speed;
     } else if (speed < 0.0) {
-      if (speed < -mp_->max_controller_speed_) speed = -mp_->max_controller_speed_;
+      if (speed < -mp_->max_controller_speed) speed = -mp_->max_controller_speed;
       if (speed < -inclination_max_speed) speed = -inclination_max_speed;
       if (speed > -mp_->min_speed) speed = -mp_->min_speed;
     }

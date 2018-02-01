@@ -18,19 +18,17 @@
 #include <functional>
 
 Controller::Controller(const std::string& ns)
-    : nh(ns), state(INACTIVE)
-    , reverse_allowed(true), stuck(new StuckDetector)
+    : nh(ns), state(INACTIVE), stuck(new StuckDetector)
 {
     mp_.carrot_distance = 1.0;
     mp_.min_speed       = 0.0;
     mp_.commanded_speed = 0.0;
-    mp_.max_controller_speed_ = 0.25;
-    mp_.max_unlimited_speed_ = 2.0;
-    mp_.max_unlimited_angular_rate_ = 1.0;
-    mp_.max_controller_angular_rate_ =  0.4;
+    mp_.max_controller_speed = 0.25;
+    mp_.max_unlimited_speed = 2.0;
+    mp_.max_unlimited_angular_rate = 1.0;
+    mp_.max_controller_angular_rate =  0.4;
     mp_.inclination_speed_reduction_factor = 0.5 / (30 * M_PI/180.0); // 0.5 per 30 degrees
     mp_.inclination_speed_reduction_time_constant = 0.3;
-    mp_.flipper_name = "flipper_front";
     mp_.pd_params = "PdParams";
 
     map_frame_id = "nav";
@@ -46,9 +44,6 @@ Controller::Controller(const std::string& ns)
 
     mp_.current_inclination = 0.0;
     velocity_error = 0.0;
-
-    goal_position_tolerance = 0.0;
-    goal_angle_tolerance = 0.0;
 
     cameraDefaultOrientation.header.frame_id = "base_stabilized";
     tf::Quaternion cameraOrientationQuaternion;
@@ -80,14 +75,15 @@ bool Controller::configure()
     params.getParam("check_stuck", check_stuck);
     params.getParam("inclination_speed_reduction_factor", mp_.inclination_speed_reduction_factor);
     params.getParam("inclination_speed_reduction_time_constant", mp_.inclination_speed_reduction_time_constant);
-    params.getParam("goal_position_tolerance", goal_position_tolerance);
-    params.getParam("goal_angle_tolerance", goal_angle_tolerance);
+    params.param("goal_position_tolerance", default_path_options_.goal_pose_position_tolerance, 0.0);
+    params.param("goal_angle_tolerance", default_path_options_.goal_pose_angle_tolerance, 0.0);
     params.getParam("speed",   mp_.commanded_speed);
     params.param("pd_params",  mp_.pd_params, std::string("PdParams"));
     params.param("y_symmetry", mp_.y_symmetry, false);
-    vehicle_control_type = "differential_steering";
-    params.getParam("vehicle_control_type", vehicle_control_type);
-    double stuck_detection_window = StuckDetector::DEFAULT_DETECTION_WINDOW;
+    default_path_options_.reverse_allowed = params.param<bool>("reverse_allowed", true);
+    default_path_options_.rotate_front_to_goal_pose_orientation = params.param<bool>("rotate_front_to_goal_pose_orientation", false);
+    params.param<std::string>("vehicle_control_type", vehicle_control_type, "differential_steering");
+    double stuck_detection_window;
     params.param("stuck_detection_window", stuck_detection_window, StuckDetector::DEFAULT_DETECTION_WINDOW);
     stuck.reset(new StuckDetector(stuck_detection_window));
 
@@ -111,12 +107,8 @@ bool Controller::configure()
     drivepathPublisher  = nh.advertise<nav_msgs::Path>("drivepath", 1, true);
     pathPosePublisher   = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
 
-    //cmd_flipper_toggle_sub_ = nh.subscribe("cmd_flipper_toggle", 10, &Controller::cmd_flipper_toggleCallback, this);
-    //joint_states_sub_   = nh.subscribe("joint_states", 1, &Controller::joint_statesCallback, this);
-
     diagnosticsPublisher = params.advertise<std_msgs::Float32>("velocity_error", 1, true);
     autonomy_level_pub_ = nh.advertise<std_msgs::String>("/autonomy_level", 30);
-    //jointstate_cmd_pub_ = nh.advertise<sensor_msgs::JointState>("/jointstate_cmd", 1, true);
 
     if (camera_control)
     {
@@ -128,17 +120,6 @@ bool Controller::configure()
 
     return true;
 }
-
-/*
-void Controller::joint_statesCallback(sensor_msgs::JointStateConstPtr msg)
-{
-    auto it = std::find(msg->name.begin(), msg->name.end(), mp_.flipper_name);
-    if(it != msg->name.end())
-    {
-        flipper_state = msg->position[std::distance(msg->name.begin(), it)];
-    }
-}
-*/
 
 bool Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
 {
@@ -204,7 +185,6 @@ void Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStam
 {
     geometry_msgs::PoseStampedConstPtr goal = event.getConstMessage();
 
-    //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "Received a new goal.");
     if (follow_path_server_->isActive()){
       move_base_lite_msgs::FollowPathResult result;
       result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
@@ -227,7 +207,6 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
     {
         ROS_ERROR("[vehicle_controller] %s", ex.what());
         stop();
-        //publishActionResult(actionlib_msgs::GoalStatus::REJECTED);
         if (follow_path_server_->isActive()){
           move_base_lite_msgs::FollowPathResult result;
           result.result.val = move_base_lite_msgs::ErrorCodes::TF_LOOKUP_FAILURE;
@@ -245,7 +224,6 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
              goal_transformed.pose.position.x, goal_transformed.pose.position.y, legs.back().backward);
 
     final_twist_trials = 0;
-    //publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
     return true;
 }
 
@@ -261,18 +239,8 @@ void Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& even
       result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
       follow_path_server_->setPreempted(result, "drive path callback");
     }
-    drivepath(*path, 0.0);
+    drivepath(*path);
 }
-
-/*
-void Controller::cmd_flipper_toggleCallback(std_msgs::Empty const &)
-{
-    sensor_msgs::JointState msg;
-    msg.name = { mp_.flipper_name };
-    msg.position = { flipper_state < mp_.flipper_switch_position ? mp_.flipper_high_position : mp_.flipper_low_position };
-    jointstate_cmd_pub_.publish(msg);
-}
-*/
 
 bool Controller::pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped>& transformed_path, bool fixed_path)
 {
@@ -302,14 +270,14 @@ bool Controller::pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped>& 
 //    return path_to_be_smoothed;
 }
 
-bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_path)
+bool Controller::drivepath(const nav_msgs::Path& path)
 {
     reset();
+    const move_base_lite_msgs::FollowPathOptions& options = follow_path_goal_->follow_path_options;
 
     if (!latest_odom_.get()){
       ROS_ERROR("No latest odom message received, aborting path planning in drivepath!");
       stop();
-      //publishActionResult(actionlib_msgs::GoalStatus::ABORTED);
       if (follow_path_server_->isActive()){
         move_base_lite_msgs::FollowPathResult result;
         result.result.val = move_base_lite_msgs::ErrorCodes::FAILURE;
@@ -324,7 +292,6 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
     {
         ROS_WARN("[vehicle_controller] Received empty path");
         stop();
-        //publishActionResult(actionlib_msgs::GoalStatus::SUCCEEDED);
         if (follow_path_server_->isActive()){
           move_base_lite_msgs::FollowPathResult result;
           result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
@@ -362,16 +329,16 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
 
     // If path is too short, drive directly to last point
     if (map_path.size() <= 2) {
-      driveto(map_path.back(), speed);
+      driveto(map_path.back(), options.desired_speed);
     }
 
     start = map_path[0];
     start.pose.orientation = robot_control_state.pose.orientation;
 
-    if(!fixed_path)
+    if(!options.is_fixed)
     {
         ROS_DEBUG("[vehicle_controller] Using PathSmoother.");
-        Pathsmoother3D ps3d(vehicle_control_type == "differential_steering", &mp_);
+        Pathsmoother3D ps3d(reverseAllowed(), &mp_);
 
         quat in_start_orientation;
         quat in_end_orientation;
@@ -387,14 +354,14 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
         vector_vec3 out_smoothed_positions;
         vector_quat out_smoothed_orientations;
         ps3d.smooth(in_path, in_start_orientation, in_end_orientation,
-                    out_smoothed_positions, out_smoothed_orientations, reverse_allowed);
+                    out_smoothed_positions, out_smoothed_orientations, reverseAllowed());
 
         std::vector<geometry_msgs::PoseStamped> smooth_path;
         std::transform(out_smoothed_positions.begin(), out_smoothed_positions.end(),
                        out_smoothed_orientations.begin(), std::back_inserter(smooth_path),
                        boost::bind(&Controller::createPoseFromQuatAndPosition, this, _1, _2));
 
-        std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Controller::addLeg, this, _1, speed));
+        std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Controller::addLeg, this, _1, options.desired_speed));
 
         nav_msgs::Path path2publish;
         path2publish.header.frame_id = map_frame_id;
@@ -414,7 +381,7 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
         for(std::vector<geometry_msgs::PoseStamped>::const_iterator it = map_path.begin()+1; it != map_path.end(); ++it)
         {
             const geometry_msgs::PoseStamped& waypoint = *it;
-            addLeg(waypoint, speed);
+            addLeg(waypoint, options.desired_speed);
         }
         nav_msgs::Path path;
         path.header.frame_id = map_frame_id;
@@ -429,7 +396,6 @@ bool Controller::drivepath(const nav_msgs::Path& path, double speed, bool fixed_
     else
         ROS_WARN("[vehicle_controller] Controller::drivepath produced empty legs array.");
 
-    //publishActionResult(actionlib_msgs::GoalStatus::ACTIVE);
     return true;
 }
 
@@ -517,7 +483,7 @@ void Controller::speedCallback(const std_msgs::Float32& speed)
 void Controller::followPathGoalCallback()
 {
   follow_path_goal_ = follow_path_server_->acceptNewGoal();
-  drivepath(follow_path_goal_->target_path, follow_path_goal_->follow_path_options.desired_speed, follow_path_goal_->follow_path_options.is_fixed);
+  drivepath(follow_path_goal_->target_path);
   drivepathPublisher.publish(follow_path_goal_->target_path);
 }
 
@@ -566,8 +532,11 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
         leg.course = atan2(leg.p2.y - leg.p1.y, leg.p2.x - leg.p1.x);
     }
 
-
-    leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
+    if (reverseAllowed()) {
+      leg.backward = fabs(constrainAngle_mpi_pi(leg.course - leg.p1.orientation)) > M_PI_2;
+    } else {
+      leg.backward = false;
+    }
     if (pose.pose.orientation.w == 0.0 && pose.pose.orientation.x == 0.0
      && pose.pose.orientation.y == 0.0 && pose.pose.orientation.z == 0.0)
     {
@@ -587,9 +556,6 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
       double dt_s = dt.toSec();
       if (dt_s > 0) {
         leg.speed = leg.length / dt_s;
-//          ROS_INFO_STREAM("dt: " << dt_s);
-//          ROS_INFO_STREAM("dx: " << leg.length);
-//          ROS_INFO_STREAM("Calculated speed: " << leg.speed);
       } else {
         ROS_WARN_STREAM("Waypoint time is not monotonic. Can't compute speed.");
         leg.speed = mp_.commanded_speed;
@@ -603,6 +569,21 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
 
     if (leg.length2 == 0.0f) return;
     legs.push_back(leg);
+}
+
+bool Controller::reverseAllowed()
+{
+  // Driving backward is always allowed if vehicle is symmetric
+  if (mp_.isYSymmetric()) {
+    return true;
+  }
+  // If not, check for path specific settings
+  if (follow_path_server_->isActive()) {
+    return follow_path_goal_->follow_path_options.reverse_allowed;
+  } else {
+    // Return default
+    return default_path_options_.reverse_allowed;
+  }
 }
 
 void Controller::reset()
@@ -622,8 +603,9 @@ void Controller::update()
     double angles[3];
     quaternion2angles(robot_control_state.pose.orientation, angles);
 
-    double linear_tolerance_for_current_path = goal_position_tolerance;
-    double angular_tolerance_for_current_path = goal_angle_tolerance;
+    double linear_tolerance_for_current_path = default_path_options_.goal_pose_position_tolerance;
+    double angular_tolerance_for_current_path = default_path_options_.goal_pose_angle_tolerance;
+    bool rotate_front_to_goal_pose_orientation = default_path_options_.rotate_front_to_goal_pose_orientation;
 
     if (follow_path_server_->isActive()){
       if (follow_path_goal_->follow_path_options.goal_pose_position_tolerance > 0.0){
@@ -633,6 +615,7 @@ void Controller::update()
       if (follow_path_goal_->follow_path_options.goal_pose_angle_tolerance > 0.0){
         angular_tolerance_for_current_path = follow_path_goal_->follow_path_options.goal_pose_angle_tolerance;
       }
+      rotate_front_to_goal_pose_orientation = follow_path_goal_->follow_path_options.rotate_front_to_goal_pose_orientation;
     }
 
     // Check if goal has been reached based on goal_position_tolerance/goal_angle_tolerance
@@ -640,7 +623,7 @@ void Controller::update()
             std::sqrt(
                 std::pow(legs.back().p2.x - robot_control_state.pose.position.x, 2)
               + std::pow(legs.back().p2.y - robot_control_state.pose.position.y, 2));
-    double goal_angle_error_   = angularNorm(legs.back().p2.orientation - angles[0]);
+    double goal_angle_error   = angularNorm(legs.back().p2.orientation - angles[0]);
 
     if (goal_position_error < linear_tolerance_for_current_path)
     {   // Reached goal point. This task is handled in the following loop
@@ -652,17 +635,17 @@ void Controller::update()
     {
         if (current == legs.size())
         {
-            goal_angle_error_ = constrainAngle_mpi_pi(goal_angle_error_);
+            goal_angle_error = constrainAngle_mpi_pi(goal_angle_error);
             // ROS_INFO("[vehicle_controller] Reached goal point position. Angular error = %f, tol = %f", goal_angle_error_ * 180.0 / M_PI, angular_tolerance_for_current_path * 180.0 / M_PI);
-            if (final_twist_trials > mp_.FINAL_TWIST_TRIALS_MAX_
-             || vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error_,
-                    angular_tolerance_for_current_path, reverse_allowed)
-             || !mp_.USE_FINAL_TWIST_)
+            if (final_twist_trials > mp_.final_twist_trials_max
+             || vehicle_control_interface_->hasReachedFinalOrientation(goal_angle_error,
+                    angular_tolerance_for_current_path, !rotate_front_to_goal_pose_orientation)
+             || !mp_.use_final_twist)
             {
                 state = INACTIVE;
                 ROS_INFO("[vehicle_controller] Finished orientation correction!"
                          " error = %f, tol = %f",
-                         goal_angle_error_ * 180.0 / M_PI
+                         goal_angle_error * 180.0 / M_PI
                          , angular_tolerance_for_current_path * 180.0 / M_PI);
                 final_twist_trials = 0;
                 stop();
@@ -682,14 +665,22 @@ void Controller::update()
                 desired_position.x = legs.back().p2.x;
                 desired_position.y = legs.back().p2.y;
 
+                if(!rotate_front_to_goal_pose_orientation)
+                {
+                  if(goal_angle_error > M_PI_2)
+                      goal_angle_error = goal_angle_error - M_PI;
+                  if(goal_angle_error < -M_PI_2)
+                      goal_angle_error = M_PI + goal_angle_error;
+                }
+
                 robot_control_state.setControlState(0.0,
                                                     desired_position,
-                                                    goal_angle_error_,
-                                                    goal_angle_error_,
+                                                    goal_angle_error,
+                                                    goal_angle_error,
                                                     mp_.carrot_distance,
                                                     0.0,
                                                     true,
-                                                    reverse_allowed);
+                                                    !rotate_front_to_goal_pose_orientation);
 
                 vehicle_control_interface_->executeMotionCommand(robot_control_state);
                 return;
@@ -781,7 +772,7 @@ void Controller::update()
     double error_2_carrot = constrainAngle_mpi_pi( carrot.orientation - alpha);
     double sign  = legs[current].backward ? -1.0 : 1.0;
 
-    if (this->mp_.isYSymmetric() || this->reverse_allowed) {
+    if (reverseAllowed()) {
         vec3 rdp(desired_position.x - robot_control_state.pose.position.x, desired_position.y - robot_control_state.pose.position.y, 0.0);
         rdp.normalize();
         quat rq(robot_control_state.pose.orientation.w, robot_control_state.pose.orientation.x, robot_control_state.pose.orientation.y, robot_control_state.pose.orientation.z);
@@ -805,9 +796,9 @@ void Controller::update()
           double dx = std::sqrt(std::pow(legs[current].p2.x - robot_control_state.pose.position.x, 2)
                                 + std::pow(legs[current].p2.y - robot_control_state.pose.position.y, 2));
 
-          speed = std::min(dx/dt.toSec(), mp_.max_controller_speed_);
+          speed = std::min(dx/dt.toSec(), mp_.max_controller_speed);
         } else {
-          speed = mp_.max_controller_speed_;
+          speed = mp_.max_controller_speed;
         }
 
       } else {
@@ -816,16 +807,10 @@ void Controller::update()
       speed = sign * speed;
     }
 
-
-
-
-
     double signed_carrot_distance_2_robot =
             sign * euclideanDistance2D(carrotPose.pose.position,
                                      robot_control_state.pose.position);
     bool approaching_goal_point = goal_position_error < 0.4;
-
-
 
     if(std::abs(signed_carrot_distance_2_robot) > (mp_.carrot_distance * 1.5))
     {
@@ -841,12 +826,20 @@ void Controller::update()
         return;
     }
 
-    if (state == DRIVETO && goal_position_error < 0.6 /* && mp_.isYSymmetric() */)
-    { // TODO: Does mp_.isYSymmetric() really make sense here?
-        if(error_2_path > M_PI_2)
-            error_2_path = error_2_path - M_PI;
-        if(error_2_path < -M_PI_2)
-            error_2_path = M_PI + error_2_path;
+//    if (state == DRIVETO && goal_position_error < 0.6 /* && mp_.isYSymmetric() */)
+//    { // TODO: Does mp_.isYSymmetric() really make sense here?
+//        if(error_2_path > M_PI_2)
+//            error_2_path = error_2_path - M_PI;
+//        if(error_2_path < -M_PI_2)
+//            error_2_path = M_PI + error_2_path;
+//    }
+
+    if(reverseAllowed())
+    {
+      if(error_2_path > M_PI_2)
+          error_2_path = error_2_path - M_PI;
+      if(error_2_path < -M_PI_2)
+          error_2_path = M_PI + error_2_path;
     }
 
     robot_control_state.setControlState(speed,
@@ -856,7 +849,7 @@ void Controller::update()
                                         mp_.carrot_distance,
                                         signed_carrot_distance_2_robot,
                                         approaching_goal_point,
-                                        reverse_allowed);
+                                        reverseAllowed());
 
     vehicle_control_interface_->executeMotionCommand(robot_control_state);
 
