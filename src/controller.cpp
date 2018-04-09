@@ -567,6 +567,9 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
 
     leg.percent = 0.0f;
 
+    ROS_INFO_STREAM("Leg " << legs.size() << ": [" << leg.p1.x << ", " << leg.p1.y << "] -> [" << leg.p2.x << ", " << leg.p2.y << "], Length: "
+                    << leg.length << ", Backward: " << leg.backward);
+
     if (leg.length2 == 0.0f) return;
     legs.push_back(leg);
 }
@@ -644,9 +647,10 @@ void Controller::update()
             {
                 state = INACTIVE;
                 ROS_INFO("[vehicle_controller] Finished orientation correction!"
-                         " error = %f, tol = %f",
-                         goal_angle_error * 180.0 / M_PI
-                         , angular_tolerance_for_current_path * 180.0 / M_PI);
+                         " error = %f, tol = %f, trials = [%d, %d]",
+                         goal_angle_error * 180.0 / M_PI,
+                         angular_tolerance_for_current_path * 180.0 / M_PI,
+                         final_twist_trials, mp_.final_twist_trials_max);
                 final_twist_trials = 0;
                 stop();
                 if (follow_path_server_->isActive()){
@@ -782,6 +786,7 @@ void Controller::update()
         sign = rpos.dot(rpath) >= 0.0 ? 1.0 : -1.0;
     }
 
+    // Compute speed
     // Check if we need to wait
     ros::Time current_time = ros::Time::now();
     double speed;
@@ -791,21 +796,19 @@ void Controller::update()
     } else {
       // if we are lagging behind the trajectory, increase speed accordingly
       if (legs[current].finish_time != ros::Time(0)) {
-        ros::Duration dt = legs[current].finish_time - current_time;
-        if (dt.toSec() > 0.0) {
-          double dx = std::sqrt(std::pow(legs[current].p2.x - robot_control_state.pose.position.x, 2)
-                                + std::pow(legs[current].p2.y - robot_control_state.pose.position.y, 2));
-
-          speed = std::min(dx/dt.toSec(), mp_.max_controller_speed);
-        } else {
-          speed = mp_.max_controller_speed;
-        }
+            ros::Duration dt = current_time - legs[current].start_time;
+            double dx_des = dt.toSec() * legs[current].speed;
+            double dx_cur = std::sqrt(std::pow(robot_control_state.pose.position.x - legs[current].p1.x, 2)
+                                          + std::pow(robot_control_state.pose.position.y - legs[current].p1.y, 2));
+            double error = dx_des - dx_cur;
+            speed = legs[current].speed + 1.5 * error;
 
       } else {
         speed = legs[current].speed;
       }
       speed = sign * speed;
     }
+//    ROS_INFO_STREAM("Speed: " << speed);
 
     double signed_carrot_distance_2_robot =
             sign * euclideanDistance2D(carrotPose.pose.position,
@@ -876,19 +879,21 @@ void Controller::update()
     }
 
     // publish feedback
-    if (legs[current].finish_time != ros::Time(0)) {
+    if (follow_path_server_->isActive()) {
 //      ROS_INFO_STREAM_THROTTLE(1, "Current lagg: " << lagg.toSec());
       move_base_lite_msgs::FollowPathFeedback feedback;
       feedback.current_waypoint = current;
       feedback.current_percent_complete = legs[current].percent;
 //      feedback.total_percent_completer
 
-      ros::Duration total_dt = legs[current].finish_time - legs[current].start_time;
-      ros::Duration time_in_path = total_dt * legs[current].percent;
-      feedback.actual_duration_since_start = time_in_path;
-      ros::Duration current_time_since_start = current_time - legs[current].start_time;
-      ros::Duration lagg =  current_time_since_start - time_in_path;
-      feedback.current_lagg = lagg;
+      if (legs[current].finish_time != ros::Time(0)) {
+        ros::Duration total_dt = legs[current].finish_time - legs[current].start_time;
+        ros::Duration time_in_path = total_dt * legs[current].percent;
+        feedback.actual_duration_since_start = time_in_path;
+        ros::Duration current_time_since_start = current_time - legs[current].start_time;
+        ros::Duration lagg =  current_time_since_start - time_in_path;
+        feedback.current_lagg = lagg;
+      }
 
       follow_path_server_->publishFeedback(feedback);
     }
