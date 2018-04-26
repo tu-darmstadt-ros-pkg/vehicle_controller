@@ -477,7 +477,14 @@ void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 
 void Controller::speedCallback(const std_msgs::Float32& speed)
 {
-    mp_.commanded_speed = speed.data;
+  mp_.commanded_speed = speed.data;
+}
+
+void Controller::stopVehicle()
+{
+  geometry_msgs::Vector3 p;
+  robot_control_state.setControlState(0.0, p, 0, 0, mp_.carrot_distance, 0.0, false, true);
+  vehicle_control_interface_->executeMotionCommand(robot_control_state);
 }
 
 void Controller::followPathGoalCallback()
@@ -489,6 +496,7 @@ void Controller::followPathGoalCallback()
 
 void Controller::followPathPreemptCallback()
 {
+  stopVehicle();
   move_base_lite_msgs::FollowPathResult result;
   result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
   follow_path_server_->setPreempted(result, "preempt from incoming message to server");
@@ -965,9 +973,6 @@ void Controller::stop()
         cameraOrientationPublisher.publish(cameraDefaultOrientation);
 }
 
-void Controller::cleanup()
-{
-}
 
 int main(int argc, char **argv)
 {
@@ -979,7 +984,6 @@ int main(int argc, char **argv)
     {
         ros::spin();
     }
-    c.cleanup();
 
     ros::shutdown();
     return 0;

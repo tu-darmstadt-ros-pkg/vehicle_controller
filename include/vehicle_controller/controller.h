@@ -42,7 +42,6 @@ protected:
   virtual void update();
   virtual void reset();
   virtual void stop();
-  virtual void cleanup();
 
   virtual bool driveto(const geometry_msgs::PoseStamped&, double speed);
   virtual bool drivepath(const nav_msgs::Path& path);
@@ -55,6 +54,8 @@ protected:
   virtual void cmd_velTeleopCallback(const geometry_msgs::Twist&);
   virtual void speedCallback(const std_msgs::Float32&);
 
+  void stopVehicle();
+
   void followPathGoalCallback();
   void followPathPreemptCallback();
 
@@ -66,7 +67,6 @@ protected:
    *        value is used for this purpose
    */
   void addLeg(const geometry_msgs::PoseStamped &pose, double speed = 0.0);
-  void setDriveCommand(float speed, float kappa, float tan_gamma);
 
   bool reverseAllowed();
   bool pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped> &transformed_path, bool fixed_path);
