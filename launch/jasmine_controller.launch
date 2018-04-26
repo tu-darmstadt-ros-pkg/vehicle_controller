@@ -34,4 +34,6 @@
     
     <!--<remap from="/cmd_vel_teleop" to="/cmd_vel_teleop_safe" />-->
   </node>
+  
+</launch>
 
