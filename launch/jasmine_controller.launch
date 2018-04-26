@@ -1,29 +1,37 @@
 <?xml version="1.0"?>
 
 <launch>
-  <node pkg="vehicle_controller" type="controller_node" name="vehicle_controller" output="screen">
+  
+  <node pkg="vehicle_controller" type="controller_node" name="vehicle_controller" output="screen" respawn="true">
     
-    <param name="frame_id" value="map" />
+    <!--<remap from="/cmd_vel_raw" to="/cmd_vel_remap" />-->
+    <remap from="/state" to="/odom" />
     
-    <param name="carrot_distance" value="0.5" />
-    <param name="speed" value="0.18" />
-    <param name="max_speed" value="0.5" />
+    <param name="frame_id" value="world" />
+    
+    <param name="carrot_distance" value="0.2" />
     <param name="min_speed" value="0.0" />
+    <param name="check_stuck" value="false" />
+    <param name="velocity_blocked_limit" value="0.5" />
+    <param name="velocity_blocked_time" value="3.0" />
+    
+    <param name="y_symmetry" value="true" />
+    
+    <param name="max_controller_speed" value="0.5" />
+    <param name="max_unlimited_speed" value="0.6" />
+    <param name="max_unlimited_angular_rate" value="2.0" />
     <param name="max_controller_angular_rate" value="1.4" />
     
-    <param name="velocity_blocked_limit" value="0.5" />
-
     <param name="vehicle_type" value="tracked" />
     <param name="vehicle_control_type" value="differential_steering"/>
-    <param name="pd_params" value="PdParams" />
+    <param name="pd_params" value="PdParamsArgo" />
 
     <param name="goal_position_tolerance" value="0.1" />
-    <param name="goal_angle_tolerance" value="0.087266463" /><!-- 5 deg -->
+    <param name="goal_angle_tolerance" value="0.05" />
+    <param name="speed" value="0.5" />
     
     <param name="wheel_separation" value="0.34" />
-
-    <param name="check_stuck" value="true" />
-    <param name="stuck_detection_window" value="4.0" />
+    
+    <!--<remap from="/cmd_vel_teleop" to="/cmd_vel_teleop_safe" />-->
   </node>
-</launch>
 
