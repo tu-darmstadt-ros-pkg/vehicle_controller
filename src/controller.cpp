@@ -95,11 +95,11 @@ bool Controller::configure()
 
     ROS_INFO("[vehicle_controller] Low level vehicle motion controller is %s", this->vehicle_control_interface_->getName().c_str());
 
-    stateSubscriber     = nh.subscribe("state", 10, &Controller::stateCallback, this);
+    stateSubscriber     = nh.subscribe("state", 10, &Controller::stateCallback, this, ros::TransportHints().tcpNoDelay(true));
     drivetoSubscriber   = nh.subscribe("driveto", 10, &Controller::drivetoCallback, this);
     drivepathSubscriber = nh.subscribe("drivepath", 10, &Controller::drivepathCallback, this);
-    cmd_velSubscriber   = nh.subscribe("cmd_vel", 10, &Controller::cmd_velCallback, this);
-    cmd_velTeleopSubscriber = nh.subscribe("cmd_vel_teleop", 10, &Controller::cmd_velTeleopCallback, this);
+    cmd_velSubscriber   = nh.subscribe("cmd_vel", 10, &Controller::cmd_velCallback, this, ros::TransportHints().tcpNoDelay(true));
+    cmd_velTeleopSubscriber = nh.subscribe("cmd_vel_teleop", 10, &Controller::cmd_velTeleopCallback, this, ros::TransportHints().tcpNoDelay(true));
     speedSubscriber     = nh.subscribe("speed", 10, &Controller::speedCallback, this);
 
     carrotPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("carrot", 1, true);
