@@ -138,6 +138,8 @@ private:
   double dt;
 
   double velocity_error;
+  
+  geometry_msgs::PoseStamped current_pose;
 
 
   boost::shared_ptr<VehicleControlInterface> vehicle_control_interface_;
