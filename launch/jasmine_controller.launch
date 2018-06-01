@@ -32,6 +32,8 @@
     
     <param name="wheel_separation" value="0.34" />
     
+    <!--param name="check_stuck" value="true"/>-->
+    
     <!--<remap from="/cmd_vel_teleop" to="/cmd_vel_teleop_safe" />-->
   </node>
   

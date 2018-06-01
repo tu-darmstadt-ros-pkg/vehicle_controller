@@ -101,6 +101,7 @@ bool Controller::configure()
     cmd_velSubscriber   = nh.subscribe("cmd_vel", 10, &Controller::cmd_velCallback, this, ros::TransportHints().tcpNoDelay(true));
     cmd_velTeleopSubscriber = nh.subscribe("cmd_vel_teleop", 10, &Controller::cmd_velTeleopCallback, this, ros::TransportHints().tcpNoDelay(true));
     speedSubscriber     = nh.subscribe("speed", 10, &Controller::speedCallback, this);
+    poseSubscriber      = nh.subscribe("robot_pose", 10, &Controller::poseCallback, this);
 
     carrotPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("carrot", 1, true);
     endPosePoublisher   = nh.advertise<geometry_msgs::PoseStamped>("end_pose", 1, true);
@@ -167,6 +168,14 @@ bool Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
                                   / (mp_.inclination_speed_reduction_time_constant + dt);
 
     return true;
+
+}
+
+void Controller::poseCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
+{
+    
+    geometry_msgs::PoseStampedConstPtr pose = event.getConstMessage();
+    stuck->update(*pose);
 
 }
 
@@ -864,12 +873,12 @@ void Controller::update()
 
     vehicle_control_interface_->executeMotionCommand(robot_control_state);
 
-    if (check_stuck && !isDtInvalid())
+    if (check_stuck)
     {
-        geometry_msgs::PoseStamped ps;
-        ps.header = robot_state_header;
-        ps.pose   = robot_control_state.pose;
-        stuck->update(ps);
+//        geometry_msgs::PoseStamped ps;
+//        ps.header = robot_state_header;
+//        ps.pose   = robot_control_state.pose;
+//        stuck->update(ps);
         if((*stuck)(robot_control_state.desired_velocity_linear))
         {
             ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal.");

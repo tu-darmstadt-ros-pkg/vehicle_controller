@@ -53,6 +53,7 @@ protected:
   virtual void cmd_velCallback(const geometry_msgs::Twist&);
   virtual void cmd_velTeleopCallback(const geometry_msgs::Twist&);
   virtual void speedCallback(const std_msgs::Float32&);
+  virtual void poseCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&);
 
   void stopVehicle();
 
@@ -83,6 +84,8 @@ private:
   ros::Subscriber cmd_velSubscriber;
   ros::Subscriber cmd_velTeleopSubscriber;
   ros::Subscriber speedSubscriber;
+  ros::Subscriber poseSubscriber;
+
 
   ros::Publisher endPosePoublisher;
   ros::Publisher carrotPosePublisher;
