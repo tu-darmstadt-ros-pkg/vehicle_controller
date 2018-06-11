@@ -115,22 +115,25 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     this->limitTwist(twist, mp_->max_controller_speed, mp_->max_controller_angular_rate);
     cmd_vel_raw_pub_.publish(twist);
 
-    monstertruck_msgs::Pdout pdout;
-    pdout.header.frame_id = "world";
-    pdout.header.stamp = ros::Time::now();
-    pdout.approaching_goal_point = approaching_goal_point;
-    pdout.dt = dt;
-    pdout.e_position = e_position;
-    pdout.e_angle = e_angle;
-    pdout.de_position_dt = de_position_dt;
-    pdout.de_angle_dt = de_angle_dt;
-    pdout.speed = speed;
-    pdout.z_twist = z_angular_rate;
-    pdout.z_twist_real = twist.angular.z;
-    pdout.z_twist_deg = z_angular_rate / M_PI * 180;
-    pdout.speed_real = twist.linear.x;
-    pdout.z_twist_deg_real = twist.angular.z / M_PI * 180;
-    pdout_pub_.publish(pdout);
+    if (pdout_pub_.getNumSubscribers() > 0)
+    {
+      monstertruck_msgs::Pdout pdout;
+      pdout.header.frame_id = "world";
+      pdout.header.stamp = ros::Time::now();
+      pdout.approaching_goal_point = approaching_goal_point;
+      pdout.dt = dt;
+      pdout.e_position = e_position;
+      pdout.e_angle = e_angle;
+      pdout.de_position_dt = de_position_dt;
+      pdout.de_angle_dt = de_angle_dt;
+      pdout.speed = speed;
+      pdout.z_twist = z_angular_rate;
+      pdout.z_twist_real = twist.angular.z;
+      pdout.z_twist_deg = z_angular_rate / M_PI * 180;
+      pdout.speed_real = twist.linear.x;
+      pdout.z_twist_deg_real = twist.angular.z / M_PI * 180;
+      pdout_pub_.publish(pdout);
+    }
 
     previous_e_angle = e_angle;
     previous_e_position = e_position;
