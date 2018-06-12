@@ -338,7 +338,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
 
     // If path is too short, drive directly to last point
     if (map_path.size() <= 2) {
-      driveto(map_path.back(), options.desired_speed);
+      return driveto(map_path.back(), options.desired_speed);      
     }
 
     start = map_path[0];
