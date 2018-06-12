@@ -337,7 +337,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     endPosePoublisher.publish(ptbp);
 
     // If path is too short, drive directly to last point
-    if (map_path.size() <= 2) {
+    if (map_path.size() <= 1) {
       return driveto(map_path.back(), options.desired_speed);      
     }
 
