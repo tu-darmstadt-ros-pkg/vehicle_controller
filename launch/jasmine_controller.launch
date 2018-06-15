@@ -15,7 +15,7 @@
     <param name="velocity_blocked_limit" value="0.5" />
     <param name="velocity_blocked_time" value="3.0" />
     
-    <param name="y_symmetry" value="true" />
+    <param name="y_symmetry" value="false" />
     
     <param name="max_controller_speed" value="0.5" />
     <param name="max_unlimited_speed" value="0.6" />

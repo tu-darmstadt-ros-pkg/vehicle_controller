@@ -606,6 +606,18 @@ bool Controller::reverseAllowed()
   }
 }
 
+bool Controller::reverseForced()
+{
+  return false;
+  if (follow_path_server_->isActive()) {
+      return follow_path_goal_->follow_path_options.reverse_forced;
+  } else {
+      return false;
+  }
+    
+    
+}
+
 void Controller::reset()
 {
     state = INACTIVE;
@@ -800,7 +812,12 @@ void Controller::update()
 
         vec3 rpath = /*rq **/ rdp;
         vec3 rpos = rq * vec3(1,0,0);
-        sign = rpos.dot(rpath) >= 0.0 ? 1.0 : -1.0;
+        if (reverseForced()) {
+            rpos.dot(rpath);
+            sign = -1.0;
+        } else {
+            sign = rpos.dot(rpath) >= 0.0 ? 1.0 : -1.0;
+        }
     }
 
     // Compute speed

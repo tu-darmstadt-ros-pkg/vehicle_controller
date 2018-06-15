@@ -70,6 +70,7 @@ protected:
   void addLeg(const geometry_msgs::PoseStamped &pose, double speed = 0.0);
 
   bool reverseAllowed();
+  bool reverseForced();
   bool pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped> &transformed_path, bool fixed_path);
   bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
   geometry_msgs::PoseStamped createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation);
