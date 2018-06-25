@@ -7,3 +7,8 @@ add_library(vehicle_controller_lib controller.cpp ps3d.cpp differential_drive_co
 add_dependencies(vehicle_controller_lib ${${PROJECT_NAME}_EXPORTED_TARGETS} monstertruck_msgs_generate_messages_cpp)
 target_link_libraries(vehicle_controller_lib ${catkin_LIBRARIES})
 
+install(TARGETS controller_node vehicle_controller_lib
+   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
