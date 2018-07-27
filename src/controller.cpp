@@ -227,12 +227,18 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
     start = geometry_msgs::PoseStamped();
     start.pose = robot_control_state.pose;
     addLeg(goal_transformed, speed);
-    state = DRIVETO;
+    if (legs.size() > 0) {
+      state = DRIVETO;
 
-    ROS_INFO("[vehicle_controller] Received new goal point (x = %.2f, y = %.2f), backward = %d.",
-             goal_transformed.pose.position.x, goal_transformed.pose.position.y, legs.back().backward);
+      ROS_INFO("[vehicle_controller] Received new goal point (x = %.2f, y = %.2f, orient.z = %.2f), backward = %d.",
+               goal_transformed.pose.position.x, goal_transformed.pose.position.y, goal_transformed.pose.orientation.z,
+               legs.back().backward);
 
-    final_twist_trials = 0;
+      final_twist_trials = 0;
+    } else {
+      ROS_WARN("[vehicle_controller] No leg created for new goal point (x = %.2f, y = %.2f, orient.z = %.2f)!",
+               goal_transformed.pose.position.x, goal_transformed.pose.position.y, goal_transformed.pose.orientation.z);
+    }
     return true;
 }
 
