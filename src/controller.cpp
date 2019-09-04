@@ -499,6 +499,10 @@ void Controller::stopVehicle()
 void Controller::followPathGoalCallback()
 {
   follow_path_goal_ = follow_path_server_->acceptNewGoal();
+  if (follow_path_goal_->follow_path_options.reset_stuck_history)
+  {
+      stuck->reset();
+  }
   drivepath(follow_path_goal_->target_path);
   drivepathPublisher.publish(follow_path_goal_->target_path);
 }
