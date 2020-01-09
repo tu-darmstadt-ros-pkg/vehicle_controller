@@ -32,13 +32,17 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
 
 include_directories(${catkin_INCLUDE_DIRS} include)
 
-add_library(vehicle_controller_lib src/ps3d.cpp src/differential_drive_controller.cpp src/stuck_detector.cpp src/four_wheel_steer_controller.cpp)
+add_library(vehicle_controller_lib src/ps3d.cpp src/differential_drive_controller.cpp src/stuck_detector.cpp src/four_wheel_steer_controller.cpp src/daf_controller.cpp)
 add_dependencies(vehicle_controller_lib ${${PROJECT_NAME}_EXPORTED_TARGETS} monstertruck_msgs_generate_messages_cpp)
 target_link_libraries(vehicle_controller_lib ${catkin_LIBRARIES})
 
 add_executable(controller_node src/controller.cpp)
 add_dependencies(controller_node ${${PROJECT_NAME}_EXPORTED_TARGETS} vehicle_controller_lib monstertruck_msgs_generate_messages_cpp)
 target_link_libraries(controller_node vehicle_controller_lib ${catkin_LIBRARIES})
+
+#add_executable(daf_controller_node src/daf_controller.cpp)
+#add_dependencies(daf_controller_node ${${PROJECT_NAME}_EXPORTED_TARGETS} vehicle_controller_lib monstertruck_msgs_generate_messages_cpp)
+#target_link_libraries(daf_controller_node vehicle_controller_lib ${catkin_LIBRARIES})
 
 #############
 ## Install ##

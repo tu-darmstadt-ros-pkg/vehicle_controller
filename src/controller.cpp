@@ -17,6 +17,8 @@
 #include <sstream>
 #include <functional>
 
+#include <vehicle_controller/daf_controller.h>
+
 Controller::Controller(const std::string& ns)
     : nh(ns), state(INACTIVE), stuck(new StuckDetector)
 {
@@ -1008,8 +1010,10 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, ROS_PACKAGE_NAME);
 
-    Controller c;
-    c.configure();
+//    Controller c;
+//    c.configure();
+    Daf_Controller dc;
+    dc.configure();
     while(ros::ok())
     {
         ros::spin();
