@@ -178,7 +178,7 @@ private:
   bool move_robot;
   bool enable_angle_compensation;
   bool enable_ground_compensation;
-  bool enable_velocity_encrease;
+  bool enable_velocity_increase;
 
   double angle_diff;
   double pub_cmd_hz;

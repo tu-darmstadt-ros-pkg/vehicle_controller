@@ -20,43 +20,44 @@
 #include <vehicle_controller/daf_controller.h>
 
 Daf_Controller::Daf_Controller(const std::string& ns)
-    : nh(ns), state(INACTIVE), stuck(new StuckDetector)
+  : nh(ns), state(INACTIVE), stuck(new StuckDetector)
 {
-    mp_.min_speed       = 0.0;
-    mp_.commanded_speed = 0.0;
-    mp_.max_controller_speed = 0.25;
-    mp_.max_unlimited_speed = 2.0;
-    mp_.max_unlimited_angular_rate = 1.0;
-    mp_.max_controller_angular_rate =  0.4;
-    mp_.inclination_speed_reduction_factor = 0.5 / (30 * M_PI/180.0); // 0.5 per 30 degrees
-    mp_.inclination_speed_reduction_time_constant = 0.3;
-    mp_.pd_params = "PdParams";
 
-    map_frame_id = "nav";
-    base_frame_id = "base_link";
+  //General controller params
+  mp_.min_speed       = 0.0;
+  mp_.commanded_speed = 0.0;
+  mp_.max_controller_speed = 0.25;
+  mp_.max_unlimited_speed = 2.0;
+  mp_.max_unlimited_angular_rate = 1.0;
+  mp_.max_controller_angular_rate =  0.4;
+  mp_.inclination_speed_reduction_factor = 0.5 / (30 * M_PI/180.0); // 0.5 per 30 degrees
+  mp_.inclination_speed_reduction_time_constant = 0.3;
 
-    final_twist_trials = 0;
+  map_frame_id = "nav";
+  base_frame_id = "base_link";
 
-    camera_control = false;
-    camera_lookat_distance = 1.0;
-    camera_lookat_height = -0.2;
+  final_twist_trials = 0;
 
-    check_stuck = true;
+  camera_control = false;
+  camera_lookat_distance = 1.0;
+  camera_lookat_height = -0.2;
 
-    mp_.current_inclination = 0.0;
-    velocity_error = 0.0;
+  check_stuck = true;
 
-    cameraDefaultOrientation.header.frame_id = "base_stabilized";
-    tf::Quaternion cameraOrientationQuaternion;
-    cameraOrientationQuaternion.setEuler(0.0, 25.0*M_PI/180.0, 0.0);
-    tf::quaternionTFToMsg(cameraOrientationQuaternion, cameraDefaultOrientation.quaternion);
+  mp_.current_inclination = 0.0;
+  velocity_error = 0.0;
 
-    follow_path_server_.reset(new actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>(nh, "/controller/follow_path", 0, false));
+  cameraDefaultOrientation.header.frame_id = "base_stabilized";
+  tf::Quaternion cameraOrientationQuaternion;
+  cameraOrientationQuaternion.setEuler(0.0, 25.0*M_PI/180.0, 0.0);
+  tf::quaternionTFToMsg(cameraOrientationQuaternion, cameraDefaultOrientation.quaternion);
 
-    follow_path_server_->registerGoalCallback(boost::bind(&Daf_Controller::followPathGoalCallback, this));
-    follow_path_server_->registerPreemptCallback(boost::bind(&Daf_Controller::followPathPreemptCallback, this));
+  follow_path_server_.reset(new actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>(nh, "/controller/follow_path", 0, false));
 
-    follow_path_server_->start();
+  follow_path_server_->registerGoalCallback(boost::bind(&Daf_Controller::followPathGoalCallback, this));
+  follow_path_server_->registerPreemptCallback(boost::bind(&Daf_Controller::followPathPreemptCallback, this));
+
+  follow_path_server_->start();
 }
 
 Daf_Controller::~Daf_Controller()
@@ -71,13 +72,16 @@ bool Daf_Controller::configure()
     params.param<double>("execution_period", execution_period, 1.0);
     params.param<double>("update_skip_until_vel_increase", update_skip, 5);
     params.param<double>("lower_al_angle", lower_al_angle, 0.2);              //this angle determine when angle correction is executed
-    params.param<double>("upper_al_angle", upper_al_angle, 0.6);              //this angle determine middle robot correction wich is compensate in linear movment
-                                                                              //smaller correction angle means better fiting of trajectories
-    params.param<bool>("enable_angle_compensation", enable_angle_compensation, true);
-    params.param<bool>("enable_ground_compensation", enable_ground_compensation, true);
-    params.param<bool>("enable_velocity_encrease", enable_velocity_encrease, true);
-    params.param<bool>("show_trajectory_planing", show_trajectory_planing, false);
+    params.param<double>("upper_al_angle", upper_al_angle, 1.0);              //this angle determine middle robot correction wich is compensate in linear movment
+                                                                    //smaller correction angle means better fiting of trajectories
+    params.param("enable_angle_compensation", enable_angle_compensation, true);
+    params.param("enable_ground_compensation", enable_ground_compensation, true);
+    params.param("enable_velocity_increase", enable_velocity_increase, true);
+    params.param("show_trajectory_planing", show_trajectory_planing, false);
     params.param<double>("stability_angle", stability_angle, 1.0);
+
+    params.getParam("max_controller_speed", mp_.max_controller_speed);
+    params.getParam("max_controller_angular_rate", mp_.max_controller_angular_rate);
 
     params.getParam("min_speed", mp_.min_speed);
     params.getParam("frame_id", map_frame_id);
@@ -210,15 +214,12 @@ void Daf_Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
 
   if (state < DRIVETO) return;
 
-  ROS_INFO("calc local path0");
-
   this->updateRobotState(*latest_odom_);
 
   if(move_robot)
   {
   //calculate local path
 
-  ROS_INFO("calc local path1");
   calc_local_path();
 
   //increase velocity if robot dose not move
@@ -707,36 +708,37 @@ bool Daf_Controller::reverseForced()
 
 void Daf_Controller::reset()
 {
-    state = INACTIVE;
-    current = 0;
-    final_twist_trials = 0;
-    dt = 0.0;
-    legs.clear();
+  //ROS_INFO("RESET");
+  state = INACTIVE;
+  current = 0;
+  final_twist_trials = 0;
+  dt = 0.0;
+  legs.clear();
 
-    alignment_finished = false;
-    co_unchanged = 0;
-    st_point = 0;
-    path_po_lenght = 0;
-    lin_vel = mp_.max_controller_speed/2;
+  alignment_finished = true;
+  co_unchanged = 0;
+  st_point = 0;
+  path_po_lenght = 0;
+  lin_vel = mp_.max_controller_speed/2;
 
-    //save reference for linar velocity
-    lin_vel_ref = lin_vel;
+  //save reference for linar velocity
+  lin_vel_ref = lin_vel;
 
-    //rot_vel_dir = 1;
-    //rot_dir_opti = 1;
-    imu_yaw = 0;
-    imu_pitch = 0;
-    imu_roll = 0;
-    old_pos_x = 0;
-    old_pos_y = 0;
-    rad = 0;
-    err_cont = 0;
-    oscilation_rotation = 1;
+  //rot_vel_dir = 1;
+  //rot_dir_opti = 1;
+  imu_yaw = 0;
+  imu_pitch = 0;
+  imu_roll = 0;
+  old_pos_x = 0;
+  old_pos_y = 0;
+  rad = 0;
+  err_cont = 0;
+  oscilation_rotation = 1;
 
-    move_robot = false;
-    cmd.linear.x = 0.0;
-    cmd.angular.z = 0.0;
-    cmd_vel_pub.publish(cmd);
+  move_robot = false;
+  cmd.linear.x = 0.0;
+  cmd.angular.z = 0.0;
+  cmd_vel_pub.publish(cmd);
 }
 
 /*****************************************************************************************************************
@@ -744,7 +746,6 @@ void Daf_Controller::reset()
  */
 void Daf_Controller::calc_local_path()
 {
-  ROS_INFO("calc local path2");
     path_po_lenght = 0;
     //calculate path_po_lenght
     for(int i=0; i < psize; i++)
@@ -1143,7 +1144,7 @@ void Daf_Controller::velocity_increase()
         {
             co_unchanged = 0;
 
-            if(enable_velocity_encrease == true)
+            if(enable_velocity_increase == true)
             {
 
                 lin_vel = lin_vel + mp_.max_controller_speed/10;
@@ -1207,7 +1208,8 @@ void Daf_Controller::calculate_cmd()
         if((fabs(al_an_diff) > (lower_al_angle + upper_al_angle))||(alignment_finished == false))
         {
             // turn in place
-            //ROS_INFO("ROBOT IS ALIGNING || yaw: %f angle: %f", yaw*57.2957795, alignment_angle*57.2957795);
+            ROS_INFO("ROBOT IS ALIGNING || yaw: %f angle: %f al_an_diff: %f", yaw, alignment_angle);
+            ROS_INFO("lower_al: %f upper_al: %f",lower_al_angle, upper_al_angle );
             if (yaw > alignment_angle)
             {
                 cmd.linear.x = 0.0;
@@ -1247,7 +1249,7 @@ void Daf_Controller::calculate_cmd()
         // else if difference is between lower treshold (angle correction) and upper treshold (middle_al_offset) the angle compensation is used
         else if((fabs(al_an_diff) > lower_al_angle)&&((fabs(al_an_diff) < (lower_al_angle + upper_al_angle))))  //||(alignment_finished == false)
         {
-            //ROS_INFO("DRIVE ROBOT MIDDLE STAGE || yaw: %f al_angle: %f", yaw*57.2957795, alignment_angle*57.2957795);
+            ROS_INFO("DRIVE ROBOT MIDDLE STAGE || yaw: %f al_angle: %f", yaw*57.2957795, alignment_angle*57.2957795);
 
             calculate_al_rot();
 

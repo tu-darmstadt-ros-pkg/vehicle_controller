@@ -8,7 +8,19 @@
     <remap from="/state" to="/odom" />
     
     <param name="frame_id" value="world" />
-    
+
+    <param name="pub_cmd_hz" value="10" />
+    <param name="rot_correction_factor" value="1.0" />
+    <param name="execution_period" value="1.0" />
+    <param name="update_skip_until_vel_increase" value="5" />
+    <param name="lower_al_angle" value="0.2" />
+    <param name="upper_al_angle" value="1.0" />
+    <param name="enable_angle_compensation" value="true" />
+    <param name="enable_ground_compensation" value="true" />
+    <param name="enable_velocity_increase" value="true" />
+    <param name="show_trajectory_planing" value="false" />
+    <param name="stability_angle" value="1.0" />
+
     <param name="carrot_distance" value="0.2" />
     <param name="min_speed" value="0.0" />
     <param name="velocity_blocked_limit" value="0.6" />

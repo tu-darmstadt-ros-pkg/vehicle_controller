@@ -1008,17 +1008,19 @@ void Controller::stop()
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, ROS_PACKAGE_NAME);
+  ros::init(argc, argv, ROS_PACKAGE_NAME);
 
-//    Controller c;
-//    c.configure();
-    Daf_Controller dc;
-    dc.configure();
-    while(ros::ok())
-    {
-        ros::spin();
-    }
+//  Controller c;
+//  c.configure();
 
-    ros::shutdown();
-    return 0;
+  Daf_Controller dc;
+  dc.configure();
+
+  while(ros::ok())
+  {
+    ros::spin();
+  }
+
+  ros::shutdown();
+  return 0;
 }
