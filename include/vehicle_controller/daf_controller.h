@@ -190,6 +190,7 @@ private:
   double update_skip;
   double curr_dist;
   double rot_dir_opti, rot_vel_dir;
+  double lin_vel_dir;
   double lin_vel, rot_vel, dist, lin_vel_ref;
   double points[50][2];
   double max_H, Wid, rad;

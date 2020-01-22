@@ -11,7 +11,7 @@
 
     <param name="pub_cmd_hz" value="10" />
     <param name="rot_correction_factor" value="1.0" />
-    <param name="execution_period" value="1.0" />
+    <param name="execution_period" value="0.5" />
     <param name="update_skip_until_vel_increase" value="5" />
     <param name="lower_al_angle" value="0.2" />
     <param name="upper_al_angle" value="1.0" />

@@ -558,7 +558,7 @@ void Daf_Controller::followPathGoalCallback()
   drivepathPublisher.publish(follow_path_goal_->target_path);
 
   psize = (int)curr_path.poses.size();
-  dist = abs(execution_period*mp_.max_controller_speed);
+  dist = fabs(execution_period*mp_.max_controller_speed);
 
   if(psize > 0)
   {
@@ -726,19 +726,16 @@ void Daf_Controller::reset()
 
   //rot_vel_dir = 1;
   //rot_dir_opti = 1;
-  imu_yaw = 0;
-  imu_pitch = 0;
-  imu_roll = 0;
   old_pos_x = 0;
   old_pos_y = 0;
   rad = 0;
   err_cont = 0;
-  oscilation_rotation = 1;
+  //oscilation_rotation = 1;
 
-  move_robot = false;
-  cmd.linear.x = 0.0;
-  cmd.angular.z = 0.0;
-  cmd_vel_pub.publish(cmd);
+  //move_robot = false;
+  //cmd.linear.x = 0.0;
+  //cmd.angular.z = 0.0;
+  //cmd_vel_pub.publish(cmd);
 }
 
 /*****************************************************************************************************************
@@ -750,11 +747,11 @@ void Daf_Controller::calc_local_path()
     //calculate path_po_lenght
     for(int i=0; i < psize; i++)
     {
-        double curr_dist_x = abs(odom.pose.pose.position.x - curr_path.poses[i].pose.position.x);
-        double curr_dist_y = abs(odom.pose.pose.position.y - curr_path.poses[i].pose.position.y);
+        double curr_dist_x =fabs(odom.pose.pose.position.x - curr_path.poses[i].pose.position.x);
+        double curr_dist_y =fabs(odom.pose.pose.position.y - curr_path.poses[i].pose.position.y);
         double curr_dist = sqrt(curr_dist_x*curr_dist_x + curr_dist_y*curr_dist_y);
 
-        if(abs(curr_dist) > dist) //search for points
+        if(fabs(curr_dist) > dist) //search for points
         {
             continue;
         }
@@ -771,9 +768,9 @@ void Daf_Controller::calc_local_path()
     for(int i=0; i < psize; i++)
     {
         double po_dist = sqrt((curr_path.poses[i].pose.position.x - points[0][0])*(curr_path.poses[i].pose.position.x - points[0][0]) + (curr_path.poses[i].pose.position.y - points[0][1])*(curr_path.poses[i].pose.position.y - points[0][1]));
-        if(abs(po_dist) < min_dif)
+        if(fabs(po_dist) < min_dif)
         {
-            min_dif = abs(po_dist);
+            min_dif = fabs(po_dist);
             st_point = i;
         }
     }
@@ -1042,8 +1039,8 @@ void Daf_Controller::calc_ground_compensation()
     if(enable_ground_compensation == true)
     {
         //ROS_INFO("Distances before ground compensation: max_H: %f and W: %f", max_H, Wid);
-        double dh = abs((max_H/cos(roll))-max_H);
-        double dw = abs((Wid/cos(pitch))-Wid);
+        double dh = fabs((max_H/cos(roll))-max_H);
+        double dw = fabs((Wid/cos(pitch))-Wid);
         //ROS_INFO("Angle compensation diferences: dh: %f, dw: %f", dh, dw);
         max_H = max_H + dh;
         Wid = Wid + dw;
@@ -1115,7 +1112,7 @@ void Daf_Controller::calc_angel_compensation()
             }
         }
 
-        double add_al_rot = abs(angle_diff/(execution_period));
+        double add_al_rot = fabs(angle_diff/(execution_period));
         //ROS_INFO("Additional Alignment Rotation: %f", add_al_rot);
 
         rot_vel = rot_vel_dir * lin_vel/rad*rot_correction_factor + rot_dir_opti*add_al_rot;
@@ -1127,7 +1124,7 @@ void Daf_Controller::calc_angel_compensation()
     }
 }
 /*****************************************************************************************************************
- * Increase Velocity if Robot Dose not Move
+ * Increase Velocity if Robot Does not Move
  */
 void Daf_Controller::velocity_increase()
 {
@@ -1188,129 +1185,172 @@ void Daf_Controller::velocity_increase()
  */
 void Daf_Controller::calculate_cmd()
 {
-    if(move_robot == true)
-    {
-  //check if robot has reached a treshod for inclination
-  check_robot_stability();
+  if(move_robot == true)
+  {
+    double linear_tolerance_for_current_path = default_path_options_.goal_pose_position_tolerance;
+    double angular_tolerance_for_current_path = default_path_options_.goal_pose_angle_tolerance;
 
-        ROS_INFO_ONCE("Start calculating cmd velocity!");
-        //do algnment if angle is too large do alignment
+    if (follow_path_server_->isActive()){
+      if (follow_path_goal_->follow_path_options.goal_pose_position_tolerance > 0.0){
+        linear_tolerance_for_current_path = follow_path_goal_->follow_path_options.goal_pose_position_tolerance;
+      }
+
+      if (follow_path_goal_->follow_path_options.goal_pose_angle_tolerance > 0.0){
+        angular_tolerance_for_current_path = follow_path_goal_->follow_path_options.goal_pose_angle_tolerance;
+      }
+    }
+    double goal_position_error =
+            std::sqrt(
+                std::pow(curr_path.poses.back().pose.position.x - odom.pose.pose.position.x, 2)
+              + std::pow(curr_path.poses.back().pose.position.y - odom.pose.pose.position.y, 2));
+
+
+    //check if robot has reached a treshod for inclination
+    check_robot_stability();
+
+    ROS_INFO_ONCE("Start calculating cmd velocity!");
+    //do algnment if angle is too large do alignment
+    al_an_diff = alignment_angle - yaw;
+
+    if(al_an_diff > M_PI)
+    {
+      al_an_diff = -2 * M_PI + al_an_diff;
+    }
+    else if (al_an_diff < -M_PI){
+      al_an_diff = 2 * M_PI + al_an_diff;
+    }
+
+    //check if robot should drive backwards
+    lin_vel_dir = 1;
+
+    if (reverseAllowed()){
+      if(fabs(al_an_diff) > M_PI/2){
+        lin_vel_dir = -1;
+
+        if(alignment_angle < 0){
+          alignment_angle = alignment_angle + M_PI;
+        }
+        else{
+          alignment_angle = alignment_angle - M_PI;
+        }
+
         al_an_diff = alignment_angle - yaw;
 
         if(al_an_diff > M_PI)
         {
-            al_an_diff = 2 * M_PI - al_an_diff;
+          al_an_diff = -2 * M_PI + al_an_diff;
+        }
+        else if (al_an_diff < -M_PI){
+          al_an_diff = 2 * M_PI + al_an_diff;
         }
 
-        calculate_al_rot();
-
-         // if difference is larger thatn both tresholds angle_correction and middle al_offset
-        if((fabs(al_an_diff) > (lower_al_angle + upper_al_angle))||(alignment_finished == false))
-        {
-            // turn in place
-            ROS_INFO("ROBOT IS ALIGNING || yaw: %f angle: %f al_an_diff: %f", yaw, alignment_angle);
-            ROS_INFO("lower_al: %f upper_al: %f",lower_al_angle, upper_al_angle );
-            if (yaw > alignment_angle)
-            {
-                cmd.linear.x = 0.0;
-                cmd.angular.z = rot_dir_opti*mp_.max_controller_speed/2;
-            }
-            else if (yaw < alignment_angle)
-            {
-                cmd.linear.x = 0.0;
-                cmd.angular.z = rot_dir_opti*mp_.max_controller_speed/2;
-            }
-
-            if(fabs(al_an_diff) < lower_al_angle/2)
-            {
-                alignment_finished = true;
-                ROS_INFO("Alignment completed!");
-                err_cont = 0;
-            }else
-            {
-                alignment_finished = false;
-
-                //if robot misses alignment angle
-                ++err_cont;
-                if(err_cont > pub_cmd_hz*8) //second for delay
-                {
-                  if (follow_path_server_->isActive()){
-                    move_base_lite_msgs::FollowPathResult result;
-                    result.result.val = move_base_lite_msgs::ErrorCodes::STUCK_DETECTED;
-                    follow_path_server_->setAborted(result, "robot misses alignment angle");
-                  }
-                  reset();
-                  ROS_WARN("If your robot is oscilating, please increase lower_al_angle and upper_al_angle parameter (recommended: lower_al_angle=0.6, upper_al_angle=1.0)");
-                  ROS_WARN("Requesting new path!");
-
-                }
-            }
-        }
-        // else if difference is between lower treshold (angle correction) and upper treshold (middle_al_offset) the angle compensation is used
-        else if((fabs(al_an_diff) > lower_al_angle)&&((fabs(al_an_diff) < (lower_al_angle + upper_al_angle))))  //||(alignment_finished == false)
-        {
-            ROS_INFO("DRIVE ROBOT MIDDLE STAGE || yaw: %f al_angle: %f", yaw*57.2957795, alignment_angle*57.2957795);
-
-            calculate_al_rot();
-
-            //add additional rotation speed based on ground
-            calc_angel_compensation();
-
-            cmd.linear.x = lin_vel;
-            cmd.angular.z = rot_vel;
-
-            //check for global goal proximitiy
-            glo_pos_diff_x = abs(odom.pose.pose.position.x - curr_path.poses[psize-1].pose.position.x);
-            glo_pos_diff_y = abs(odom.pose.pose.position.y - curr_path.poses[psize-1].pose.position.y);
-            if((glo_pos_diff_x < follow_path_goal_->follow_path_options.goal_pose_position_tolerance)&&(glo_pos_diff_y < follow_path_goal_->follow_path_options.goal_pose_position_tolerance))
-            {
-                ROS_INFO("GLOBAL GOAL REACHED");
-                cmd.linear.x = 0;
-                cmd.angular.z = 0;
-                //goal reach reporting
-                if (follow_path_server_->isActive()){
-                  move_base_lite_msgs::FollowPathResult result;
-                  result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
-                  follow_path_server_->setSucceeded(result, "reached goal");
-                }
-                move_robot = false;
-            }
-        }
-        //if difference is below lower treshold ()
-        else
-        {
-            //ROS_INFO("DRIVE ROBOT || yaw: %f al_angle: %f", yaw*57.2957795, alignment_angle*57.2957795);
-
-            calculate_al_rot();
-
-            rot_vel = rot_vel_dir * lin_vel/rad*rot_correction_factor;  //pazi za meso je dva krat
-
-            cmd.linear.x = lin_vel;
-            cmd.angular.z = rot_vel;
-
-            //check for global goal proximitiy
-            glo_pos_diff_x = fabs(odom.pose.pose.position.x - curr_path.poses[psize-1].pose.position.x);
-            glo_pos_diff_y = fabs(odom.pose.pose.position.y - curr_path.poses[psize-1].pose.position.y);
-            if((glo_pos_diff_x < follow_path_goal_->follow_path_options.goal_pose_position_tolerance)&&(glo_pos_diff_y < follow_path_goal_->follow_path_options.goal_pose_position_tolerance))
-            {
-                ROS_INFO("GLOBAL GOAL REACHED");
-                cmd.linear.x = 0;
-                cmd.angular.z = 0;
-                //goal reach reporting
-                if (follow_path_server_->isActive()){
-                  move_base_lite_msgs::FollowPathResult result;
-                  result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
-                  follow_path_server_->setSucceeded(result, "reached goal");
-                }
-                move_robot = false;
-
-            }
-         }
-
-        //publish commad
-        cmd_vel_pub.publish(cmd);
-        ROS_INFO("published velocity: lin: %f rot: %f rad: %f" , cmd.linear.x, cmd.angular.z, rad);
+      }
     }
+
+    calculate_al_rot();
+
+    // if difference is larger thatn both tresholds angle_correction and middle al_offset
+    if((fabs(al_an_diff) > (lower_al_angle + upper_al_angle))||(alignment_finished == false))
+    {
+      // turn in place
+      ROS_INFO("ROBOT IS ALIGNING || yaw: %f angle: %f al_an_diff: %f", yaw, alignment_angle, al_an_diff);
+      ROS_INFO("lower_al: %f upper_al: %f",lower_al_angle, upper_al_angle );
+      if (yaw > alignment_angle)
+      {
+        cmd.linear.x = 0.0;
+        cmd.angular.z = rot_dir_opti*mp_.max_controller_speed/2;
+      }
+      else if (yaw < alignment_angle)
+      {
+        cmd.linear.x = 0.0;
+        cmd.angular.z = rot_dir_opti*mp_.max_controller_speed/2;
+      }
+
+      if(fabs(al_an_diff) < lower_al_angle/2)
+      {
+        alignment_finished = true;
+        ROS_INFO("Alignment completed!");
+        err_cont = 0;
+      }else
+      {
+        alignment_finished = false;
+
+        //if robot misses alignment angle
+        ++err_cont;
+        if(err_cont > pub_cmd_hz*8) //second for delay
+        {
+          if (follow_path_server_->isActive()){
+            move_base_lite_msgs::FollowPathResult result;
+            result.result.val = move_base_lite_msgs::ErrorCodes::STUCK_DETECTED;
+            follow_path_server_->setAborted(result, "robot misses alignment angle");
+          }
+          reset();
+          ROS_WARN("If your robot is oscilating, please increase lower_al_angle and upper_al_angle parameter (recommended: lower_al_angle=0.6, upper_al_angle=1.0)");
+          ROS_WARN("Requesting new path!");
+
+        }
+      }
+    }
+    // else if difference is between lower treshold (angle correction) and upper treshold (middle_al_offset) the angle compensation is used
+    else if((fabs(al_an_diff) > lower_al_angle)&&((fabs(al_an_diff) < (lower_al_angle + upper_al_angle))))  //||(alignment_finished == false)
+    {
+      ROS_INFO("DRIVE ROBOT MIDDLE STAGE || yaw: %f al_angle: %f", yaw*57.2957795, alignment_angle*57.2957795);
+
+      //add additional rotation speed based on ground
+      calc_angel_compensation();
+
+      cmd.linear.x = lin_vel_dir * lin_vel;
+      cmd.angular.z = rot_vel;
+
+      //check for global goal proximitiy
+      if(goal_position_error < linear_tolerance_for_current_path)
+      {
+        ROS_INFO("GLOBAL GOAL REACHED");
+        cmd.linear.x = 0;
+        cmd.angular.z = 0;
+        //goal reach reporting
+        if (follow_path_server_->isActive()){
+          move_base_lite_msgs::FollowPathResult result;
+          result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
+          follow_path_server_->setSucceeded(result, "reached goal");
+        }
+        move_robot = false;
+      }
+    }
+    //if difference is below lower treshold ()
+    else
+    {
+      //ROS_INFO("DRIVE ROBOT || yaw: %f al_angle: %f", yaw*57.2957795, alignment_angle*57.2957795);
+
+      rot_vel = rot_vel_dir * lin_vel/rad*rot_correction_factor;  //pazi za meso je dva krat
+
+      cmd.linear.x = lin_vel_dir * lin_vel;
+      cmd.angular.z = rot_vel;
+
+      //check for global goal proximitiy
+      if(goal_position_error < linear_tolerance_for_current_path)
+      {
+        ROS_INFO("GLOBAL GOAL REACHED");
+        cmd.linear.x = 0;
+        cmd.angular.z = 0;
+        //goal reach reporting
+        if (follow_path_server_->isActive()){
+          move_base_lite_msgs::FollowPathResult result;
+          result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
+          follow_path_server_->setSucceeded(result, "reached goal");
+        }
+        move_robot = false;
+
+      }
+    }
+
+    //publish commad
+    cmd_vel_pub.publish(cmd);
+    //ROS_INFO("published velocity: lin: %f rot: %f rad: %f" , cmd.linear.x, cmd.angular.z, rad);
+    //ROS_INFO("alignment_angle: %f, yaw: %f al_an_diff: %f", alignment_angle, yaw, al_an_diff);
+    //ROS_INFO("rot_vel_dir: %f, rot_dir_opti: %f ", rot_vel_dir, rot_dir_opti);
+    ROS_INFO("goal_position_error: %f, tolerance: %f", goal_position_error, linear_tolerance_for_current_path);
+  }
 }
 
 
@@ -1326,16 +1366,16 @@ void Daf_Controller::stop()
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, ROS_PACKAGE_NAME);
+  ros::init(argc, argv, ROS_PACKAGE_NAME);
 
-    //Controller c;
-    Daf_Controller dc;
-    dc.configure();
-    while(ros::ok())
-    {
-        ros::spin();
-    }
+  //Controller c;
+  Daf_Controller dc;
+  dc.configure();
+  while(ros::ok())
+  {
+    ros::spin();
+  }
 
-    ros::shutdown();
-    return 0;
+  ros::shutdown();
+  return 0;
 }
