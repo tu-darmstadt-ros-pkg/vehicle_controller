@@ -9,6 +9,7 @@
 #include <tf/transform_datatypes.h>
 #include <limits>
 
+#include <sensor_msgs/Imu.h>
 #include <geometry_msgs/PointStamped.h>
 #include <std_msgs/Float32.h>
 #include <std_msgs/String.h>
@@ -43,6 +44,7 @@ protected:
 
   virtual bool updateRobotState(const nav_msgs::Odometry& odom_state);
   virtual void stateCallback(const nav_msgs::OdometryConstPtr& odom_state);
+  virtual void imuCallback(const sensor_msgs::ImuConstPtr& imu_msg);
   virtual void drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&);
   virtual void drivepathCallback(const ros::MessageEvent<nav_msgs::Path>&);
   virtual void cmd_velCallback(const geometry_msgs::Twist&);
@@ -84,6 +86,7 @@ private:
   tf::TransformListener listener;
 
   ros::Subscriber stateSubscriber;
+  ros::Subscriber imuSubscriber;
   ros::Subscriber drivetoSubscriber;
   ros::Subscriber drivepathSubscriber;
   ros::Subscriber cmd_velSubscriber;
@@ -185,13 +188,14 @@ private:
   double max_lin_speed, min_lin_speed;
   double max_rot_speed, min_rot_speed;
   double execution_period;
+  double k_p_rotation;
   double alignment_angle;
   double roll, pitch, yaw;
   double update_skip;
   double curr_dist;
   double rot_dir_opti, rot_vel_dir;
   double lin_vel_dir;
-  double lin_vel, rot_vel, dist, lin_vel_ref;
+  double lin_vel, rot_vel, lin_vel_ref;
   double points[50][2];
   double max_H, Wid, rad;
   double global_goal_tolerance;

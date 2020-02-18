@@ -500,6 +500,8 @@ void Controller::stopVehicle()
 
 void Controller::followPathGoalCallback()
 {
+  ROS_INFO("Received Goal");
+  ROS_INFO("%f", follow_path_server_->isActive());
   follow_path_goal_ = follow_path_server_->acceptNewGoal();
   if (follow_path_goal_->follow_path_options.reset_stuck_history)
   {
@@ -855,7 +857,7 @@ void Controller::update()
                                      robot_control_state.pose.position);
     bool approaching_goal_point = goal_position_error < 0.4;
 
-    if(std::abs(signed_carrot_distance_2_robot) > (mp_.carrot_distance * 1.5))
+    if(std::abs(signed_carrot_distance_2_robot) > (mp_.carrot_distance * 5))  //  CHANGED FROM 1.5 to 5
     {
         ROS_WARN("[vehicle_controller] Control failed, distance to carrot is %f (allowed: %f)", signed_carrot_distance_2_robot, (mp_.carrot_distance * 1.5));
         state = INACTIVE;
@@ -1010,11 +1012,10 @@ int main(int argc, char **argv)
 {
   ros::init(argc, argv, ROS_PACKAGE_NAME);
 
-//  Controller c;
-//  c.configure();
+  Controller c;
+  //Daf_Controller c;
 
-  Daf_Controller dc;
-  dc.configure();
+  c.configure();
 
   while(ros::ok())
   {

@@ -24,6 +24,7 @@ Daf_Controller::Daf_Controller(const std::string& ns)
 {
 
   //General controller params
+  mp_.carrot_distance = 0.4;
   mp_.min_speed       = 0.0;
   mp_.commanded_speed = 0.0;
   mp_.max_controller_speed = 0.25;
@@ -70,6 +71,8 @@ bool Daf_Controller::configure()
     params.param<double>("pub_cmd_hz", pub_cmd_hz, 10);
     params.param<double>("rot_correction_factor", rot_correction_factor, 1);
     params.param<double>("execution_period", execution_period, 1.0);
+    params.param<double>("k_p_rotation", k_p_rotation, 5);
+
     params.param<double>("update_skip_until_vel_increase", update_skip, 5);
     params.param<double>("lower_al_angle", lower_al_angle, 0.2);              //this angle determine when angle correction is executed
     params.param<double>("upper_al_angle", upper_al_angle, 1.0);              //this angle determine middle robot correction wich is compensate in linear movment
@@ -83,6 +86,7 @@ bool Daf_Controller::configure()
     params.getParam("max_controller_speed", mp_.max_controller_speed);
     params.getParam("max_controller_angular_rate", mp_.max_controller_angular_rate);
 
+    params.getParam("carrot_distance", mp_.carrot_distance);
     params.getParam("min_speed", mp_.min_speed);
     params.getParam("frame_id", map_frame_id);
     params.getParam("base_frame_id", base_frame_id);
@@ -113,6 +117,7 @@ bool Daf_Controller::configure()
     ROS_INFO("[vehicle_controller] Low level vehicle motion controller is %s", this->vehicle_control_interface_->getName().c_str());
 
     stateSubscriber     = nh.subscribe("state", 10, &Daf_Controller::stateCallback, this, ros::TransportHints().tcpNoDelay(true));
+    imuSubscriber       = nh.subscribe("imu/data", 10, &Daf_Controller::imuCallback, this, ros::TransportHints().tcpNoDelay(true));
     drivetoSubscriber   = nh.subscribe("driveto", 10, &Daf_Controller::drivetoCallback, this);
     drivepathSubscriber = nh.subscribe("drivepath", 10, &Daf_Controller::drivepathCallback, this);
     cmd_velSubscriber   = nh.subscribe("cmd_vel", 10, &Daf_Controller::cmd_velCallback, this, ros::TransportHints().tcpNoDelay(true));
@@ -236,6 +241,13 @@ void Daf_Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
   calculate_cmd();
 
   }
+}
+
+void Daf_Controller::imuCallback(const sensor_msgs::ImuConstPtr& imu_msg){
+  tf::Quaternion imu_quaternion;
+  tf::quaternionMsgToTF(imu_msg->orientation, imu_quaternion);
+  tf::Transform imu_orientation(imu_quaternion, tf::Vector3(0,0,0));
+  imu_orientation.getBasis().getEulerYPR(imu_yaw, imu_pitch, imu_roll);
 }
 
 void Daf_Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
@@ -432,6 +444,8 @@ bool Daf_Controller::drivepath(const nav_msgs::Path& path)
                             return ps;
                        });
         pathPosePublisher.publish(path2publish);
+
+        curr_path = path2publish;
     }
     else
     {
@@ -557,28 +571,16 @@ void Daf_Controller::followPathGoalCallback()
   drivepath(follow_path_goal_->target_path);
   drivepathPublisher.publish(follow_path_goal_->target_path);
 
+  lin_vel = follow_path_goal_->follow_path_options.desired_speed;
+  lin_vel_ref = lin_vel;
+
   psize = (int)curr_path.poses.size();
-  dist = fabs(execution_period*mp_.max_controller_speed);
 
   if(psize > 0)
   {
-      ROS_INFO("New Path Received from Action. Path seq: %i size: %i distance to plan path: %f", curr_path.header.seq, psize, dist);
+      ROS_INFO("New Path Received from Action. Path seq: %i size: %i distance to plan path: %f", curr_path.header.seq, psize, mp_.carrot_distance);
       move_robot = true;
 
-//      ros::Rate r(pub_cmd_hz);
-//      while(ros::ok())
-//      {
-//          if(follow_path_server_->isPreemptRequested() || !move_robot)
-//          {
-//              move_robot = false;
-//              reset();
-//              follow_path_server_->setPreempted();
-//              ROS_INFO("path execution is preempted");
-//              return;
-//          }
-//          calculate_cmd();
-//          r.sleep();
-//      }
   }else{
       move_robot = false;
 
@@ -751,7 +753,8 @@ void Daf_Controller::calc_local_path()
         double curr_dist_y =fabs(odom.pose.pose.position.y - curr_path.poses[i].pose.position.y);
         double curr_dist = sqrt(curr_dist_x*curr_dist_x + curr_dist_y*curr_dist_y);
 
-        if(fabs(curr_dist) > dist) //search for points
+
+        if(fabs(curr_dist) > mp_.carrot_distance) //search for points
         {
             continue;
         }
@@ -1039,8 +1042,8 @@ void Daf_Controller::calc_ground_compensation()
     if(enable_ground_compensation == true)
     {
         //ROS_INFO("Distances before ground compensation: max_H: %f and W: %f", max_H, Wid);
-        double dh = fabs((max_H/cos(roll))-max_H);
-        double dw = fabs((Wid/cos(pitch))-Wid);
+        double dh = fabs((max_H/cos(imu_roll))-max_H);
+        double dw = fabs((Wid/cos(imu_pitch))-Wid);
         //ROS_INFO("Angle compensation diferences: dh: %f, dw: %f", dh, dw);
         max_H = max_H + dh;
         Wid = Wid + dw;
@@ -1054,7 +1057,7 @@ void Daf_Controller::calc_ground_compensation()
 void Daf_Controller::check_robot_stability()
 {
 //if robot reaches treshodl of its stability angle it responds with error
-    if((roll > stability_angle)||(pitch > stability_angle))
+    if((imu_roll > stability_angle)||(imu_pitch > stability_angle))
     {
       if (follow_path_server_->isActive()){
         move_base_lite_msgs::FollowPathResult result;
@@ -1112,7 +1115,9 @@ void Daf_Controller::calc_angel_compensation()
             }
         }
 
-        double add_al_rot = fabs(angle_diff/(execution_period));
+        //double add_al_rot = fabs(angle_diff/(execution_period));
+
+        double add_al_rot = fabs(angle_diff*lin_vel*k_p_rotation);
         //ROS_INFO("Additional Alignment Rotation: %f", add_al_rot);
 
         rot_vel = rot_vel_dir * lin_vel/rad*rot_correction_factor + rot_dir_opti*add_al_rot;
@@ -1346,10 +1351,7 @@ void Daf_Controller::calculate_cmd()
 
     //publish commad
     cmd_vel_pub.publish(cmd);
-    //ROS_INFO("published velocity: lin: %f rot: %f rad: %f" , cmd.linear.x, cmd.angular.z, rad);
-    //ROS_INFO("alignment_angle: %f, yaw: %f al_an_diff: %f", alignment_angle, yaw, al_an_diff);
-    //ROS_INFO("rot_vel_dir: %f, rot_dir_opti: %f ", rot_vel_dir, rot_dir_opti);
-    ROS_INFO("goal_position_error: %f, tolerance: %f", goal_position_error, linear_tolerance_for_current_path);
+    //ROS_INFO("goal_position_error: %f, tolerance: %f", goal_position_error, linear_tolerance_for_current_path);
   }
 }
 
@@ -1364,18 +1366,4 @@ void Daf_Controller::stop()
 }
 
 
-int main(int argc, char **argv)
-{
-  ros::init(argc, argv, ROS_PACKAGE_NAME);
 
-  //Controller c;
-  Daf_Controller dc;
-  dc.configure();
-  while(ros::ok())
-  {
-    ros::spin();
-  }
-
-  ros::shutdown();
-  return 0;
-}

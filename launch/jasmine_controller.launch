@@ -11,9 +11,10 @@
 
     <param name="pub_cmd_hz" value="10" />
     <param name="rot_correction_factor" value="1.0" />
+    <param name="k_p_rotation" value="5" />
     <param name="execution_period" value="0.5" />
     <param name="update_skip_until_vel_increase" value="5" />
-    <param name="lower_al_angle" value="0.2" />
+    <param name="lower_al_angle" value="0.0" />
     <param name="upper_al_angle" value="1.0" />
     <param name="enable_angle_compensation" value="true" />
     <param name="enable_ground_compensation" value="true" />
@@ -28,7 +29,7 @@
     
     <param name="y_symmetry" value="false" />
     
-    <param name="max_controller_speed" value="0.6" />
+    <param name="max_controller_speed" value="0.8" />
     <param name="max_unlimited_speed" value="0.6" />
     <param name="max_unlimited_angular_rate" value="3.0" />
     <param name="max_controller_angular_rate" value="1.4" />
@@ -46,6 +47,7 @@
     <param name="check_stuck" value="true" />
     
     <!--<remap from="/cmd_vel_teleop" to="/cmd_vel_teleop_safe" />-->
+
   </node>
   
 </launch>
