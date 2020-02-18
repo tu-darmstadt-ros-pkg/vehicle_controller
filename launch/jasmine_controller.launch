@@ -22,7 +22,7 @@
     <param name="show_trajectory_planing" value="false" />
     <param name="stability_angle" value="1.0" />
 
-    <param name="carrot_distance" value="0.2" />
+    <param name="carrot_distance" value="0.4" />
     <param name="min_speed" value="0.0" />
     <param name="velocity_blocked_limit" value="0.6" />
     <param name="velocity_blocked_time" value="3.0" />

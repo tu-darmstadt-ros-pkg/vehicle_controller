@@ -1042,8 +1042,11 @@ void Daf_Controller::calc_ground_compensation()
     if(enable_ground_compensation == true)
     {
         //ROS_INFO("Distances before ground compensation: max_H: %f and W: %f", max_H, Wid);
-        double dh = fabs((max_H/cos(imu_roll))-max_H);
-        double dw = fabs((Wid/cos(imu_pitch))-Wid);
+//        double dh = fabs((max_H/cos(imu_roll))-max_H);
+//        double dw = fabs((Wid/cos(imu_pitch))-Wid);
+
+        double dh = fabs((max_H/cos(roll))-max_H);
+        double dw = fabs((Wid/cos(pitch))-Wid);
         //ROS_INFO("Angle compensation diferences: dh: %f, dw: %f", dh, dw);
         max_H = max_H + dh;
         Wid = Wid + dw;
@@ -1057,7 +1060,8 @@ void Daf_Controller::calc_ground_compensation()
 void Daf_Controller::check_robot_stability()
 {
 //if robot reaches treshodl of its stability angle it responds with error
-    if((imu_roll > stability_angle)||(imu_pitch > stability_angle))
+    //if((imu_roll > stability_angle)||(imu_pitch > stability_angle))
+  if((roll > stability_angle)||(pitch > stability_angle))
     {
       if (follow_path_server_->isActive()){
         move_base_lite_msgs::FollowPathResult result;
