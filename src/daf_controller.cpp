@@ -68,7 +68,7 @@ Daf_Controller::~Daf_Controller()
 bool Daf_Controller::configure()
 {
     ros::NodeHandle params("~");
-    params.param<double>("pub_cmd_hz", pub_cmd_hz, 10);
+    params.param<double>("pub_cmd_hz", pub_cmd_hz, 30);
     params.param<double>("rot_correction_factor", rot_correction_factor, 1);
     params.param<double>("execution_period", execution_period, 1.0);
     params.param<double>("k_p_rotation", k_p_rotation, 5);
