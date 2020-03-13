@@ -1,4 +1,5 @@
-#include <vehicle_controller/controller.h>
+#include <vehicle_controller/carrot_controller.h>
+#include <vehicle_controller/daf_controller.h>
 #include <vehicle_controller/quaternions.h>
 #include <vehicle_controller/utility.h>
 
@@ -17,11 +18,10 @@
 #include <sstream>
 #include <functional>
 
-#include <vehicle_controller/daf_controller.h>
-
-Daf_Controller::Daf_Controller(const std::string& ns)
-  : nh(ns), state(INACTIVE), stuck(new StuckDetector)
+Daf_Controller::Daf_Controller(ros::NodeHandle& nh_)
+  : state(INACTIVE), stuck(new StuckDetector)
 {
+  nh = nh_;
 
   //General controller params
   mp_.carrot_distance = 0.4;
@@ -238,7 +238,7 @@ void Daf_Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
     ROS_INFO("path execution is preempted");
     return;
   }
-  calculate_cmd();
+  update();
 
   }
 }
@@ -428,7 +428,7 @@ bool Daf_Controller::drivepath(const nav_msgs::Path& path)
         std::vector<geometry_msgs::PoseStamped> smooth_path;
         std::transform(out_smoothed_positions.begin(), out_smoothed_positions.end(),
                        out_smoothed_orientations.begin(), std::back_inserter(smooth_path),
-                       boost::bind(&Daf_Controller::createPoseFromQuatAndPosition, this, _1, _2));
+                       boost::bind(&Controller::createPoseFromQuatAndPosition, this, _1, _2));
 
         std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Daf_Controller::addLeg, this, _1, options.desired_speed));
 
@@ -470,18 +470,6 @@ bool Daf_Controller::drivepath(const nav_msgs::Path& path)
     return true;
 }
 
-geometry_msgs::PoseStamped Daf_Controller::createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation)
-{
-    geometry_msgs::PoseStamped pose;
-    pose.pose.position.x = position(0);
-    pose.pose.position.y = position(1);
-    pose.pose.position.z = position(2);
-    pose.pose.orientation.w = orientation.w();
-    pose.pose.orientation.x = orientation.x();
-    pose.pose.orientation.y = orientation.y();
-    pose.pose.orientation.z = orientation.z();
-    return pose;
-}
 
 bool Daf_Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, const nav_msgs::Path& path)
 {
@@ -1192,7 +1180,7 @@ void Daf_Controller::velocity_increase()
 /*****************************************************************************************************************
  * calculate and Publish Velocity Commands
  */
-void Daf_Controller::calculate_cmd()
+void Daf_Controller::update()
 {
   if(move_robot == true)
   {

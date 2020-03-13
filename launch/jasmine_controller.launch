@@ -9,6 +9,8 @@
     
     <param name="frame_id" value="world" />
 
+    <param name="controller_type" value="daf" />
+
     <param name="pub_cmd_hz" value="30" />
     <param name="rot_correction_factor" value="1.0" />
     <param name="k_p_rotation" value="5" />

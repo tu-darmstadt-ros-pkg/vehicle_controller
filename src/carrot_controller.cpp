@@ -1,27 +1,10 @@
-#include <vehicle_controller/controller.h>
-#include <vehicle_controller/quaternions.h>
-#include <vehicle_controller/utility.h>
+#include <vehicle_controller/carrot_controller.h>
 
-#include <ros/ros.h>
-#include <tf/transform_datatypes.h>
-#include <limits>
-
-#include <geometry_msgs/PointStamped.h>
-#include <std_msgs/Float32.h>
-#include <std_msgs/String.h>
-
-#include <vehicle_controller/four_wheel_steer_controller.h>
-#include <vehicle_controller/differential_drive_controller.h>
-
-#include <algorithm>
-#include <sstream>
-#include <functional>
-
-#include <vehicle_controller/daf_controller.h>
-
-Controller::Controller(const std::string& ns)
-    : nh(ns), state(INACTIVE), stuck(new StuckDetector)
+Carrot_Controller::Carrot_Controller(ros::NodeHandle& nh_)
+    : state(INACTIVE), stuck(new StuckDetector)
 {
+  nh = nh_;
+
     mp_.carrot_distance = 1.0;
     mp_.min_speed       = 0.0;
     mp_.commanded_speed = 0.0;
@@ -54,17 +37,17 @@ Controller::Controller(const std::string& ns)
 
     follow_path_server_.reset(new actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>(nh, "/controller/follow_path", 0, false));
 
-    follow_path_server_->registerGoalCallback(boost::bind(&Controller::followPathGoalCallback, this));
-    follow_path_server_->registerPreemptCallback(boost::bind(&Controller::followPathPreemptCallback, this));
+    follow_path_server_->registerGoalCallback(boost::bind(&Carrot_Controller::followPathGoalCallback, this));
+    follow_path_server_->registerPreemptCallback(boost::bind(&Carrot_Controller::followPathPreemptCallback, this));
 
     follow_path_server_->start();
 }
 
-Controller::~Controller()
+Carrot_Controller::~Carrot_Controller()
 {
 }
 
-bool Controller::configure()
+bool Carrot_Controller::configure()
 {
     ros::NodeHandle params("~");
     params.getParam("carrot_distance", mp_.carrot_distance);
@@ -97,13 +80,13 @@ bool Controller::configure()
 
     ROS_INFO("[vehicle_controller] Low level vehicle motion controller is %s", this->vehicle_control_interface_->getName().c_str());
 
-    stateSubscriber     = nh.subscribe("state", 10, &Controller::stateCallback, this, ros::TransportHints().tcpNoDelay(true));
-    drivetoSubscriber   = nh.subscribe("driveto", 10, &Controller::drivetoCallback, this);
-    drivepathSubscriber = nh.subscribe("drivepath", 10, &Controller::drivepathCallback, this);
-    cmd_velSubscriber   = nh.subscribe("cmd_vel", 10, &Controller::cmd_velCallback, this, ros::TransportHints().tcpNoDelay(true));
-    cmd_velTeleopSubscriber = nh.subscribe("cmd_vel_teleop", 10, &Controller::cmd_velTeleopCallback, this, ros::TransportHints().tcpNoDelay(true));
-    speedSubscriber     = nh.subscribe("speed", 10, &Controller::speedCallback, this);
-    poseSubscriber      = nh.subscribe("robot_pose", 10, &Controller::poseCallback, this);
+    stateSubscriber     = nh.subscribe("state", 10, &Carrot_Controller::stateCallback, this, ros::TransportHints().tcpNoDelay(true));
+    drivetoSubscriber   = nh.subscribe("driveto", 10, &Carrot_Controller::drivetoCallback, this);
+    drivepathSubscriber = nh.subscribe("drivepath", 10, &Carrot_Controller::drivepathCallback, this);
+    cmd_velSubscriber   = nh.subscribe("cmd_vel", 10, &Carrot_Controller::cmd_velCallback, this, ros::TransportHints().tcpNoDelay(true));
+    cmd_velTeleopSubscriber = nh.subscribe("cmd_vel_teleop", 10, &Carrot_Controller::cmd_velTeleopCallback, this, ros::TransportHints().tcpNoDelay(true));
+    speedSubscriber     = nh.subscribe("speed", 10, &Carrot_Controller::speedCallback, this);
+    poseSubscriber      = nh.subscribe("robot_pose", 10, &Carrot_Controller::poseCallback, this);
 
     carrotPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("carrot", 1, true);
     endPosePoublisher   = nh.advertise<geometry_msgs::PoseStamped>("end_pose", 1, true);
@@ -124,7 +107,7 @@ bool Controller::configure()
     return true;
 }
 
-bool Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
+bool Carrot_Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
 {
     dt = (odom_state.header.stamp - robot_state_header.stamp).toSec();
 
@@ -173,15 +156,15 @@ bool Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
 
 }
 
-void Controller::poseCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
+void Carrot_Controller::poseCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
 {
-    
+
     geometry_msgs::PoseStampedConstPtr pose = event.getConstMessage();
     current_pose = *pose;
 
 }
 
-void Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
+void Carrot_Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
 {
     latest_odom_ = odom_state;
 
@@ -189,10 +172,10 @@ void Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
 
     this->updateRobotState(*latest_odom_);
 
-    update();    
+    update();
 }
 
-void Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
+void Carrot_Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
 {
     geometry_msgs::PoseStampedConstPtr goal = event.getConstMessage();
 
@@ -204,7 +187,7 @@ void Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStam
     driveto(*goal, 0.0);
 }
 
-bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
+bool Carrot_Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
 {
     reset();
 
@@ -238,7 +221,7 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
     return true;
 }
 
-void Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& event)
+void Carrot_Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& event)
 {
     if (event.getPublisherName() == ros::this_node::getName()) return;
     nav_msgs::PathConstPtr path = event.getConstMessage();
@@ -253,7 +236,7 @@ void Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& even
     drivepath(*path);
 }
 
-bool Controller::pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped>& transformed_path, bool fixed_path)
+bool Carrot_Controller::pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped>& transformed_path, bool fixed_path)
 {
     // Check if this path shall be smoothed
     // <=> path has length >= 2 and path is output of exploration planner
@@ -281,7 +264,7 @@ bool Controller::pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped>& 
 //    return path_to_be_smoothed;
 }
 
-bool Controller::drivepath(const nav_msgs::Path& path)
+bool Carrot_Controller::drivepath(const nav_msgs::Path& path)
 {
     reset();
     const move_base_lite_msgs::FollowPathOptions& options = follow_path_goal_->follow_path_options;
@@ -372,7 +355,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
                        out_smoothed_orientations.begin(), std::back_inserter(smooth_path),
                        boost::bind(&Controller::createPoseFromQuatAndPosition, this, _1, _2));
 
-        std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Controller::addLeg, this, _1, options.desired_speed));
+        std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Carrot_Controller::addLeg, this, _1, options.desired_speed));
 
         nav_msgs::Path path2publish;
         path2publish.header.frame_id = map_frame_id;
@@ -405,25 +388,13 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     if(!legs.empty())
         ROS_INFO("[vehicle_controller] Received new path to goal point (x = %.2f, y = %.2f)", legs.back().p2.x, legs.back().p2.y);
     else
-        ROS_WARN("[vehicle_controller] Controller::drivepath produced empty legs array.");
+        ROS_WARN("[vehicle_controller] Carrot_Controller::drivepath produced empty legs array.");
 
     return true;
 }
 
-geometry_msgs::PoseStamped Controller::createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation)
-{
-    geometry_msgs::PoseStamped pose;
-    pose.pose.position.x = position(0);
-    pose.pose.position.y = position(1);
-    pose.pose.position.z = position(2);
-    pose.pose.orientation.w = orientation.w();
-    pose.pose.orientation.x = orientation.x();
-    pose.pose.orientation.y = orientation.y();
-    pose.pose.orientation.z = orientation.z();
-    return pose;
-}
 
-bool Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, const nav_msgs::Path& path)
+bool Carrot_Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, const nav_msgs::Path& path)
 {
     if (!path.header.frame_id.empty())
     {
@@ -454,7 +425,7 @@ bool Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, 
     return true;
 }
 
-void Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
+void Carrot_Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
 {
     //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
     if (follow_path_server_->isActive()){
@@ -468,7 +439,7 @@ void Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
     vehicle_control_interface_->executeTwist(velocity);
 }
 
-void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
+void Carrot_Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 {
     if (follow_path_server_->isActive()){
       ROS_INFO("Direct teleop cmd_vel received, preempting running Action!");
@@ -486,19 +457,19 @@ void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
     vehicle_control_interface_->executeUnlimitedTwist(velocity);
 }
 
-void Controller::speedCallback(const std_msgs::Float32& speed)
+void Carrot_Controller::speedCallback(const std_msgs::Float32& speed)
 {
   mp_.commanded_speed = speed.data;
 }
 
-void Controller::stopVehicle()
+void Carrot_Controller::stopVehicle()
 {
   geometry_msgs::Vector3 p;
   robot_control_state.setControlState(0.0, p, 0, 0, mp_.carrot_distance, 0.0, false, true);
   vehicle_control_interface_->executeMotionCommand(robot_control_state);
 }
 
-void Controller::followPathGoalCallback()
+void Carrot_Controller::followPathGoalCallback()
 {
   ROS_INFO("Received Goal");
   ROS_INFO("%f", follow_path_server_->isActive());
@@ -511,7 +482,7 @@ void Controller::followPathGoalCallback()
   drivepathPublisher.publish(follow_path_goal_->target_path);
 }
 
-void Controller::followPathPreemptCallback()
+void Carrot_Controller::followPathPreemptCallback()
 {
   stopVehicle();
   move_base_lite_msgs::FollowPathResult result;
@@ -520,7 +491,7 @@ void Controller::followPathPreemptCallback()
   reset();
 }
 
-void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
+void Carrot_Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
 {
     Leg leg;
     leg.finish_time = pose.header.stamp;
@@ -599,7 +570,7 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
     legs.push_back(leg);
 }
 
-bool Controller::reverseAllowed()
+bool Carrot_Controller::reverseAllowed()
 {
   // Driving backward is always allowed if vehicle is symmetric
   if (mp_.isYSymmetric()) {
@@ -614,7 +585,7 @@ bool Controller::reverseAllowed()
   }
 }
 
-bool Controller::reverseForced()
+bool Carrot_Controller::reverseForced()
 {
   return false;
   if (follow_path_server_->isActive()) {
@@ -622,11 +593,11 @@ bool Controller::reverseForced()
   } else {
       return false;
   }
-    
-    
+
+
 }
 
-void Controller::reset()
+void Carrot_Controller::reset()
 {
     state = INACTIVE;
     current = 0;
@@ -635,7 +606,7 @@ void Controller::reset()
     legs.clear();
 }
 
-void Controller::update()
+void Carrot_Controller::update()
 {
     if (state < DRIVETO) return;
 
@@ -998,30 +969,11 @@ void Controller::update()
     }
 }
 
-void Controller::stop()
+void Carrot_Controller::stop()
 {
     this->vehicle_control_interface_->stop();
     stuck->reset();
     drivepathPublisher.publish(empty_path);
     if (camera_control)
         cameraOrientationPublisher.publish(cameraDefaultOrientation);
-}
-
-
-int main(int argc, char **argv)
-{
-  ros::init(argc, argv, ROS_PACKAGE_NAME);
-
-  Controller c;
-  //Daf_Controller c;
-
-  c.configure();
-
-  while(ros::ok())
-  {
-    ros::spin();
-  }
-
-  ros::shutdown();
-  return 0;
 }

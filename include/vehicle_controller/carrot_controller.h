@@ -1,41 +1,56 @@
-#ifndef DAF_CONTROLLER_H
-#define DAF_CONTROLLER_H
+#ifndef CARROT_CONTROLLER_H
+#define CARROT_CONTROLLER_H
 
+#include <nav_msgs/Path.h>
+#include <nav_msgs/Odometry.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Vector3Stamped.h>
+#include <geometry_msgs/Twist.h>
+#include <geometry_msgs/PointStamped.h>
+
+#include <monstertruck_msgs/MotionCommand.h>
+#include <monstertruck_msgs/SetAlternativeTolerance.h>
+#include <std_msgs/Float32.h>
+#include <std_msgs/Empty.h>
+#include <std_msgs/String.h>
+#include <sensor_msgs/JointState.h>
+
+#include <move_base_lite_msgs/FollowPathAction.h>
+#include <actionlib/server/simple_action_server.h>
 
 #include <ros/ros.h>
+#include <tf/transform_listener.h>
 #include <tf/transform_datatypes.h>
-#include <limits>
 
-#include <sensor_msgs/Imu.h>
-#include <geometry_msgs/PointStamped.h>
-#include <std_msgs/Float32.h>
-#include <std_msgs/String.h>
-
-#include <vehicle_controller/carrot_controller.h>
-#include <vehicle_controller/controller.h>
-#include <vehicle_controller/quaternions.h>
-#include <vehicle_controller/utility.h>
+#include <vehicle_controller/vehicle_control_interface.h>
+#include <vehicle_controller/motion_parameters.h>
+#include <vehicle_controller/ps3d.h>
+#include <vehicle_controller/stuck_detector.h>
 #include <vehicle_controller/four_wheel_steer_controller.h>
 #include <vehicle_controller/differential_drive_controller.h>
+#include <vehicle_controller/quaternions.h>
+#include <vehicle_controller/utility.h>
+#include <vehicle_controller/controller.h>
 
-#include <visualization_msgs/Marker.h>
+#include <memory>
+#include <limits>
 
 #include <algorithm>
 #include <sstream>
 #include <functional>
 
-#define PI 3.14159265
-
-class Daf_Controller : public Controller{
+class Carrot_Controller : public Controller
+{
 public:
   typedef enum { INACTIVE, VELOCITY, DRIVETO, DRIVEPATH } State;
 
-  Daf_Controller(ros::NodeHandle &nh_);
-  virtual ~Daf_Controller();
+  Carrot_Controller(ros::NodeHandle& nh_);
+  virtual ~Carrot_Controller();
+  virtual bool configure();
 
-   virtual bool configure();
 
 protected:
+  virtual void update();
   virtual void reset();
   virtual void stop();
 
@@ -44,7 +59,6 @@ protected:
 
   virtual bool updateRobotState(const nav_msgs::Odometry& odom_state);
   virtual void stateCallback(const nav_msgs::OdometryConstPtr& odom_state);
-  virtual void imuCallback(const sensor_msgs::ImuConstPtr& imu_msg);
   virtual void drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&);
   virtual void drivepathCallback(const ros::MessageEvent<nav_msgs::Path>&);
   virtual void cmd_velCallback(const geometry_msgs::Twist&);
@@ -71,21 +85,11 @@ protected:
   bool pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped> &transformed_path, bool fixed_path);
   bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
 
-  //Daf specific methods:
-  void calc_local_path();
-  void calc_ground_compensation();
-  void check_robot_stability();
-  void velocity_increase();
-  void update();
-  void calc_angel_compensation();
-  void calculate_al_rot();
-
 private:
   ros::NodeHandle nh;
   tf::TransformListener listener;
 
   ros::Subscriber stateSubscriber;
-  ros::Subscriber imuSubscriber;
   ros::Subscriber drivetoSubscriber;
   ros::Subscriber drivepathSubscriber;
   ros::Subscriber cmd_velSubscriber;
@@ -103,10 +107,6 @@ private:
 
   ros::Publisher pathPosePublisher;
   ros::Publisher autonomy_level_pub_;
-
-  ros::Publisher cmd_vel_pub;
-  ros::Publisher local_path_pub;
-  ros::Publisher marker_pub;
 
   // action interface
   boost::shared_ptr<actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction> > follow_path_server_;
@@ -166,60 +166,6 @@ private:
   }
 
   std::unique_ptr<StuckDetector> stuck;
-
-  //Daf specific variables
-  nav_msgs::Odometry odom;
-  geometry_msgs::Twist cmd;
-
-  nav_msgs::Path curr_path;
-  nav_msgs::Path calc_path;
-  nav_msgs::Path local_calc_path;
-
-  bool alignment_finished;
-  bool show_trajectory_planing;
-  bool move_robot;
-  bool enable_angle_compensation;
-  bool enable_ground_compensation;
-  bool enable_velocity_increase;
-
-  double angle_diff;
-  double pub_cmd_hz;
-  double max_lin_speed, min_lin_speed;
-  double max_rot_speed, min_rot_speed;
-  double execution_period;
-  double k_p_rotation;
-  double alignment_angle;
-  double roll, pitch, yaw;
-  double update_skip;
-  double curr_dist;
-  double rot_dir_opti, rot_vel_dir;
-  double lin_vel_dir;
-  double lin_vel, rot_vel, lin_vel_ref;
-  double points[50][2];
-  double max_H, Wid, rad;
-  double global_goal_tolerance;
-  double th_po_x, th_po_y, fi_po_x, fi_po_y, se_po_x, se_po_y;
-  double dirx, diry;
-  double sideA, sideB, sideC;
-  double ss, area, tmp_H;
-  double al_an_diff;
-  double midX, midY;
-  double dx, dy;
-  double distt, pdist;
-  double mDx, mDy;
-  double old_pos_x;
-  double old_pos_y;
-  double glo_pos_diff_x, glo_pos_diff_y;
-  double rot_correction_factor;
-  double imu_roll, imu_pitch, imu_yaw;
-  double lower_al_angle, upper_al_angle;
-  double stability_angle;
-
-  int co_unchanged, co_points;
-  int psize, st_point, path_po_lenght;
-  int err_cont;
-  int oscilation_rotation;
-
 };
 
-#endif // DAF_CONTROLLER_H
+#endif // CARROT_CONTROLLER_H
