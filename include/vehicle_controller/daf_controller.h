@@ -1,28 +1,11 @@
 #ifndef DAF_CONTROLLER_H
 #define DAF_CONTROLLER_H
 
-
-#include <ros/ros.h>
-#include <tf/transform_datatypes.h>
-#include <limits>
-
 #include <sensor_msgs/Imu.h>
-#include <geometry_msgs/PointStamped.h>
-#include <std_msgs/Float32.h>
-#include <std_msgs/String.h>
 
-#include <vehicle_controller/carrot_controller.h>
 #include <vehicle_controller/controller.h>
-#include <vehicle_controller/quaternions.h>
-#include <vehicle_controller/utility.h>
-#include <vehicle_controller/four_wheel_steer_controller.h>
-#include <vehicle_controller/differential_drive_controller.h>
 
 #include <visualization_msgs/Marker.h>
-
-#include <algorithm>
-#include <sstream>
-#include <functional>
 
 #define PI 3.14159265
 

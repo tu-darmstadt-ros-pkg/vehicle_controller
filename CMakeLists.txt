@@ -33,7 +33,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
 include_directories(${catkin_INCLUDE_DIRS} include)
 
 add_library(vehicle_controller_lib src/ps3d.cpp src/differential_drive_controller.cpp src/stuck_detector.cpp src/four_wheel_steer_controller.cpp src/daf_controller.cpp
-  src/carrot_controller.cpp)
+  src/carrot_controller.cpp src/ackermann_pure_pursuit_controller src/differential_pure_pursuit_controller)
 add_dependencies(vehicle_controller_lib ${${PROJECT_NAME}_EXPORTED_TARGETS} monstertruck_msgs_generate_messages_cpp)
 target_link_libraries(vehicle_controller_lib ${catkin_LIBRARIES})
 

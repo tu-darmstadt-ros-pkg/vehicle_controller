@@ -8,6 +8,12 @@ Controller_Node::Controller_Node(ros::NodeHandle &nh_)
   if(controller_type == "daf"){
     control.reset(new Daf_Controller(nh_));
   }
+  else if(controller_type == "ackermann_pure_pursuit"){
+    control.reset(new Ackermann_Pure_Pursuit_Controller(nh_));
+  }
+  else if(controller_type == "differential_pure_pursuit"){
+    control.reset(new Differential_Pure_Pursuit_Controller(nh_));
+  }
   else{
     control.reset(new Carrot_Controller(nh_));
   }

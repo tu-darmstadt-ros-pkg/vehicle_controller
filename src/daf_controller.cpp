@@ -1,22 +1,5 @@
-#include <vehicle_controller/carrot_controller.h>
 #include <vehicle_controller/daf_controller.h>
-#include <vehicle_controller/quaternions.h>
-#include <vehicle_controller/utility.h>
 
-#include <ros/ros.h>
-#include <tf/transform_datatypes.h>
-#include <limits>
-
-#include <geometry_msgs/PointStamped.h>
-#include <std_msgs/Float32.h>
-#include <std_msgs/String.h>
-
-#include <vehicle_controller/four_wheel_steer_controller.h>
-#include <vehicle_controller/differential_drive_controller.h>
-
-#include <algorithm>
-#include <sstream>
-#include <functional>
 
 Daf_Controller::Daf_Controller(ros::NodeHandle& nh_)
   : state(INACTIVE), stuck(new StuckDetector)

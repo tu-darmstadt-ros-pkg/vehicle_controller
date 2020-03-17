@@ -1,20 +1,17 @@
-#ifndef CARROT_CONTROLLER_H
-#define CARROT_CONTROLLER_H
+#ifndef DIFFERENTIAL_PURE_PURSUIT_H
+#define DIFFERENTIAL_PURE_PURSUIT_H
 
 #include <vehicle_controller/controller.h>
 
-
-class Carrot_Controller : public Controller
+class Differential_Pure_Pursuit_Controller : public Controller
 {
 public:
-  typedef enum { INACTIVE, VELOCITY, DRIVETO, DRIVEPATH } State;
-
-  Carrot_Controller(ros::NodeHandle& nh_);
-  virtual ~Carrot_Controller();
+  Differential_Pure_Pursuit_Controller(ros::NodeHandle& nh_);
+  virtual ~Differential_Pure_Pursuit_Controller();
   virtual bool configure();
 
-
 protected:
+
   virtual void update();
   virtual void reset();
   virtual void stop();
@@ -35,6 +32,10 @@ protected:
 
   void followPathGoalCallback();
   void followPathPreemptCallback();
+
+  virtual void computeMoveCmd(RobotControlState control_state);
+  virtual double exponentialSpeedControll();
+
 
   /**
    * @brief addLeg to current tracking path
@@ -69,6 +70,7 @@ private:
   ros::Publisher cameraOrientationPublisher;
   ros::Publisher drivepathPublisher;
   ros::Publisher diagnosticsPublisher;
+  ros::Publisher cmd_vel_pub;
 
   ros::Publisher pathPosePublisher;
   ros::Publisher autonomy_level_pub_;
@@ -115,6 +117,8 @@ private:
 
   double velocity_error;
 
+  double vehicle_length;
+
   geometry_msgs::PoseStamped current_pose;
 
 
@@ -127,10 +131,13 @@ private:
 
   inline bool isDtInvalid()
   {
-      return dt <= 0.0;
+    return dt <= 0.0;
   }
 
   std::unique_ptr<StuckDetector> stuck;
+
+
 };
 
-#endif // CARROT_CONTROLLER_H
+
+#endif // DIFFERENTIAL_PURE_PURSUIT_H

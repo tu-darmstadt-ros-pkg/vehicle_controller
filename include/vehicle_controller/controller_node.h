@@ -3,6 +3,8 @@
 
 #include <vehicle_controller/carrot_controller.h>
 #include <vehicle_controller/daf_controller.h>
+#include <vehicle_controller/ackermann_pure_pursuit_controller.h>
+#include <vehicle_controller/differential_pure_pursuit_controller.h>
 #include <vehicle_controller/controller.h>
 
 class Controller_Node

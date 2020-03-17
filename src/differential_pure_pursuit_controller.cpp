@@ -1,6 +1,6 @@
-#include <vehicle_controller/carrot_controller.h>
+#include <vehicle_controller/differential_pure_pursuit_controller.h>
 
-Carrot_Controller::Carrot_Controller(ros::NodeHandle& nh_)
+Differential_Pure_Pursuit_Controller::Differential_Pure_Pursuit_Controller(ros::NodeHandle& nh_)
   : state(INACTIVE), stuck(new StuckDetector)
 {
   nh = nh_;
@@ -37,17 +37,17 @@ Carrot_Controller::Carrot_Controller(ros::NodeHandle& nh_)
 
   follow_path_server_.reset(new actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>(nh, "/controller/follow_path", 0, false));
 
-  follow_path_server_->registerGoalCallback(boost::bind(&Carrot_Controller::followPathGoalCallback, this));
-  follow_path_server_->registerPreemptCallback(boost::bind(&Carrot_Controller::followPathPreemptCallback, this));
+  follow_path_server_->registerGoalCallback(boost::bind(&Differential_Pure_Pursuit_Controller::followPathGoalCallback, this));
+  follow_path_server_->registerPreemptCallback(boost::bind(&Differential_Pure_Pursuit_Controller::followPathPreemptCallback, this));
 
   follow_path_server_->start();
 }
 
-Carrot_Controller::~Carrot_Controller()
+Differential_Pure_Pursuit_Controller::~Differential_Pure_Pursuit_Controller()
 {
 }
 
-bool Carrot_Controller::configure()
+bool Differential_Pure_Pursuit_Controller::configure()
 {
   ros::NodeHandle params("~");
   params.getParam("carrot_distance", mp_.carrot_distance);
@@ -71,6 +71,7 @@ bool Carrot_Controller::configure()
   double stuck_detection_window;
   params.param("stuck_detection_window", stuck_detection_window, StuckDetector::DEFAULT_DETECTION_WINDOW);
   stuck.reset(new StuckDetector(stuck_detection_window));
+  params.param("vehicle_length", vehicle_length, 0.5);
 
   if (vehicle_control_type == "differential_steering")
     vehicle_control_interface_.reset(new DifferentialDriveController());
@@ -80,18 +81,19 @@ bool Carrot_Controller::configure()
 
   ROS_INFO("[vehicle_controller] Low level vehicle motion controller is %s", this->vehicle_control_interface_->getName().c_str());
 
-  stateSubscriber     = nh.subscribe("state", 10, &Carrot_Controller::stateCallback, this, ros::TransportHints().tcpNoDelay(true));
-  drivetoSubscriber   = nh.subscribe("driveto", 10, &Carrot_Controller::drivetoCallback, this);
-  drivepathSubscriber = nh.subscribe("drivepath", 10, &Carrot_Controller::drivepathCallback, this);
-  cmd_velSubscriber   = nh.subscribe("cmd_vel", 10, &Carrot_Controller::cmd_velCallback, this, ros::TransportHints().tcpNoDelay(true));
-  cmd_velTeleopSubscriber = nh.subscribe("cmd_vel_teleop", 10, &Carrot_Controller::cmd_velTeleopCallback, this, ros::TransportHints().tcpNoDelay(true));
-  speedSubscriber     = nh.subscribe("speed", 10, &Carrot_Controller::speedCallback, this);
-  poseSubscriber      = nh.subscribe("robot_pose", 10, &Carrot_Controller::poseCallback, this);
+  stateSubscriber     = nh.subscribe("state", 10, &Differential_Pure_Pursuit_Controller::stateCallback, this, ros::TransportHints().tcpNoDelay(true));
+  drivetoSubscriber   = nh.subscribe("driveto", 10, &Differential_Pure_Pursuit_Controller::drivetoCallback, this);
+  drivepathSubscriber = nh.subscribe("drivepath", 10, &Differential_Pure_Pursuit_Controller::drivepathCallback, this);
+  cmd_velSubscriber   = nh.subscribe("cmd_vel", 10, &Differential_Pure_Pursuit_Controller::cmd_velCallback, this, ros::TransportHints().tcpNoDelay(true));
+  cmd_velTeleopSubscriber = nh.subscribe("cmd_vel_teleop", 10, &Differential_Pure_Pursuit_Controller::cmd_velTeleopCallback, this, ros::TransportHints().tcpNoDelay(true));
+  speedSubscriber     = nh.subscribe("speed", 10, &Differential_Pure_Pursuit_Controller::speedCallback, this);
+  poseSubscriber      = nh.subscribe("robot_pose", 10, &Differential_Pure_Pursuit_Controller::poseCallback, this);
 
   carrotPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("carrot", 1, true);
   endPosePoublisher   = nh.advertise<geometry_msgs::PoseStamped>("end_pose", 1, true);
   drivepathPublisher  = nh.advertise<nav_msgs::Path>("drivepath", 1, true);
   pathPosePublisher   = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
+  cmd_vel_pub         = nh.advertise<geometry_msgs::Twist>("cmd_vel_raw", 1, true);
 
   diagnosticsPublisher = params.advertise<std_msgs::Float32>("velocity_error", 1, true);
   autonomy_level_pub_ = nh.advertise<std_msgs::String>("/autonomy_level", 30);
@@ -107,7 +109,7 @@ bool Carrot_Controller::configure()
   return true;
 }
 
-bool Carrot_Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
+bool Differential_Pure_Pursuit_Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
 {
   dt = (odom_state.header.stamp - robot_state_header.stamp).toSec();
 
@@ -156,7 +158,7 @@ bool Carrot_Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
 
 }
 
-void Carrot_Controller::poseCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
+void Differential_Pure_Pursuit_Controller::poseCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
 {
 
   geometry_msgs::PoseStampedConstPtr pose = event.getConstMessage();
@@ -164,7 +166,7 @@ void Carrot_Controller::poseCallback(const ros::MessageEvent<geometry_msgs::Pose
 
 }
 
-void Carrot_Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
+void Differential_Pure_Pursuit_Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
 {
   latest_odom_ = odom_state;
 
@@ -175,7 +177,7 @@ void Carrot_Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_sta
   update();
 }
 
-void Carrot_Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
+void Differential_Pure_Pursuit_Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
 {
   geometry_msgs::PoseStampedConstPtr goal = event.getConstMessage();
 
@@ -187,7 +189,7 @@ void Carrot_Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::P
   driveto(*goal, 0.0);
 }
 
-bool Carrot_Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
+bool Differential_Pure_Pursuit_Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
 {
   reset();
 
@@ -221,7 +223,7 @@ bool Carrot_Controller::driveto(const geometry_msgs::PoseStamped& goal, double s
   return true;
 }
 
-void Carrot_Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& event)
+void Differential_Pure_Pursuit_Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& event)
 {
   if (event.getPublisherName() == ros::this_node::getName()) return;
   nav_msgs::PathConstPtr path = event.getConstMessage();
@@ -236,7 +238,7 @@ void Carrot_Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path
   drivepath(*path);
 }
 
-bool Carrot_Controller::pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped>& transformed_path, bool fixed_path)
+bool Differential_Pure_Pursuit_Controller::pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped>& transformed_path, bool fixed_path)
 {
   // Check if this path shall be smoothed
   // <=> path has length >= 2 and path is output of exploration planner
@@ -264,7 +266,7 @@ bool Carrot_Controller::pathToBeSmoothed(const std::deque<geometry_msgs::PoseSta
   //    return path_to_be_smoothed;
 }
 
-bool Carrot_Controller::drivepath(const nav_msgs::Path& path)
+bool Differential_Pure_Pursuit_Controller::drivepath(const nav_msgs::Path& path)
 {
   reset();
   const move_base_lite_msgs::FollowPathOptions& options = follow_path_goal_->follow_path_options;
@@ -355,7 +357,7 @@ bool Carrot_Controller::drivepath(const nav_msgs::Path& path)
                    out_smoothed_orientations.begin(), std::back_inserter(smooth_path),
                    boost::bind(&Controller::createPoseFromQuatAndPosition, this, _1, _2));
 
-    std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Carrot_Controller::addLeg, this, _1, options.desired_speed));
+    std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Differential_Pure_Pursuit_Controller::addLeg, this, _1, options.desired_speed));
 
     nav_msgs::Path path2publish;
     path2publish.header.frame_id = map_frame_id;
@@ -388,13 +390,13 @@ bool Carrot_Controller::drivepath(const nav_msgs::Path& path)
   if(!legs.empty())
     ROS_INFO("[vehicle_controller] Received new path to goal point (x = %.2f, y = %.2f)", legs.back().p2.x, legs.back().p2.y);
   else
-    ROS_WARN("[vehicle_controller] Carrot_Controller::drivepath produced empty legs array.");
+    ROS_WARN("[vehicle_controller] Differential_Pure_Pursuit_Controller::drivepath produced empty legs array.");
 
   return true;
 }
 
 
-bool Carrot_Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, const nav_msgs::Path& path)
+bool Differential_Pure_Pursuit_Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, const nav_msgs::Path& path)
 {
   if (!path.header.frame_id.empty())
   {
@@ -425,7 +427,7 @@ bool Carrot_Controller::createDrivepath2MapTransform(tf::StampedTransform & tran
   return true;
 }
 
-void Carrot_Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
+void Differential_Pure_Pursuit_Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
 {
   //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
   if (follow_path_server_->isActive()){
@@ -439,7 +441,7 @@ void Carrot_Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
   vehicle_control_interface_->executeTwist(velocity);
 }
 
-void Carrot_Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
+void Differential_Pure_Pursuit_Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 {
   if (follow_path_server_->isActive()){
     ROS_INFO("Direct teleop cmd_vel received, preempting running Action!");
@@ -457,19 +459,19 @@ void Carrot_Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& veloci
   vehicle_control_interface_->executeUnlimitedTwist(velocity);
 }
 
-void Carrot_Controller::speedCallback(const std_msgs::Float32& speed)
+void Differential_Pure_Pursuit_Controller::speedCallback(const std_msgs::Float32& speed)
 {
   mp_.commanded_speed = speed.data;
 }
 
-void Carrot_Controller::stopVehicle()
+void Differential_Pure_Pursuit_Controller::stopVehicle()
 {
   geometry_msgs::Vector3 p;
   robot_control_state.setControlState(0.0, p, 0, 0, mp_.carrot_distance, 0.0, false, true);
   vehicle_control_interface_->executeMotionCommand(robot_control_state);
 }
 
-void Carrot_Controller::followPathGoalCallback()
+void Differential_Pure_Pursuit_Controller::followPathGoalCallback()
 {
   ROS_INFO("Received Goal");
   ROS_INFO("%f", follow_path_server_->isActive());
@@ -482,7 +484,7 @@ void Carrot_Controller::followPathGoalCallback()
   drivepathPublisher.publish(follow_path_goal_->target_path);
 }
 
-void Carrot_Controller::followPathPreemptCallback()
+void Differential_Pure_Pursuit_Controller::followPathPreemptCallback()
 {
   stopVehicle();
   move_base_lite_msgs::FollowPathResult result;
@@ -491,7 +493,7 @@ void Carrot_Controller::followPathPreemptCallback()
   reset();
 }
 
-void Carrot_Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
+void Differential_Pure_Pursuit_Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
 {
   Leg leg;
   leg.finish_time = pose.header.stamp;
@@ -570,7 +572,7 @@ void Carrot_Controller::addLeg(const geometry_msgs::PoseStamped& pose, double sp
   legs.push_back(leg);
 }
 
-bool Carrot_Controller::reverseAllowed()
+bool Differential_Pure_Pursuit_Controller::reverseAllowed()
 {
   // Driving backward is always allowed if vehicle is symmetric
   if (mp_.isYSymmetric()) {
@@ -585,7 +587,7 @@ bool Carrot_Controller::reverseAllowed()
   }
 }
 
-bool Carrot_Controller::reverseForced()
+bool Differential_Pure_Pursuit_Controller::reverseForced()
 {
   return false;
   if (follow_path_server_->isActive()) {
@@ -597,7 +599,7 @@ bool Carrot_Controller::reverseForced()
 
 }
 
-void Carrot_Controller::reset()
+void Differential_Pure_Pursuit_Controller::reset()
 {
   state = INACTIVE;
   current = 0;
@@ -606,7 +608,7 @@ void Carrot_Controller::reset()
   legs.clear();
 }
 
-void Carrot_Controller::update()
+void Differential_Pure_Pursuit_Controller::update()
 {
   if (state < DRIVETO) return;
 
@@ -807,19 +809,9 @@ void Carrot_Controller::update()
     ROS_DEBUG_STREAM("[vehicle_controller] Start time of waypoint " << current << " not reached yet, waiting..");
     speed = 0;
   } else {
-    // if we are lagging behind the trajectory, increase speed accordingly
-    if (legs[current].finish_time != ros::Time(0)) {
-      ros::Duration dt = current_time - legs[current].start_time;
-      double dx_des = dt.toSec() * legs[current].speed;
-      double dx_cur = std::sqrt(std::pow(robot_control_state.pose.position.x - legs[current].p1.x, 2)
-                                + std::pow(robot_control_state.pose.position.y - legs[current].p1.y, 2));
-      double error = dx_des - dx_cur;
-      speed = legs[current].speed + 1.5 * error;
-
-    } else {
-      speed = legs[current].speed;
-    }
-    speed = sign * speed;
+    //exponential speed control
+    double exp_factor = exponentialSpeedControll();
+    speed = sign * legs[current].speed * exp_factor;
   }
   //    ROS_INFO_STREAM("Speed: " << speed);
 
@@ -867,7 +859,10 @@ void Carrot_Controller::update()
                                       approaching_goal_point,
                                       reverseAllowed());
 
-  vehicle_control_interface_->executeMotionCommand(robot_control_state);
+  //vehicle_control_interface_->executeMotionCommand(robot_control_state);
+
+  Differential_Pure_Pursuit_Controller::computeMoveCmd(robot_control_state);
+
 
   if (check_stuck)
   {
@@ -969,7 +964,7 @@ void Carrot_Controller::update()
   }
 }
 
-void Carrot_Controller::stop()
+void Differential_Pure_Pursuit_Controller::stop()
 {
   this->vehicle_control_interface_->stop();
   stuck->reset();
@@ -977,3 +972,133 @@ void Carrot_Controller::stop()
   if (camera_control)
     cameraOrientationPublisher.publish(cameraDefaultOrientation);
 }
+
+void Differential_Pure_Pursuit_Controller::computeMoveCmd(RobotControlState control_state){
+
+  double dist_to_carrot = control_state.signed_carrot_distance_2_robot;
+
+  geometry_msgs::PoseStamped carrotPose_baseframe;
+
+  try
+  {
+    listener.waitForTransform(base_frame_id, carrotPose.header.frame_id, carrotPose.header.stamp, ros::Duration(3.0));
+    listener.transformPose(base_frame_id, carrotPose, carrotPose_baseframe);
+  }
+  catch (tf::TransformException ex)
+  {
+    ROS_ERROR("%s", ex.what());
+    return;
+  }
+
+  double curv =  2 * carrotPose_baseframe.pose.position.y / (dist_to_carrot*dist_to_carrot);
+
+  geometry_msgs::Twist cmd;
+  cmd.linear.x = control_state.desired_velocity_linear;
+  cmd.linear.y = 0.0;
+  cmd.angular.z = curv * cmd.linear.x;
+
+  cmd_vel_pub.publish(cmd);
+
+}
+
+double Differential_Pure_Pursuit_Controller::exponentialSpeedControll(){
+  //Test: hadcoded kw and kg
+  double k_w_ = 0.0;
+  double k_g_ = 0.0;
+
+  //compute the curvature, and stop when the look-ahead distance is reached (w.r.t. orthogonal projection)
+//  double s_cum_sum = 0;
+//  curv_sum_ = 0.0;
+
+//  for (unsigned int i = proj_ind_ + 1; i < path_interpol.n(); i++){
+
+//      s_cum_sum = path_interpol.s(i) - path_interpol.s(proj_ind_);
+//      curv_sum_ += std::abs(path_interpol.curvature(i));
+
+//      if(s_cum_sum - look_ahead_dist_ >= 0){
+//          break;
+//      }
+//  }
+
+  double goal_position_error =
+      std::sqrt(
+        std::pow(legs.back().p2.x - robot_control_state.pose.position.x, 2)
+        + std::pow(legs.back().p2.y - robot_control_state.pose.position.y, 2));
+
+  //get the robot's current angular velocity
+  double angular_vel = robot_control_state.velocity_angular.z;
+
+  //double obst_angle = 0.0;
+
+//  double min_dist = std::numeric_limits<double>::infinity();
+//  if(collision_avoider_->hasObstacles()) {
+//      auto obstacle_cloud = collision_avoider_->getObstacles();
+//      const pcl::PointCloud<pcl::PointXYZ>& cloud = *obstacle_cloud->cloud;
+//      if(cloud.header.frame_id == "base_link" || cloud.header.frame_id == "/base_link") {
+//          for(const pcl::PointXYZ& pt : cloud) {
+
+//              if(std::sqrt(pt.x*pt.x + pt.y*pt.y + pt.z*pt.z) < min_dist){
+
+//                  obst_angle = std::atan2(pt.y, pt.x);
+//              }
+//              min_dist = std::min<double>(min_dist, std::sqrt(pt.x*pt.x + pt.y*pt.y + pt.z*pt.z));
+//          }
+
+//      } else {
+//          tf::Transform trafo = pose_tracker_->getTransform(pose_tracker_->getRobotFrameId(), cloud.header.frame_id, ros::Time(0), ros::Duration(0));
+//          for(const pcl::PointXYZ& pt : cloud) {
+
+//              tf::Point pt_cloud(pt.x, pt.y, pt.z);
+//              tf::Point pt_robot = trafo * pt_cloud;
+
+//              if(pt_robot.length() < min_dist){
+//                  obst_angle = std::atan2(pt_robot.getY(), pt_robot.getX());
+//              }
+
+//              min_dist = std::min<double>(min_dist, pt_robot.length());
+//          }
+//      }
+//  }
+
+//  distance_to_obstacle_ = min_dist;
+
+  //ensure valid values
+//  if (!std::isnormal(distance_to_obstacle_)) distance_to_obstacle_ = 1e5;
+//  if (!std::isnormal(distance_to_goal_)) distance_to_goal_ = 1e5;
+
+  //consider only the obstacles closer than a threshold, and slow down only when driving forward
+//  double epsilon_o = 0.0;
+//  if(distance_to_obstacle_ <= obst_threshold_){
+//      epsilon_o = k_o_/distance_to_obstacle_;
+//  }
+//  //consider the obstacle orientation for backward driving
+//  if(getDirSign() < 0){
+//      obst_angle -= M_PI;
+//  }
+
+//  double fact_curv = k_curv_*curv_sum_;
+//  if (!std::isnormal(fact_curv)) fact_curv = 0.0;
+  double fact_w = k_w_*fabs(angular_vel);
+  if (!std::isnormal(fact_w)) fact_w = 0.0;
+//  double fact_obst = epsilon_o*std::max(0.0, cos(obst_angle));
+//  if (!std::isnormal(fact_obst)) fact_obst = 0.0;
+  double fact_goal = std::min(3.0, k_g_/goal_position_error); // TODO: remove this hack to avoid non-moving robot!
+  if (!std::isnormal(fact_goal)) fact_goal = 0.0;
+
+  //publish the factors of the exponential speed control
+//  std_msgs::Float64MultiArray exp_control_array;
+//  exp_control_array.data.resize(4);
+//  exp_control_array.data[0] = fact_curv;
+//  exp_control_array.data[1] = fact_w;
+//  exp_control_array.data[2] = fact_obst;
+//  exp_control_array.data[3] = fact_goal;
+//  exp_control_pub_.publish(exp_control_array);
+
+//    ROS_INFO("k_curv: %f, k_o: %f, k_w: %f, k_g: %f, look_ahead: %f, obst_thresh: %f",
+//             k_curv_, k_o_, k_w_, k_g_, look_ahead_dist_, obst_threshold_);
+  //double exponent = fact_curv + fact_w + fact_obst + fact_goal;
+  double exponent = fact_w + fact_goal;
+  return exp(-exponent);
+}
+
+

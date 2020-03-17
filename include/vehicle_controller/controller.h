@@ -22,6 +22,15 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_datatypes.h>
 
+#include <vehicle_controller/vehicle_control_interface.h>
+#include <vehicle_controller/motion_parameters.h>
+#include <vehicle_controller/ps3d.h>
+#include <vehicle_controller/stuck_detector.h>
+#include <vehicle_controller/four_wheel_steer_controller.h>
+#include <vehicle_controller/differential_drive_controller.h>
+#include <vehicle_controller/quaternions.h>
+#include <vehicle_controller/utility.h>
+
 #include <memory>
 #include <limits>
 
@@ -31,7 +40,7 @@
 
 class Controller {
 public:
-  //typedef enum { INACTIVE, VELOCITY, DRIVETO, DRIVEPATH } State;
+  typedef enum { INACTIVE, VELOCITY, DRIVETO, DRIVEPATH } State;
 
   virtual bool configure() = 0;
 
