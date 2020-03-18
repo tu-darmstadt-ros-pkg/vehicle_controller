@@ -9,7 +9,7 @@
     
     <param name="frame_id" value="world" />
 
-    <param name="controller_type" value="daf" />
+    <param name="controller_type" value="carrot" />
 
     <param name="pub_cmd_hz" value="30" />
     <param name="rot_correction_factor" value="1.0" />
@@ -38,6 +38,7 @@
     
     <param name="vehicle_type" value="tracked" />
     <param name="vehicle_control_type" value="differential_steering"/>
+    <param name="vehicle_length" value="0.5" />
     <param name="pd_params" value="PdParamsArgo" />
 
     <param name="goal_position_tolerance" value="0.1" />

@@ -2,7 +2,7 @@
 
 
 Daf_Controller::Daf_Controller(ros::NodeHandle& nh_)
-  : state(INACTIVE), stuck(new StuckDetector)
+  : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/controller_params")
 {
   nh = nh_;
 
@@ -46,6 +46,10 @@ Daf_Controller::Daf_Controller(ros::NodeHandle& nh_)
 
 Daf_Controller::~Daf_Controller()
 {
+  if(dr_controller_params_server){
+    nh_dr_params.shutdown();
+    delete dr_controller_params_server;
+  }
 }
 
 bool Daf_Controller::configure()
@@ -131,6 +135,10 @@ bool Daf_Controller::configure()
         cameraOrientationPublisher.publish(cameraDefaultOrientation);
     }
     empty_path.header.frame_id = map_frame_id;
+
+
+    dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::DafControllerParamsConfig>(nh_dr_params);
+    dr_controller_params_server->setCallback(boost::bind(&Daf_Controller::controllerParamsCallback, this, _1, _2));
 
     return true;
 }
@@ -1092,10 +1100,10 @@ void Daf_Controller::calc_angel_compensation()
 
         //double add_al_rot = fabs(angle_diff/(execution_period));
 
-        double add_al_rot = fabs(angle_diff*lin_vel*k_p_rotation);
+        double add_al_rot = fabs(angle_diff*lin_vel);
         //ROS_INFO("Additional Alignment Rotation: %f", add_al_rot);
 
-        rot_vel = rot_vel_dir * lin_vel/rad*rot_correction_factor + rot_dir_opti*add_al_rot;
+        rot_vel = rot_vel_dir * lin_vel/rad*rot_correction_factor + rot_dir_opti*add_al_rot*k_p_rotation;
     }else
     {
         rot_vel = rot_vel_dir * lin_vel/rad*rot_correction_factor;
@@ -1340,5 +1348,11 @@ void Daf_Controller::stop()
     cameraOrientationPublisher.publish(cameraDefaultOrientation);
 }
 
+void Daf_Controller::controllerParamsCallback(vehicle_controller::DafControllerParamsConfig &config, uint32_t level){
+  mp_.carrot_distance = config.lookahead_distance;
+  k_p_rotation = config.kp_rot;
+  lower_al_angle = config.lower_al_angle;
+  upper_al_angle = config.upper_al_angle;
+}
 
 

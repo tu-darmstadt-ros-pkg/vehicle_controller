@@ -14,6 +14,10 @@ add_definitions(${EIGEN_DEFINITIONS})
 generate_dynamic_reconfigure_options(
   cfg/PdParams.cfg
   cfg/PdParamsArgo.cfg
+  cfg/ControllerType.cfg
+  cfg/DafControllerParams.cfg
+  cfg/CarrotControllerParams.cfg
+  cfg/PurePursuitControllerParams.cfg
 )
 
 catkin_package(
@@ -41,9 +45,6 @@ add_executable(controller_node src/controller_node.cpp)
 add_dependencies(controller_node ${${PROJECT_NAME}_EXPORTED_TARGETS} vehicle_controller_lib monstertruck_msgs_generate_messages_cpp)
 target_link_libraries(controller_node vehicle_controller_lib ${catkin_LIBRARIES})
 
-#add_executable(daf_controller_node src/daf_controller.cpp)
-#add_dependencies(daf_controller_node ${${PROJECT_NAME}_EXPORTED_TARGETS} vehicle_controller_lib monstertruck_msgs_generate_messages_cpp)
-#target_link_libraries(daf_controller_node vehicle_controller_lib ${catkin_LIBRARIES})
 
 #############
 ## Install ##

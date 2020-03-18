@@ -45,6 +45,8 @@
 class DifferentialDriveController: public VehicleControlInterface
 {
   public:
+    DifferentialDriveController();
+
     virtual ~DifferentialDriveController();
 
     virtual void configure(ros::NodeHandle& params, MotionParameters* mp);
@@ -90,6 +92,7 @@ class DifferentialDriveController: public VehicleControlInterface
     }
 
   protected:
+    ros::NodeHandle nh_dr_pdparams;
     ros::Publisher cmd_vel_raw_pub_;
     ros::Publisher pdout_pub_;
 

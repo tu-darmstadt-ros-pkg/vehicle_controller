@@ -2,6 +2,7 @@
 #define CARROT_CONTROLLER_H
 
 #include <vehicle_controller/controller.h>
+#include <vehicle_controller/CarrotControllerParamsConfig.h>
 
 
 class Carrot_Controller : public Controller
@@ -13,6 +14,10 @@ public:
   virtual ~Carrot_Controller();
   virtual bool configure();
 
+  inline virtual std::string getName()
+  {
+    return "Follow the Carrot Controller";
+  }
 
 protected:
   virtual void update();
@@ -49,6 +54,8 @@ protected:
   bool reverseForced();
   bool pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped> &transformed_path, bool fixed_path);
   bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
+
+  virtual void controllerParamsCallback(vehicle_controller::CarrotControllerParamsConfig & config, uint32_t level);
 
 private:
   ros::NodeHandle nh;
@@ -124,6 +131,9 @@ private:
   int final_twist_trials;
 
   nav_msgs::OdometryConstPtr latest_odom_;
+
+  ros::NodeHandle nh_dr_params;
+  dynamic_reconfigure::Server<vehicle_controller::CarrotControllerParamsConfig> * dr_controller_params_server;
 
   inline bool isDtInvalid()
   {

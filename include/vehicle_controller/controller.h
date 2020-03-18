@@ -44,6 +44,7 @@ public:
 
   virtual bool configure() = 0;
 
+  virtual std::string getName() = 0;
 
 protected:
   virtual void update() = 0;

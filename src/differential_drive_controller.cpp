@@ -27,6 +27,11 @@
 
 #include <vehicle_controller/differential_drive_controller.h>
 
+DifferentialDriveController::DifferentialDriveController():
+  nh_dr_pdparams("~/pd_params")
+{
+}
+
 DifferentialDriveController::~DifferentialDriveController()
 {
     if(dr_default_server_)
@@ -56,13 +61,13 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
 
     if(mp_->pd_params == "PdParamsArgo")
     {
-        dr_argo_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsArgoConfig>;
+        dr_argo_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsArgoConfig>(nh_dr_pdparams);
         dr_argo_server_->setCallback(
               boost::bind(&DifferentialDriveController::pdParamCallback<vehicle_controller::PdParamsArgoConfig>, this, _1, _2));
     }
     else
     {
-        dr_default_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>;
+        dr_default_server_ = new dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>(nh_dr_pdparams);
         dr_default_server_->setCallback(
               boost::bind(&DifferentialDriveController::pdParamCallback<vehicle_controller::PdParamsConfig>, this, _1, _2));
     }

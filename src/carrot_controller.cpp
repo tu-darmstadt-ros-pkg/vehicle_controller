@@ -1,7 +1,7 @@
 #include <vehicle_controller/carrot_controller.h>
 
 Carrot_Controller::Carrot_Controller(ros::NodeHandle& nh_)
-  : state(INACTIVE), stuck(new StuckDetector)
+  : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/controller_params")
 {
   nh = nh_;
 
@@ -45,6 +45,10 @@ Carrot_Controller::Carrot_Controller(ros::NodeHandle& nh_)
 
 Carrot_Controller::~Carrot_Controller()
 {
+  if(dr_controller_params_server){
+    nh_dr_params.shutdown();
+    delete dr_controller_params_server;
+  }
 }
 
 bool Carrot_Controller::configure()
@@ -103,6 +107,9 @@ bool Carrot_Controller::configure()
     cameraOrientationPublisher.publish(cameraDefaultOrientation);
   }
   empty_path.header.frame_id = map_frame_id;
+
+  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::CarrotControllerParamsConfig>(nh_dr_params);
+  dr_controller_params_server->setCallback(boost::bind(&Carrot_Controller::controllerParamsCallback, this, _1, _2));
 
   return true;
 }
@@ -976,4 +983,8 @@ void Carrot_Controller::stop()
   drivepathPublisher.publish(empty_path);
   if (camera_control)
     cameraOrientationPublisher.publish(cameraDefaultOrientation);
+}
+
+void Carrot_Controller::controllerParamsCallback(vehicle_controller::CarrotControllerParamsConfig &config, uint32_t level){
+  mp_.carrot_distance = config.carrot_distance;
 }

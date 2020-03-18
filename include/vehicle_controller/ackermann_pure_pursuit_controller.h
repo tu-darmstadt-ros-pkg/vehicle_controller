@@ -3,12 +3,19 @@
 
 #include <vehicle_controller/controller.h>
 
+#include <vehicle_controller/PurePursuitControllerParamsConfig.h>
+
 class Ackermann_Pure_Pursuit_Controller : public Controller
 {
 public:
   Ackermann_Pure_Pursuit_Controller(ros::NodeHandle& nh_);
   virtual ~Ackermann_Pure_Pursuit_Controller();
   virtual bool configure();
+
+  inline virtual std::string getName()
+  {
+    return "Ackermann Pure Pursuit Controller";
+  }
 
 protected:
 
@@ -50,6 +57,8 @@ protected:
   bool reverseForced();
   bool pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped> &transformed_path, bool fixed_path);
   bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
+
+  virtual void controllerParamsCallback(vehicle_controller::PurePursuitControllerParamsConfig & config, uint32_t level);
 
 private:
   ros::NodeHandle nh;
@@ -128,6 +137,9 @@ private:
   int final_twist_trials;
 
   nav_msgs::OdometryConstPtr latest_odom_;
+
+  ros::NodeHandle nh_dr_params;
+  dynamic_reconfigure::Server<vehicle_controller::PurePursuitControllerParamsConfig> * dr_controller_params_server;
 
   inline bool isDtInvalid()
   {

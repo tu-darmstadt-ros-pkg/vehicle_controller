@@ -4,6 +4,7 @@
 #include <sensor_msgs/Imu.h>
 
 #include <vehicle_controller/controller.h>
+#include <vehicle_controller/DafControllerParamsConfig.h>
 
 #include <visualization_msgs/Marker.h>
 
@@ -17,6 +18,11 @@ public:
   virtual ~Daf_Controller();
 
    virtual bool configure();
+
+  inline virtual std::string getName()
+  {
+    return "Dynamic Arc Fitting Controller";
+  }
 
 protected:
   virtual void reset();
@@ -62,6 +68,8 @@ protected:
   void update();
   void calc_angel_compensation();
   void calculate_al_rot();
+
+  virtual void controllerParamsCallback(vehicle_controller::DafControllerParamsConfig & config, uint32_t level);
 
 private:
   ros::NodeHandle nh;
@@ -157,6 +165,9 @@ private:
   nav_msgs::Path curr_path;
   nav_msgs::Path calc_path;
   nav_msgs::Path local_calc_path;
+
+  ros::NodeHandle nh_dr_params;
+  dynamic_reconfigure::Server<vehicle_controller::DafControllerParamsConfig> * dr_controller_params_server;
 
   bool alignment_finished;
   bool show_trajectory_planing;

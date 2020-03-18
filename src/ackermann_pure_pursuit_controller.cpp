@@ -1,7 +1,7 @@
 #include <vehicle_controller/ackermann_pure_pursuit_controller.h>
 
 Ackermann_Pure_Pursuit_Controller::Ackermann_Pure_Pursuit_Controller(ros::NodeHandle& nh_)
-  : state(INACTIVE), stuck(new StuckDetector)
+  : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/controller_params")
 {
   nh = nh_;
 
@@ -45,6 +45,10 @@ Ackermann_Pure_Pursuit_Controller::Ackermann_Pure_Pursuit_Controller(ros::NodeHa
 
 Ackermann_Pure_Pursuit_Controller::~Ackermann_Pure_Pursuit_Controller()
 {
+  if(dr_controller_params_server){
+    nh_dr_params.shutdown();
+    delete dr_controller_params_server;
+  }
 }
 
 bool Ackermann_Pure_Pursuit_Controller::configure()
@@ -105,6 +109,9 @@ bool Ackermann_Pure_Pursuit_Controller::configure()
     cameraOrientationPublisher.publish(cameraDefaultOrientation);
   }
   empty_path.header.frame_id = map_frame_id;
+
+  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::PurePursuitControllerParamsConfig>(nh_dr_params);
+  dr_controller_params_server->setCallback(boost::bind(&Ackermann_Pure_Pursuit_Controller::controllerParamsCallback, this, _1, _2));
 
   return true;
 }
@@ -1087,5 +1094,9 @@ double Ackermann_Pure_Pursuit_Controller::exponentialSpeedControll(){
   //double exponent = fact_curv + fact_w + fact_obst + fact_goal;
   double exponent = fact_w + fact_goal;
   return exp(-exponent);
+}
+
+void Ackermann_Pure_Pursuit_Controller::controllerParamsCallback(vehicle_controller::PurePursuitControllerParamsConfig &config, uint32_t level){
+  mp_.carrot_distance = config.lookahead_distance;
 }
 
