@@ -713,10 +713,6 @@ void Daf_Controller::reset()
   err_cont = 0;
   //oscilation_rotation = 1;
 
-  //move_robot = false;
-  //cmd.linear.x = 0.0;
-  //cmd.angular.z = 0.0;
-  //cmd_vel_pub.publish(cmd);
 }
 
 /*****************************************************************************************************************
@@ -1238,11 +1234,11 @@ void Daf_Controller::update()
     calculate_al_rot();
 
     // if difference is larger thatn both tresholds angle_correction and middle al_offset
-    if((fabs(al_an_diff) > (lower_al_angle + upper_al_angle))||(alignment_finished == false))
+    if((fabs(al_an_diff) > (upper_al_angle))||(alignment_finished == false))
     {
       // turn in place
-      ROS_INFO("ROBOT IS ALIGNING || yaw: %f angle: %f al_an_diff: %f", yaw, alignment_angle, al_an_diff);
-      ROS_INFO("lower_al: %f upper_al: %f",lower_al_angle, upper_al_angle );
+      //ROS_INFO("ROBOT IS ALIGNING || yaw: %f angle: %f al_an_diff: %f", yaw, alignment_angle, al_an_diff);
+      //ROS_INFO("lower_al: %f upper_al: %f",lower_al_angle, upper_al_angle );
       if (yaw > alignment_angle)
       {
         cmd.linear.x = 0.0;
@@ -1254,7 +1250,7 @@ void Daf_Controller::update()
         cmd.angular.z = rot_dir_opti*mp_.max_controller_speed/2;
       }
 
-      if(fabs(al_an_diff) < lower_al_angle/2)
+      if(fabs(al_an_diff) < upper_al_angle/2)
       {
         alignment_finished = true;
         ROS_INFO("Alignment completed!");
@@ -1280,9 +1276,9 @@ void Daf_Controller::update()
       }
     }
     // else if difference is between lower treshold (angle correction) and upper treshold (middle_al_offset) the angle compensation is used
-    else if((fabs(al_an_diff) > lower_al_angle)&&((fabs(al_an_diff) < (lower_al_angle + upper_al_angle))))  //||(alignment_finished == false)
+    else if((fabs(al_an_diff) > lower_al_angle)&&((fabs(al_an_diff) < (upper_al_angle))))
     {
-      ROS_INFO("DRIVE ROBOT MIDDLE STAGE || yaw: %f al_angle: %f", yaw*57.2957795, alignment_angle*57.2957795);
+      //ROS_INFO("DRIVE ROBOT MIDDLE STAGE || yaw: %f al_angle: %f", yaw*57.2957795, alignment_angle*57.2957795);
 
       //add additional rotation speed based on ground
       calc_angel_compensation();
