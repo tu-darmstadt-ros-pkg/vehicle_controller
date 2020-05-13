@@ -1,26 +1,26 @@
-#ifndef DIFFERENTIAL_PURE_PURSUIT_H
-#define DIFFERENTIAL_PURE_PURSUIT_H
+#ifndef LQR_CONTROLLER_H
+#define LQR_CONTROLLER_H
 
 #include <vehicle_controller/controller.h>
-
-#include <vehicle_controller/PurePursuitControllerParamsConfig.h>
+#include <vehicle_controller/CarrotControllerParamsConfig.h>
 
 #include <vehicle_controller/ekf.h>
 
-class Differential_Pure_Pursuit_Controller : public Controller
+class Lqr_Controller : public Controller
 {
 public:
-  Differential_Pure_Pursuit_Controller(ros::NodeHandle& nh_);
-  virtual ~Differential_Pure_Pursuit_Controller();
+  typedef enum { INACTIVE, VELOCITY, DRIVETO, DRIVEPATH } State;
+
+  Lqr_Controller(ros::NodeHandle& nh_);
+  virtual ~Lqr_Controller();
   virtual bool configure();
 
   inline virtual std::string getName()
   {
-    return "Differential Pure Pursuit Controller";
+    return "LQR Controller";
   }
 
 protected:
-
   virtual void update();
   virtual void reset();
   virtual void stop();
@@ -42,10 +42,6 @@ protected:
   void followPathGoalCallback();
   void followPathPreemptCallback();
 
-  virtual void computeMoveCmd(RobotControlState control_state);
-  virtual double exponentialSpeedControll();
-
-
   /**
    * @brief addLeg to current tracking path
    * @param pose to be added
@@ -60,8 +56,14 @@ protected:
   bool pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped> &transformed_path, bool fixed_path);
   bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
 
-  virtual void controllerParamsCallback(vehicle_controller::PurePursuitControllerParamsConfig & config, uint32_t level);
+//  virtual void controllerParamsCallback(vehicle_controller::CarrotControllerParamsConfig & config, uint32_t level);
 
+  //lqr control specific functions
+  void calc_local_path();
+  int calcClosestPoint();
+  void calcLqr();
+  void solveDare();
+  void limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate) const;
 
 private:
   ros::NodeHandle nh;
@@ -75,7 +77,6 @@ private:
   ros::Subscriber speedSubscriber;
   ros::Subscriber poseSubscriber;
 
-  ros::Subscriber trackSpeedSubscriver;
 
   ros::Publisher endPosePoublisher;
   ros::Publisher carrotPosePublisher;
@@ -83,7 +84,6 @@ private:
   ros::Publisher cameraOrientationPublisher;
   ros::Publisher drivepathPublisher;
   ros::Publisher diagnosticsPublisher;
-  ros::Publisher cmd_vel_pub;
 
   ros::Publisher pathPosePublisher;
   ros::Publisher autonomy_level_pub_;
@@ -112,8 +112,6 @@ private:
 
   double flipper_state;
 
-  double yaw, roll, pitch;
-
   // motion parameters (set at launch)
   MotionParameters mp_;
   // path-specific settings
@@ -132,15 +130,6 @@ private:
 
   double velocity_error;
 
-  double vehicle_length;
-
-  ros::Time ekf_lastTime;
-  geometry_msgs::Twist ekf_lastCmd;
-  EKF ekf;
-  bool ekf_setInitialPose = false;
-  bool ekf_useEkf;
-  double ekf_last_yaw, ekf_last_roll, ekf_last_pitch;
-
   geometry_msgs::PoseStamped current_pose;
 
 
@@ -152,17 +141,57 @@ private:
   nav_msgs::OdometryConstPtr latest_odom_;
 
   ros::NodeHandle nh_dr_params;
-  dynamic_reconfigure::Server<vehicle_controller::PurePursuitControllerParamsConfig> * dr_controller_params_server;
+  dynamic_reconfigure::Server<vehicle_controller::CarrotControllerParamsConfig> * dr_controller_params_server;
 
   inline bool isDtInvalid()
   {
-    return dt <= 0.0;
+      return dt <= 0.0;
   }
 
   std::unique_ptr<StuckDetector> stuck;
 
+  // LQR specific variables
+  nav_msgs::Path current_path;
+  geometry_msgs::PointStamped closest_point;
+  double rot_vel_dir, lin_vel_dir;
+  double local_path_radius;
+  double alignment_angle;
 
+  double lqr_y_error, lqr_x_error;
+  double lqr_angle_error;
+
+  geometry_msgs::Twist lqr_last_cmd;
+  double lqr_last_y_error;
+  double lqr_last_angle_error;
+  double lqr_expected_dy;
+  double lqr_real_dy;
+
+  double lqr_q11;
+  double lqr_q22;
+  double lqr_r;
+  bool lqr_aligning = false;
+  bool lqr_aligning_2 = false;
+
+  double lqr_p11, lqr_p12, lqr_p22;
+  double lqr_k1, lqr_k2, lqr_k3;
+
+  ros::Time lqr_time;
+  double lqr_y_error_integrate;
+
+  double roll, pitch, yaw;
+
+  Eigen::Matrix<double, 1, 2> K;
+
+
+  ros::Time ekf_lastTime;
+  geometry_msgs::Twist ekf_lastCmd;
+  EKF ekf;
+  bool ekf_setInitialPose = false;
+  bool ekf_useEkf = false;
+  double ekf_last_yaw, ekf_last_roll, ekf_last_pitch;
+
+  ros::Publisher cmd_vel_pub;
 };
 
 
-#endif // DIFFERENTIAL_PURE_PURSUIT_H
+#endif // LQR_CONTROLLER_H

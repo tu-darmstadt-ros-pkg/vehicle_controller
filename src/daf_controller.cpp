@@ -157,26 +157,30 @@ bool Daf_Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
     geometry_msgs::Vector3Stamped velocity_angular;
     pose.header = odom_state.header;
     pose.pose = odom_state.pose.pose;
+    velocity_linear.header = odom_state.header;
+    velocity_linear.vector = odom_state.twist.twist.linear;
+    velocity_angular.header = odom_state.header;
+    velocity_angular.vector = odom_state.twist.twist.angular;
 
     try
     {
-        listener.waitForTransform(map_frame_id, odom_state.header.frame_id, odom_state.header.stamp, ros::Duration(3.0));
-        listener.waitForTransform(base_frame_id, odom_state.header.frame_id, odom_state.header.stamp, ros::Duration(3.0));
-        listener.transformPose(map_frame_id, pose, pose);
+      listener.waitForTransform(map_frame_id, odom_state.header.frame_id, odom_state.header.stamp, ros::Duration(3.0));
+      listener.waitForTransform(base_frame_id, odom_state.header.frame_id, odom_state.header.stamp, ros::Duration(3.0));
+      listener.transformPose(map_frame_id, pose, pose);
+      listener.transformVector(base_frame_id, velocity_linear, velocity_linear);
+      listener.transformVector(base_frame_id, velocity_angular, velocity_angular);
 
-        odom.header = odom_state.header;
-        odom.pose.pose.position.x = pose.pose.position.x;
-        odom.pose.pose.position.y = pose.pose.position.y;
-        odom.pose.pose.position.z = pose.pose.position.z;
+      odom.header = odom_state.header;
+      odom.pose.pose= pose.pose;
 
-        tf::Quaternion q(pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w);
-        tf::Matrix3x3 m(q);
-        m.getRPY(roll, pitch, yaw);
+      tf::Quaternion q(pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w);
+      tf::Matrix3x3 m(q);
+      m.getRPY(roll, pitch, yaw);
 
 
-        robot_state_header = odom_state.header;
-        robot_control_state.setRobotState(velocity_linear.vector, velocity_angular.vector, pose.pose, dt);
-        robot_control_state.clearControlState();
+      robot_state_header = odom_state.header;
+      robot_control_state.setRobotState(velocity_linear.vector, velocity_angular.vector, pose.pose, dt);
+      robot_control_state.clearControlState();
     }
     catch (tf::TransformException ex)
     {
@@ -793,7 +797,8 @@ void Daf_Controller::calc_local_path()
         if(tmp_H > max_H)
         {
             max_H = tmp_H;
-            float det_dir = (points[co_points][0] - points[1][0])*(points[i][1] - points[0][1]) - (points[co_points][1] - points[0][1])*(points[i][0]- points[0][0]);
+            //float det_dir = (points[co_points][0] - points[1][0])*(points[i][1] - points[0][1]) - (points[co_points][1] - points[0][1])*(points[i][0]- points[0][0]);
+            float det_dir = (points[co_points][0] - points[0][0])*(points[i][1] - points[0][1]) - (points[co_points][1] - points[0][1])*(points[i][0]- points[0][0]);
             se_po_x = points[i][0];
             se_po_y = points[i][1];
 

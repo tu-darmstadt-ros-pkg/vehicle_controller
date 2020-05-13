@@ -1,17 +1,28 @@
-#include <vehicle_controller/differential_pure_pursuit_controller.h>
+#include <vehicle_controller/lqr_controller.h>
 
-Differential_Pure_Pursuit_Controller::Differential_Pure_Pursuit_Controller(ros::NodeHandle& nh_)
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+#include <Eigen/Dense>
+
+Lqr_Controller::Lqr_Controller(ros::NodeHandle& nh_)
   : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/controller_params")
 {
   nh = nh_;
 
-  mp_.carrot_distance = 1.0;
+  //LQR parameters
+  lqr_q11 = 1000;
+  lqr_q22 = 0;
+  lqr_r = 1;
+  rot_vel_dir = 1;
+  lin_vel_dir = 1;
+
+  mp_.carrot_distance = 0.2;
   mp_.min_speed       = 0.0;
   mp_.commanded_speed = 0.0;
-  mp_.max_controller_speed = 0.25;
-  mp_.max_unlimited_speed = 2.0;
-  mp_.max_unlimited_angular_rate = 1.0;
-  mp_.max_controller_angular_rate =  0.4;
+  mp_.max_controller_speed = 0.6;
+  mp_.max_unlimited_speed = 0.6;
+  mp_.max_unlimited_angular_rate = 1.2;
+  mp_.max_controller_angular_rate =  1.2;
   mp_.inclination_speed_reduction_factor = 0.5 / (30 * M_PI/180.0); // 0.5 per 30 degrees
   mp_.inclination_speed_reduction_time_constant = 0.3;
   mp_.pd_params = "PdParams";
@@ -37,13 +48,13 @@ Differential_Pure_Pursuit_Controller::Differential_Pure_Pursuit_Controller(ros::
 
   follow_path_server_.reset(new actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>(nh, "/controller/follow_path", 0, false));
 
-  follow_path_server_->registerGoalCallback(boost::bind(&Differential_Pure_Pursuit_Controller::followPathGoalCallback, this));
-  follow_path_server_->registerPreemptCallback(boost::bind(&Differential_Pure_Pursuit_Controller::followPathPreemptCallback, this));
+  follow_path_server_->registerGoalCallback(boost::bind(&Lqr_Controller::followPathGoalCallback, this));
+  follow_path_server_->registerPreemptCallback(boost::bind(&Lqr_Controller::followPathPreemptCallback, this));
 
   follow_path_server_->start();
 }
 
-Differential_Pure_Pursuit_Controller::~Differential_Pure_Pursuit_Controller()
+Lqr_Controller::~Lqr_Controller()
 {
   if(dr_controller_params_server){
     nh_dr_params.shutdown();
@@ -51,7 +62,7 @@ Differential_Pure_Pursuit_Controller::~Differential_Pure_Pursuit_Controller()
   }
 }
 
-bool Differential_Pure_Pursuit_Controller::configure()
+bool Lqr_Controller::configure()
 {
   ros::NodeHandle params("~");
   params.getParam("carrot_distance", mp_.carrot_distance);
@@ -75,7 +86,6 @@ bool Differential_Pure_Pursuit_Controller::configure()
   double stuck_detection_window;
   params.param("stuck_detection_window", stuck_detection_window, StuckDetector::DEFAULT_DETECTION_WINDOW);
   stuck.reset(new StuckDetector(stuck_detection_window));
-  params.param("vehicle_length", vehicle_length, 0.5);
 
   if (vehicle_control_type == "differential_steering")
     vehicle_control_interface_.reset(new DifferentialDriveController());
@@ -85,23 +95,24 @@ bool Differential_Pure_Pursuit_Controller::configure()
 
   ROS_INFO("[vehicle_controller] Low level vehicle motion controller is %s", this->vehicle_control_interface_->getName().c_str());
 
-  stateSubscriber     = nh.subscribe("state", 10, &Differential_Pure_Pursuit_Controller::stateCallback, this, ros::TransportHints().tcpNoDelay(true));
-  drivetoSubscriber   = nh.subscribe("driveto", 10, &Differential_Pure_Pursuit_Controller::drivetoCallback, this);
-  drivepathSubscriber = nh.subscribe("drivepath", 10, &Differential_Pure_Pursuit_Controller::drivepathCallback, this);
-  cmd_velSubscriber   = nh.subscribe("cmd_vel", 10, &Differential_Pure_Pursuit_Controller::cmd_velCallback, this, ros::TransportHints().tcpNoDelay(true));
-  cmd_velTeleopSubscriber = nh.subscribe("cmd_vel_teleop", 10, &Differential_Pure_Pursuit_Controller::cmd_velTeleopCallback, this, ros::TransportHints().tcpNoDelay(true));
-  speedSubscriber     = nh.subscribe("speed", 10, &Differential_Pure_Pursuit_Controller::speedCallback, this);
-  poseSubscriber      = nh.subscribe("robot_pose", 10, &Differential_Pure_Pursuit_Controller::poseCallback, this);
+  stateSubscriber     = nh.subscribe("state", 10, &Lqr_Controller::stateCallback, this, ros::TransportHints().tcpNoDelay(true));
+  drivetoSubscriber   = nh.subscribe("driveto", 10, &Lqr_Controller::drivetoCallback, this);
+  drivepathSubscriber = nh.subscribe("drivepath", 10, &Lqr_Controller::drivepathCallback, this);
+  cmd_velSubscriber   = nh.subscribe("cmd_vel", 10, &Lqr_Controller::cmd_velCallback, this, ros::TransportHints().tcpNoDelay(true));
+  cmd_velTeleopSubscriber = nh.subscribe("cmd_vel_teleop", 10, &Lqr_Controller::cmd_velTeleopCallback, this, ros::TransportHints().tcpNoDelay(true));
+  speedSubscriber     = nh.subscribe("speed", 10, &Lqr_Controller::speedCallback, this);
+  poseSubscriber      = nh.subscribe("robot_pose", 10, &Lqr_Controller::poseCallback, this);
 
   carrotPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("carrot", 1, true);
   endPosePoublisher   = nh.advertise<geometry_msgs::PoseStamped>("end_pose", 1, true);
   drivepathPublisher  = nh.advertise<nav_msgs::Path>("drivepath", 1, true);
   pathPosePublisher   = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
-  cmd_vel_pub         = nh.advertise<geometry_msgs::Twist>("cmd_vel_raw", 1, true);
-  //cmd_vel_pub         = nh.advertise<geometry_msgs::Twist>("/affw_ctrl/target_vel", 1, true);
 
   diagnosticsPublisher = params.advertise<std_msgs::Float32>("velocity_error", 1, true);
   autonomy_level_pub_ = nh.advertise<std_msgs::String>("/autonomy_level", 30);
+
+  cmd_vel_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel_raw", 1);
+  //cmd_vel_pub         = nh.advertise<geometry_msgs::Twist>("/affw_ctrl/target_vel", 1, true);
 
   if (camera_control)
   {
@@ -111,13 +122,13 @@ bool Differential_Pure_Pursuit_Controller::configure()
   }
   empty_path.header.frame_id = map_frame_id;
 
-  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::PurePursuitControllerParamsConfig>(nh_dr_params);
-  dr_controller_params_server->setCallback(boost::bind(&Differential_Pure_Pursuit_Controller::controllerParamsCallback, this, _1, _2));
+//  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::CarrotControllerParamsConfig>(nh_dr_params);
+//  dr_controller_params_server->setCallback(boost::bind(&Lqr_Controller::controllerParamsCallback, this, _1, _2));
 
   return true;
 }
 
-bool Differential_Pure_Pursuit_Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
+bool Lqr_Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
 {
   dt = (odom_state.header.stamp - robot_state_header.stamp).toSec();
 
@@ -170,7 +181,7 @@ bool Differential_Pure_Pursuit_Controller::updateRobotState(const nav_msgs::Odom
 
 }
 
-void Differential_Pure_Pursuit_Controller::poseCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
+void Lqr_Controller::poseCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
 {
 
   geometry_msgs::PoseStampedConstPtr pose = event.getConstMessage();
@@ -178,7 +189,7 @@ void Differential_Pure_Pursuit_Controller::poseCallback(const ros::MessageEvent<
 
 }
 
-void Differential_Pure_Pursuit_Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
+void Lqr_Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
 {
   latest_odom_ = odom_state;
 
@@ -189,7 +200,7 @@ void Differential_Pure_Pursuit_Controller::stateCallback(const nav_msgs::Odometr
   update();
 }
 
-void Differential_Pure_Pursuit_Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
+void Lqr_Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
 {
   geometry_msgs::PoseStampedConstPtr goal = event.getConstMessage();
 
@@ -201,7 +212,7 @@ void Differential_Pure_Pursuit_Controller::drivetoCallback(const ros::MessageEve
   driveto(*goal, 0.0);
 }
 
-bool Differential_Pure_Pursuit_Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
+bool Lqr_Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
 {
   reset();
 
@@ -235,7 +246,7 @@ bool Differential_Pure_Pursuit_Controller::driveto(const geometry_msgs::PoseStam
   return true;
 }
 
-void Differential_Pure_Pursuit_Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& event)
+void Lqr_Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& event)
 {
   if (event.getPublisherName() == ros::this_node::getName()) return;
   nav_msgs::PathConstPtr path = event.getConstMessage();
@@ -250,7 +261,7 @@ void Differential_Pure_Pursuit_Controller::drivepathCallback(const ros::MessageE
   drivepath(*path);
 }
 
-bool Differential_Pure_Pursuit_Controller::pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped>& transformed_path, bool fixed_path)
+bool Lqr_Controller::pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped>& transformed_path, bool fixed_path)
 {
   // Check if this path shall be smoothed
   // <=> path has length >= 2 and path is output of exploration planner
@@ -278,7 +289,7 @@ bool Differential_Pure_Pursuit_Controller::pathToBeSmoothed(const std::deque<geo
   //    return path_to_be_smoothed;
 }
 
-bool Differential_Pure_Pursuit_Controller::drivepath(const nav_msgs::Path& path)
+bool Lqr_Controller::drivepath(const nav_msgs::Path& path)
 {
   reset();
   const move_base_lite_msgs::FollowPathOptions& options = follow_path_goal_->follow_path_options;
@@ -369,7 +380,7 @@ bool Differential_Pure_Pursuit_Controller::drivepath(const nav_msgs::Path& path)
                    out_smoothed_orientations.begin(), std::back_inserter(smooth_path),
                    boost::bind(&Controller::createPoseFromQuatAndPosition, this, _1, _2));
 
-    std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Differential_Pure_Pursuit_Controller::addLeg, this, _1, options.desired_speed));
+    std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Lqr_Controller::addLeg, this, _1, options.desired_speed));
 
     nav_msgs::Path path2publish;
     path2publish.header.frame_id = map_frame_id;
@@ -383,6 +394,8 @@ bool Differential_Pure_Pursuit_Controller::drivepath(const nav_msgs::Path& path)
       return ps;
     });
     pathPosePublisher.publish(path2publish);
+
+    current_path = path2publish;
   }
   else
   {
@@ -402,13 +415,13 @@ bool Differential_Pure_Pursuit_Controller::drivepath(const nav_msgs::Path& path)
   if(!legs.empty())
     ROS_INFO("[vehicle_controller] Received new path to goal point (x = %.2f, y = %.2f)", legs.back().p2.x, legs.back().p2.y);
   else
-    ROS_WARN("[vehicle_controller] Differential_Pure_Pursuit_Controller::drivepath produced empty legs array.");
+    ROS_WARN("[vehicle_controller] Lqr_Controller::drivepath produced empty legs array.");
 
   return true;
 }
 
 
-bool Differential_Pure_Pursuit_Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, const nav_msgs::Path& path)
+bool Lqr_Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, const nav_msgs::Path& path)
 {
   if (!path.header.frame_id.empty())
   {
@@ -439,7 +452,7 @@ bool Differential_Pure_Pursuit_Controller::createDrivepath2MapTransform(tf::Stam
   return true;
 }
 
-void Differential_Pure_Pursuit_Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
+void Lqr_Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
 {
   //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
   if (follow_path_server_->isActive()){
@@ -453,7 +466,7 @@ void Differential_Pure_Pursuit_Controller::cmd_velCallback(const geometry_msgs::
   vehicle_control_interface_->executeTwist(velocity);
 }
 
-void Differential_Pure_Pursuit_Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
+void Lqr_Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 {
   if (follow_path_server_->isActive()){
     ROS_INFO("Direct teleop cmd_vel received, preempting running Action!");
@@ -471,19 +484,19 @@ void Differential_Pure_Pursuit_Controller::cmd_velTeleopCallback(const geometry_
   vehicle_control_interface_->executeUnlimitedTwist(velocity);
 }
 
-void Differential_Pure_Pursuit_Controller::speedCallback(const std_msgs::Float32& speed)
+void Lqr_Controller::speedCallback(const std_msgs::Float32& speed)
 {
   mp_.commanded_speed = speed.data;
 }
 
-void Differential_Pure_Pursuit_Controller::stopVehicle()
+void Lqr_Controller::stopVehicle()
 {
   geometry_msgs::Vector3 p;
   robot_control_state.setControlState(0.0, p, 0, 0, mp_.carrot_distance, 0.0, false, true);
   vehicle_control_interface_->executeMotionCommand(robot_control_state);
 }
 
-void Differential_Pure_Pursuit_Controller::followPathGoalCallback()
+void Lqr_Controller::followPathGoalCallback()
 {
   ROS_INFO("Received Goal");
   ROS_INFO("%f", follow_path_server_->isActive());
@@ -492,11 +505,13 @@ void Differential_Pure_Pursuit_Controller::followPathGoalCallback()
   {
     stuck->reset();
   }
+
+  current_path = follow_path_goal_->target_path;
   drivepath(follow_path_goal_->target_path);
   drivepathPublisher.publish(follow_path_goal_->target_path);
 }
 
-void Differential_Pure_Pursuit_Controller::followPathPreemptCallback()
+void Lqr_Controller::followPathPreemptCallback()
 {
   stopVehicle();
   move_base_lite_msgs::FollowPathResult result;
@@ -505,7 +520,7 @@ void Differential_Pure_Pursuit_Controller::followPathPreemptCallback()
   reset();
 }
 
-void Differential_Pure_Pursuit_Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
+void Lqr_Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
 {
   Leg leg;
   leg.finish_time = pose.header.stamp;
@@ -584,7 +599,7 @@ void Differential_Pure_Pursuit_Controller::addLeg(const geometry_msgs::PoseStamp
   legs.push_back(leg);
 }
 
-bool Differential_Pure_Pursuit_Controller::reverseAllowed()
+bool Lqr_Controller::reverseAllowed()
 {
   // Driving backward is always allowed if vehicle is symmetric
   if (mp_.isYSymmetric()) {
@@ -599,7 +614,7 @@ bool Differential_Pure_Pursuit_Controller::reverseAllowed()
   }
 }
 
-bool Differential_Pure_Pursuit_Controller::reverseForced()
+bool Lqr_Controller::reverseForced()
 {
   return false;
   if (follow_path_server_->isActive()) {
@@ -611,8 +626,11 @@ bool Differential_Pure_Pursuit_Controller::reverseForced()
 
 }
 
-void Differential_Pure_Pursuit_Controller::reset()
+void Lqr_Controller::reset()
 {
+  lqr_y_error_integrate = 0;
+  lqr_y_error = 0;
+  lqr_angle_error = 0;
   state = INACTIVE;
   current = 0;
   final_twist_trials = 0;
@@ -620,7 +638,7 @@ void Differential_Pure_Pursuit_Controller::reset()
   legs.clear();
 }
 
-void Differential_Pure_Pursuit_Controller::update()
+void Lqr_Controller::update()
 {
   if (state < DRIVETO) return;
 
@@ -821,9 +839,19 @@ void Differential_Pure_Pursuit_Controller::update()
     ROS_DEBUG_STREAM("[vehicle_controller] Start time of waypoint " << current << " not reached yet, waiting..");
     speed = 0;
   } else {
-    //exponential speed control
-    double exp_factor = exponentialSpeedControll();
-    speed = sign * legs[current].speed * exp_factor;
+    // if we are lagging behind the trajectory, increase speed accordingly
+    if (legs[current].finish_time != ros::Time(0)) {
+      ros::Duration dt = current_time - legs[current].start_time;
+      double dx_des = dt.toSec() * legs[current].speed;
+      double dx_cur = std::sqrt(std::pow(robot_control_state.pose.position.x - legs[current].p1.x, 2)
+                                + std::pow(robot_control_state.pose.position.y - legs[current].p1.y, 2));
+      double error = dx_des - dx_cur;
+      speed = legs[current].speed + 1.5 * error;
+
+    } else {
+      speed = legs[current].speed;
+    }
+    speed = sign * speed;
   }
   //    ROS_INFO_STREAM("Speed: " << speed);
 
@@ -832,19 +860,19 @@ void Differential_Pure_Pursuit_Controller::update()
                                  robot_control_state.pose.position);
   bool approaching_goal_point = goal_position_error < 0.4;
 
-  if(std::abs(signed_carrot_distance_2_robot) > (mp_.carrot_distance * 5))  //  CHANGED FROM 1.5 to 5
-  {
-    ROS_WARN("[vehicle_controller] Control failed, distance to carrot is %f (allowed: %f)", signed_carrot_distance_2_robot, (mp_.carrot_distance * 1.5));
-    state = INACTIVE;
-    stop();
+//  if(std::abs(signed_carrot_distance_2_robot) > (mp_.carrot_distance * 5))  //  CHANGED FROM 1.5 to 5
+//  {
+//    ROS_WARN("[vehicle_controller] Control failed, distance to carrot is %f (allowed: %f)", signed_carrot_distance_2_robot, (mp_.carrot_distance * 1.5));
+//    state = INACTIVE;
+//    stop();
 
-    if (follow_path_server_->isActive()){
-      move_base_lite_msgs::FollowPathResult result;
-      result.result.val = move_base_lite_msgs::ErrorCodes::CONTROL_FAILED;
-      follow_path_server_->setAborted(result, std::string("Control failed, distance between trajectory and robot too large."));
-    }
-    return;
-  }
+//    if (follow_path_server_->isActive()){
+//      move_base_lite_msgs::FollowPathResult result;
+//      result.result.val = move_base_lite_msgs::ErrorCodes::CONTROL_FAILED;
+//      follow_path_server_->setAborted(result, std::string("Control failed, distance between trajectory and robot too large."));
+//    }
+//    return;
+//  }
 
   //    if (state == DRIVETO && goal_position_error < 0.6 /* && mp_.isYSymmetric() */)
   //    { // TODO: Does mp_.isYSymmetric() really make sense here?
@@ -871,10 +899,201 @@ void Differential_Pure_Pursuit_Controller::update()
                                       approaching_goal_point,
                                       reverseAllowed());
 
-  //vehicle_control_interface_->executeMotionCommand(robot_control_state);
 
-  Differential_Pure_Pursuit_Controller::computeMoveCmd(robot_control_state);
+  robot_control_state.desired_velocity_linear = 0.3;
 
+  //robot_control_state.desired_velocity_linear *= std::max(0.0, 1.0 - (fabs(robot_control_state.velocity_linear.y) / 0.3));
+
+  //solveDare();
+
+  calc_local_path();
+  calcLqr();
+  ROS_INFO("radius: %f", local_path_radius);
+
+  ROS_INFO ("angle error: %f", lqr_angle_error);
+
+  if(reverseAllowed()){
+    if (lqr_angle_error > M_PI/2){
+      lqr_angle_error = lqr_angle_error - M_PI;
+      lin_vel_dir = -1;
+    }
+    else if(lqr_angle_error < -M_PI/2){
+      lqr_angle_error = lqr_angle_error + M_PI;
+      lin_vel_dir = -1;
+    }
+    else{
+      lin_vel_dir = 1;
+    }
+  }
+  else{
+    lin_vel_dir = 1;
+  }
+
+  //double omega_ff = (lin_vel_dir * rot_vel_dir * robot_control_state.velocity_linear.x / local_path_radius);
+  double omega_ff = (lin_vel_dir * rot_vel_dir * robot_control_state.desired_velocity_linear / local_path_radius);
+  //omega_ff = omega_ff * std::cos(roll) * std::cos(pitch);
+
+  double omega_fb = - lin_vel_dir *lqr_k1 * lqr_y_error - lqr_k2 * lqr_angle_error;
+  //double omega_fb = - lin_vel_dir *K(0,0) * lqr_y_error - K(0,1) * lqr_angle_error;
+
+  //omega_fb = omega_fb * robot_control_state.velocity_linear.x/robot_control_state.desired_velocity_linear;
+
+  double dt_test = (ros::Time::now() - lqr_time).toSec();
+//  if(dt_test > 0.0){
+//    lqr_expected_dy = lqr_last_cmd.linear.x * lqr_last_angle_error * dt_test;
+//    lqr_real_dy = lqr_y_error - lqr_last_y_error;
+//  }
+
+//  double angular_vel;
+//  if (lqr_expected_dy * lqr_real_dy < 0.0){
+//    ROS_INFO("Just FF");
+//    angular_vel = omega_ff ;
+//  }
+//  else{
+//    angular_vel = omega_ff + omega_fb;
+//  }
+
+  double angular_vel= omega_ff + omega_fb;
+
+  //_________________________________________________________________________--
+//  exakte LInearisierung
+//  double v = robot_control_state.desired_velocity_linear;
+//  double a1 = 2;
+//  double a0 = 10;
+
+//   double angular_vel = - (-v*std::cos(lqr_angle_error)*omega_ff + a1 * v *std::sin(lqr_angle_error) + a0 * lqr_y_error) / (v*std::cos(lqr_angle_error));
+
+
+  //____________________________________________________________________________
+
+//  double k_w = 0.4;
+//  double k_curv = 0.01;
+
+//  double fact_curv = k_curv*1/local_path_radius;
+//  if (!std::isnormal(fact_curv)) fact_curv = 0.0;
+//  double fact_w = k_w*fabs(angular_vel);
+//  if (!std::isnormal(fact_w)) fact_w = 0.0;
+
+//  ROS_INFO("fact curv: %f, fact w: %f", fact_curv, fact_w);
+
+//  //double exponent = fact_curv + fact_w + fact_obst + fact_goal;
+//  double exponent = fact_w + fact_curv;
+
+  geometry_msgs::Twist cmd;
+  cmd.linear.x = lin_vel_dir * fabs(robot_control_state.desired_velocity_linear) ;//* exp(-exponent);
+  cmd.angular.z = angular_vel ;//* (1 - fabs(robot_control_state.desired_velocity_linear - robot_control_state.velocity_linear.x));
+  ROS_INFO("velocity x: %f, y: %f", robot_control_state.velocity_linear.x, robot_control_state.velocity_linear.y);
+
+  ROS_INFO("unlimited: lin: %f, ang: %f", cmd.linear.x, cmd.angular.z);
+  this->limitTwist(cmd, mp_.max_controller_speed, mp_.max_controller_angular_rate);
+  ROS_INFO("limited: lin: %f, ang: %f", cmd.linear.x, cmd.angular.z);
+
+
+  //cmd.angular.z = cmd.angular.z / (std::cos(roll) * std::cos(pitch));
+
+  ROS_INFO ("ff: %f , fb: %f", omega_ff, omega_fb);
+  ROS_INFO ("k1: %f , k2: %f", lqr_k1, lqr_k2);
+  ROS_INFO ("y_error: %f, w_error: %f, x_error: %f", lqr_y_error, lqr_angle_error, lqr_x_error);
+  //cmd_vel_pub.publish(cmd);
+
+    if(ekf_useEkf){
+      if (!ekf_setInitialPose){
+        ekf.x_(0,0) = robot_control_state.pose.position.x;
+        ekf.x_(1,0) = robot_control_state.pose.position.y;
+        ekf.x_(2,0) = yaw;
+
+        ekf_setInitialPose = true;
+        ekf_lastTime = ros::Time::now();
+        ekf_lastCmd = cmd;
+
+        ekf_last_pitch = pitch;
+        ekf_last_roll = roll;
+        ekf_last_yaw = yaw;
+
+        cmd_vel_pub.publish(cmd);
+        ROS_INFO("initial SET");
+      }
+      else{
+        double dt = (ros::Time::now().toSec() - ekf_lastTime.toSec());
+
+        double l;
+        nh.getParam("/vehicle_controller/wheel_separation", l);
+
+        double v_lin = ekf_lastCmd.linear.x;
+        double v_ang = ekf_lastCmd.angular.z;
+
+        double Vl_ = v_lin - l/2 * v_ang;
+        double Vr_ = v_lin + l/2 * v_ang;
+
+        if(dt > 0){
+          ekf.predict(Vl_, Vr_, ekf_last_pitch, ekf_last_roll, dt);
+
+          Eigen::Vector3d delta;
+          delta(0) = robot_control_state.pose.position.x;
+          delta(1) = robot_control_state.pose.position.y;
+          delta(2) = yaw;
+          ekf.correct(delta);
+
+          double omega = -(Vl_ - Vr_)/fabs(ekf.x_(4) - ekf.x_(3))  * std::cos(ekf_last_roll) * std::cos(ekf_last_pitch);
+          ROS_INFO("omega: %f, twist: %f, pose.twist: %f, yaw_diff: %f", omega, cmd.angular.z, robot_control_state.velocity_angular.z, (yaw-ekf_last_yaw)/dt);
+
+          double y_ICRr = ekf.x_(3,0);
+          double y_ICRl = ekf.x_(4,0);
+
+          double vl_corrected = cmd.linear.x - y_ICRl * cmd.angular.z;
+          double vr_corrected = cmd.linear.x - y_ICRr * cmd.angular.z;
+
+          ROS_INFO("vl: %f, vl_corrected: %f", Vl_, vl_corrected);
+          ROS_INFO("vr: %f, vr_corrected: %f", Vr_, vr_corrected);
+          ROS_INFO("vlin: %f, vlin_corrected: %f", cmd.linear.x, (vl_corrected + vr_corrected)/2);
+
+          cmd_vel_pub.publish(cmd);
+
+          ROS_INFO("yl: %f, yr: %f, x: %f",ekf.x_(4), ekf.x_(3), ekf.x_(5) );
+
+          double icr = (ekf.x_(4) + ekf.x_(3));
+          ROS_INFO("ICR: %f", icr);
+
+          ekf_lastCmd = cmd;
+          ekf_lastTime = ros::Time::now();
+          ekf_last_pitch = pitch;
+          ekf_last_roll = roll;
+          ekf_last_yaw = yaw;
+        }
+
+      }
+    }
+    else{
+//      if(!lqr_aligning_2){
+//        if(fabs(lqr_y_error) > 0.03){
+//          lqr_aligning = true;
+//          lqr_aligning_2 = true;
+//        }
+//      }
+//      else{
+//        if(fabs(lqr_y_error) < 0.015){
+//          lqr_aligning = false;
+//          lqr_aligning_2 = false;
+//        }
+//      }
+//      if (lqr_aligning){
+//        if (robot_control_state.error_2_path_angular < 0.1){
+//          lqr_aligning = false;
+//        }
+//        else{
+//          cmd.linear.x = 0.0;
+//          cmd.angular.z = robot_control_state.error_2_path_angular;
+//        }
+//      }
+      cmd_vel_pub.publish(cmd);
+    }
+
+  ROS_INFO("expected dy: %f, real dy: %f, diff: %f, dt: %f", lqr_expected_dy, lqr_real_dy, lqr_expected_dy - lqr_real_dy, dt_test);
+  ROS_INFO("lin-out: %f ang-out: %f",cmd.linear.x, cmd.angular.z);
+  ROS_INFO("lin-ist: %f ang-ist: %f",robot_control_state.velocity_linear.x, robot_control_state.velocity_angular.z);
+
+  lqr_last_cmd = cmd;
+  lqr_time = ros::Time::now();
 
   if (check_stuck)
   {
@@ -976,7 +1195,7 @@ void Differential_Pure_Pursuit_Controller::update()
   }
 }
 
-void Differential_Pure_Pursuit_Controller::stop()
+void Lqr_Controller::stop()
 {
   this->vehicle_control_interface_->stop();
   stuck->reset();
@@ -985,214 +1204,614 @@ void Differential_Pure_Pursuit_Controller::stop()
     cameraOrientationPublisher.publish(cameraDefaultOrientation);
 }
 
-void Differential_Pure_Pursuit_Controller::computeMoveCmd(RobotControlState control_state){
+//void Lqr_Controller::controllerParamsCallback(){
+//  mp_.carrot_distance = config.carrot_distance;
+//}
 
-  double dist_to_carrot = control_state.signed_carrot_distance_2_robot;
+void Lqr_Controller::calc_local_path(){
+  int next_point = calcClosestPoint();
 
-  geometry_msgs::PoseStamped carrotPose_baseframe;
+  mp_.carrot_distance = 0.3;
+
+  double path_po_lenght = 0;
+  //calculate path_po_lenght
+  int psize = current_path.poses.size();
+
+  for(int i=0; i < psize; i++)
+  {
+    double curr_dist_x =fabs(closest_point.point.x - current_path.poses[i].pose.position.x);
+    double curr_dist_y =fabs(closest_point.point.y - current_path.poses[i].pose.position.y);
+      double curr_dist = sqrt(curr_dist_x*curr_dist_x + curr_dist_y*curr_dist_y);
+
+
+      if(fabs(curr_dist) > mp_.carrot_distance) //search for points
+      {
+          continue;
+      }
+      path_po_lenght = path_po_lenght + 1;
+  }
+
+  double min_dif = 10.0;
+
+  double points[50][2];
+
+  int st_point, co_points;
+  double th_po_x, th_po_y, fi_po_x, fi_po_y, se_po_x, se_po_y;
+  double max_H;
+
+  double dirx, diry;
+  double sideA, sideB, sideC;
+  double ss, area, tmp_H;
+  double Wid;
+
+  double midX, midY;
+  double dx, dy;
+  double distt, pdist;
+  double mDx, mDy;
+
+  //start point from robot current pose
+  points[0][0] = closest_point.point.x;
+  points[0][1] = closest_point.point.y;
+
+  //search for closest point to path
+  for(int i=0; i < psize; i++)
+  {
+      double po_dist = sqrt((current_path.poses[i].pose.position.x - points[0][0])*(current_path.poses[i].pose.position.x - points[0][0]) + (current_path.poses[i].pose.position.y - points[0][1])*(current_path.poses[i].pose.position.y - points[0][1]));
+      if(fabs(po_dist) < min_dif)
+      {
+          min_dif = fabs(po_dist);
+          st_point = i;
+      }
+  }
+  //ROS_INFO("Founded closest point on path: x: %f y: %f at postition: %i", curr_path.poses[st_point].pose.position.x, curr_path.poses[st_point].pose.position.x, st_point);
+
+  //calculate execution path distance
+  co_points = 0;
+  for(int i=st_point; i < (st_point+path_po_lenght); i++)
+  {
+      if(i > (psize-2))
+      {
+          co_points = co_points +1;
+          points[co_points][0] = current_path.poses[i].pose.position.x;
+          points[co_points][1] = current_path.poses[i].pose.position.y;
+          i = (st_point+path_po_lenght)+1;
+      }else
+      {
+          co_points = co_points +1;
+          points[co_points][0] = current_path.poses[i].pose.position.x;
+          points[co_points][1] = current_path.poses[i].pose.position.y;
+      }
+  }
+
+  th_po_x = 0; th_po_y = 0; fi_po_x = 0; fi_po_y = 0;
+  se_po_x = 0; se_po_y = 0; dirx = 1; diry = -1; max_H = 0;
+
+  //calculate triangle height height
+  for(int i=0; i < co_points; i++)
+  {
+                                     //p1            p2              p3
+      //ROS_INFO("Points X: %f %f %f", points[0][0], points[i][0], points[co_points][0]);
+      //ROS_INFO("Points Y: %f %f %f", points[0][1], points[i][1], points[co_points][1]);
+      sideA = sqrt(((points[0][0] - points[i][0])*(points[0][0] - points[i][0])) + (points[0][1] - points[i][1])*(points[0][1] - points[i][1]));
+      sideB = sqrt(((points[i][0] - points[co_points][0])*(points[i][0] - points[co_points][0])) + (points[i][1] - points[co_points][1])*(points[i][1] - points[co_points][1]));
+      sideC = sqrt(((points[co_points][0] - points[0][0])*(points[co_points][0] - points[0][0])) + (points[co_points][1] - points[0][1])*(points[co_points][1] - points[0][1]));
+      //ROS_INFO("triangle sides: %f %f %f", sideA, sideB, sideC);
+      ss = (sideA + sideB + sideC)/2;
+      area = sqrt(ss*(ss-sideA)*(ss-sideB)*(ss-sideC));
+      //determine params for radius calculation
+      tmp_H = (area*2)/sideC;
+
+      if(tmp_H > max_H)
+      {
+          max_H = tmp_H;
+          //float det_dir = (points[co_points][0] - points[1][0])*(points[i][1] - points[0][1]) - (points[co_points][1] - points[0][1])*(points[i][0]- points[0][0]);
+          float det_dir = (points[co_points][0] - points[0][0])*(points[i][1] - points[0][1]) - (points[co_points][1] - points[0][1])*(points[i][0]- points[0][0]);
+          se_po_x = points[i][0];
+          se_po_y = points[i][1];
+
+          if(det_dir > 0)
+          {
+              dirx = -1;
+              diry = 1;
+              rot_vel_dir = -1;
+          }else
+          {
+              dirx = 1;
+              diry = -1;
+              rot_vel_dir = 1;
+          }
+      }
+      Wid = sideC;
+  }
+
+  //if local path is too short
+  if(co_points < 3)
+  {
+      max_H = 0.001;
+  }
+  //smooth local path
+  //max_H = max_H/2;
+
+  //calculate ground compensation, which modifiy max_H and W
+  //calc_ground_compensation();
+
+  fi_po_x = points[0][0];
+  fi_po_y = points[0][1];
+  th_po_x = points[co_points][0];
+  th_po_y = points[co_points][1];
+
+  //calculate radious
+  local_path_radius = max_H/2 + (Wid*Wid)/(8*max_H);
+  ROS_INFO("Fitted circle radius: %f", local_path_radius);
+
+  //calculating circle center
+  midX = (points[0][0] + points[co_points][0])/2;
+  midY = (points[0][1] + points[co_points][1])/2;
+  dx = (points[0][0] - points[co_points][0])/2;
+  dy = (points[0][1] - points[co_points][1])/2;
+  distt = sqrt(dx*dx + dy*dy);
+  pdist = sqrt(local_path_radius*local_path_radius - distt*distt);
+  mDx = dirx*dy*pdist/distt;
+  mDy = diry*dx*pdist/distt;
+
+  //calculate alignemnt angle
+  double curr_dist_x = points[0][0] -  (midX + mDx);
+  double curr_dist_y = points[0][1] - (midY + mDy);
+
+  if(isinf(local_path_radius)){
+    alignment_angle = atan2(current_path.poses[co_points].pose.position.y - closest_point.point.y,
+                            current_path.poses[co_points].pose.position.x - closest_point.point.x);
+  }
+  else{
+    //correct angle directions
+    if((curr_dist_x < 0)&&(curr_dist_y < 0))
+    {
+      alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*M_PI/2;
+    }
+    else if((curr_dist_x > 0)&&(curr_dist_y > 0))
+    {
+      alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*M_PI/2;
+    }
+    else if((curr_dist_x < 0)&&(curr_dist_y > 0))
+    {
+      alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*M_PI/2;
+    }
+    else if((curr_dist_x > 0)&&(curr_dist_y < 0))
+    {
+      alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*M_PI/2;
+    }
+  }
+
+  //reduce angle on -PI to +PI
+  if(alignment_angle > M_PI)
+  {
+      alignment_angle = alignment_angle - 2*M_PI;
+  }
+  if(alignment_angle < -M_PI)
+  {
+      alignment_angle = alignment_angle + 2*M_PI;
+  }
+
+  if(isnan(alignment_angle))
+  {
+      ROS_WARN("Alignment Angle can not be computed!");
+  }
+
+  //ROS_INFO("Alignment angle is: %f", alignment_angle);
+  if(isnan(alignment_angle))
+  {
+      ROS_INFO("Alignment angle is nan - return to calc_local_path");
+      calc_local_path();
+  }
+
+}
+
+//void Lqr_Controller::calc_local_path(){
+//  int next_point = calcClosestPoint();
+
+//  double co_point = 0;
+//  double triangle_height = 0.001;
+//  double det_dir = 1;
+//  double sideA;
+//  double sideB;
+//  double sideC;
+
+//  if((next_point + 2) < current_path.poses.size()){
+//    co_point = next_point + 2;
+
+//    sideA = sqrt(std::pow(closest_point.point.x - current_path.poses[next_point + 1].pose.position.x, 2) +
+//        std::pow(closest_point.point.y - current_path.poses[next_point + 1].pose.position.y, 2));
+//    sideB = sqrt(std::pow(current_path.poses[next_point + 1].pose.position.x - current_path.poses[next_point + 2].pose.position.x, 2) +
+//        std::pow(current_path.poses[next_point + 1].pose.position.y - current_path.poses[next_point + 2].pose.position.y, 2));
+//    sideC = sqrt(std::pow(closest_point.point.x - current_path.poses[next_point + 2].pose.position.x, 2) +
+//        std::pow(closest_point.point.y - current_path.poses[next_point + 2].pose.position.y, 2));
+
+//    //Calulate area with rule of heron
+//    double ss = (sideA + sideB + sideC)/2;
+//    double area = sqrt(ss*(ss-sideA)*(ss-sideB)*(ss-sideC));
+
+//    if(isnan(area)){
+//      ROS_INFO ("area is nan, setting to 0.0");
+//      area = 0.0;
+//    }
+
+//    triangle_height = (area*2)/sideC;
+
+//    ROS_INFO("height: %f, sideC: %f, sideA: %f, sideB: %f, area: %f", triangle_height, sideC, sideA, sideB, area);
+//    ROS_INFO("next_point: %i", next_point);
+//    ROS_INFO("closestPointX: %f, Y: %f", closest_point.point.x, closest_point.point.y);
+
+//    det_dir = (current_path.poses[next_point + 2].pose.position.x -  closest_point.point.x)*(current_path.poses[next_point + 1].pose.position.y - closest_point.point.y)
+//              - (current_path.poses[next_point + 1].pose.position.x - closest_point.point.x)*(current_path.poses[next_point + 2].pose.position.y - closest_point.point.y);
+
+//  }
+//  else{
+//    co_point = current_path.poses.size() - 1;
+//    triangle_height = 0.001;
+
+//    sideC = sqrt(std::pow(closest_point.point.x - current_path.poses[co_point].pose.position.x, 2) +
+//        std::pow(closest_point.point.y - current_path.poses[co_point].pose.position.y, 2));
+//  }
+
+////  double dh = fabs((triangle_height/cos(roll))-triangle_height);
+////  double dw = fabs((sideC/cos(pitch))-sideC);
+
+////  triangle_height = triangle_height + dh;
+////  sideC = sideC + dw;
+
+//  double dirx;
+//  double diry;
+
+//  if(det_dir > 0)
+//  {
+//      dirx = -1;
+//      diry = 1;
+//      rot_vel_dir = -1;
+//  }else
+//  {
+//      dirx = 1;
+//      diry = -1;
+//      rot_vel_dir = 1;
+//  }
+
+
+//  local_path_radius = triangle_height/2 + sideC*sideC / (8*triangle_height);
+
+//  //calculating circle center
+//  double midX = (closest_point.point.x + current_path.poses[co_point].pose.position.x)/2;
+//  double midY = (closest_point.point.y + current_path.poses[co_point].pose.position.y)/2;
+//  double dx = (closest_point.point.x - current_path.poses[co_point].pose.position.x)/2;
+//  double dy = (closest_point.point.y - current_path.poses[co_point].pose.position.y)/2;
+//  double distt = sqrt(dx*dx + dy*dy);
+//  double pdist = sqrt(local_path_radius*local_path_radius - distt*distt);
+//  double mDx = dirx*dy*pdist/distt;
+//  double mDy = diry*dx*pdist/distt;
+
+//  //calculate alignemnt angle
+//  double curr_dist_x = closest_point.point.x -  (midX + mDx);
+//  double curr_dist_y = closest_point.point.y - (midY + mDy);
+
+//  if(isinf(local_path_radius)){
+//    alignment_angle = atan2(current_path.poses[co_point].pose.position.y - closest_point.point.y,
+//                            current_path.poses[co_point].pose.position.x - closest_point.point.x);
+//  }
+//  else{
+//    //correct angle directions
+//    if((curr_dist_x < 0)&&(curr_dist_y < 0))
+//    {
+//      alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*M_PI/2;
+//    }
+//    else if((curr_dist_x > 0)&&(curr_dist_y > 0))
+//    {
+//      alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*M_PI/2;
+//    }
+//    else if((curr_dist_x < 0)&&(curr_dist_y > 0))
+//    {
+//      alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*M_PI/2;
+//    }
+//    else if((curr_dist_x > 0)&&(curr_dist_y < 0))
+//    {
+//      alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*M_PI/2;
+//    }
+//  }
+
+//  //reduce angle on -PI to +PI
+//  if(alignment_angle > M_PI)
+//  {
+//      alignment_angle = alignment_angle - 2*M_PI;
+//  }
+//  if(alignment_angle < -M_PI)
+//  {
+//      alignment_angle = alignment_angle + 2*M_PI;
+//  }
+
+//  if(isnan(alignment_angle))
+//  {
+//      ROS_INFO("Alignment angle is nan - return to calc_local_path");
+//      calc_local_path();
+//  }
+
+//}
+
+//Calculate the closest Point on the linear interpolated path, returns index of next point on path
+int Lqr_Controller::calcClosestPoint(){
+  //Calculate the two closest Points on the path
+  int closest = 1;
+  int second_closest = 0;
+  double shortest_dist = 999999;
+  for(int i = 0; i < current_path.poses.size(); i++){
+    double dist = std::sqrt(std::pow(robot_control_state.pose.position.x - current_path.poses[i].pose.position.x, 2)
+                           + std::pow(robot_control_state.pose.position.y - current_path.poses[i].pose.position.y, 2));
+    if (dist < shortest_dist){
+      shortest_dist = dist;
+      second_closest = closest;
+      closest = i;
+    }
+  }
+
+//  if(abs(closest - second_closest) > 1){
+//    if (closest == 0){
+//      second_closest = 1;
+//    }
+//    else{
+//      if ((closest + 1) < current_path.poses.size()){
+//        double dist_next = std::sqrt(std::pow(robot_control_state.pose.position.x - current_path.poses[closest + 1].pose.position.x, 2)
+//                               + std::pow(robot_control_state.pose.position.y - current_path.poses[closest + 1].pose.position.y, 2));
+//        double dist_prev = std::sqrt(std::pow(robot_control_state.pose.position.x - current_path.poses[closest - 1].pose.position.x, 2)
+//                               + std::pow(robot_control_state.pose.position.y - current_path.poses[closest - 1].pose.position.y, 2));
+
+//        if(dist_next < dist_prev){
+//          second_closest = closest + 1;
+//        }
+//        else{
+//          second_closest = closest - 1;
+//        }
+//      }
+//      else{
+//        second_closest = closest - 1;
+//      }
+//    }
+//  }
+
+  if (closest == 0){
+    second_closest = 1;
+  }
+  else{
+    if ((closest + 1) < current_path.poses.size()){
+      double prev_dx = (current_path.poses[closest - 1].pose.position.x - current_path.poses[closest].pose.position.x);
+      double prev_dy = (current_path.poses[closest - 1].pose.position.y - current_path.poses[closest].pose.position.y);
+      double next_dx = (current_path.poses[closest + 1].pose.position.x - current_path.poses[closest].pose.position.x);
+      double next_dy = (current_path.poses[closest + 1].pose.position.y - current_path.poses[closest].pose.position.y);
+      double robot_dx = (robot_control_state.pose.position.x - current_path.poses[closest].pose.position.x);
+      double robot_dy = (robot_control_state.pose.position.y - current_path.poses[closest].pose.position.y);
+
+      double angle_prev = std::acos((prev_dx*robot_dx + prev_dy*robot_dy) / (sqrt(prev_dx*prev_dx + prev_dy*prev_dy) + sqrt(robot_dx*robot_dx + robot_dy*robot_dy) ));
+      double angle_next = std::acos((next_dx*robot_dx + next_dy*robot_dy) / (sqrt(next_dx*next_dx + next_dy*next_dy) + sqrt(robot_dx*robot_dx + robot_dy*robot_dy) ));
+
+      if (fabs(angle_prev) < fabs(angle_next)){
+        second_closest = closest - 1;
+      }
+      else{
+        second_closest = closest + 1;
+      }
+    }
+    else{
+      second_closest = closest - 1;
+    }
+  }
+
+  //Calculate the closest Point on the connection line of the two closest points on the path
+  double l1 = current_path.poses[second_closest].pose.position.x - current_path.poses[closest].pose.position.x;
+  double l2 = current_path.poses[second_closest].pose.position.y - current_path.poses[closest].pose.position.y;
+
+  double r1 = -l2;
+  double r2 = l1;
+
+  double lambda = (l2 * (current_path.poses[closest].pose.position.x - robot_control_state.pose.position.x)
+                   + l1 * (robot_control_state.pose.position.y - current_path.poses[closest].pose.position.y) ) / (r1*l2 - r2*l1);
+
+  closest_point.point.x = robot_control_state.pose.position.x + lambda * r1;
+  closest_point.point.y = robot_control_state.pose.position.y + lambda * r2;
+  closest_point.header = robot_state_header;
+
+  ROS_INFO("closest: %i, second: %i", closest, second_closest);
+  ROS_INFO("closest: x: %f, y: %f", current_path.poses[closest].pose.position.x, current_path.poses[closest].pose.position.y);
+  ROS_INFO("second: x: %f, y: %f", current_path.poses[second_closest].pose.position.x, current_path.poses[second_closest].pose.position.y);
+
+  if (closest > second_closest){
+    return closest;
+  }
+  else{
+    return second_closest;
+  }
+
+}
+
+
+void Lqr_Controller::calcLqr(){
+  geometry_msgs::PointStamped closest_point_baseframe;
+
+  lqr_last_y_error = lqr_y_error;
+  lqr_last_angle_error = lqr_angle_error;
+  //compute errors
+
+  if(fabs((ros::Time::now() - lqr_time).toSec()) < 0.2){
+    double dt = (ros::Time::now() - lqr_time).toSec();
+    lqr_y_error_integrate = lqr_y_error_integrate + dt*lqr_y_error;
+  }
+  //lqr_time = ros::Time::now();
 
   try
   {
-    listener.waitForTransform(base_frame_id, carrotPose.header.frame_id, carrotPose.header.stamp, ros::Duration(3.0));
-    listener.transformPose(base_frame_id, carrotPose, carrotPose_baseframe);
+    closest_point.point.z = robot_control_state.pose.position.z;
+    listener.waitForTransform(base_frame_id, robot_state_header.frame_id, robot_state_header.stamp, ros::Duration(3.0));
+    listener.transformPoint(base_frame_id, closest_point, closest_point_baseframe);
+
+    lqr_x_error = -closest_point_baseframe.point.x;
+    lqr_y_error = -closest_point_baseframe.point.y;
+//    std::cout << "robot pose odom: " << robot_control_state.pose.position << std::endl;
+//    std::cout << "robot pose robotpose: " << current_pose << std::endl;
+//    std::cout << "closest point: " << closest_point << std::endl;
+//    std::cout << "closest point baseframe: " << closest_point_baseframe << std::endl;
   }
   catch (tf::TransformException ex)
   {
-    ROS_ERROR("%s", ex.what());
-    return;
+      ROS_ERROR("%s", ex.what());
+      return;
   }
 
-  double curv =  2 * carrotPose_baseframe.pose.position.y / (dist_to_carrot*dist_to_carrot);
+  double angles[3];
+  quaternion2angles(robot_control_state.pose.orientation, angles);
 
-  geometry_msgs::Twist cmd;
-  cmd.linear.x = control_state.desired_velocity_linear;
-  cmd.linear.y = 0.0;
-  cmd.angular.z = curv * cmd.linear.x;
+  lqr_angle_error =  constrainAngle_mpi_pi(angles[0] - alignment_angle);
+  ROS_INFO("yaw: %f, al_angle: %f", angles[0] , alignment_angle);
 
-  if(ekf_useEkf){
-    if (!ekf_setInitialPose){
-      ekf.x_(0,0) = robot_control_state.pose.position.x;
-      ekf.x_(1,0) = robot_control_state.pose.position.y;
-      ekf.x_(2,0) = yaw;
+  //compute control gains
+  double v = fabs(robot_control_state.desired_velocity_linear);
+  //double v = fabs(robot_control_state.velocity_linear.x);
 
-      ekf_setInitialPose = true;
-      ekf_lastTime = ros::Time::now();
-      ekf_lastCmd = cmd;
+  ROS_INFO ("speed: %f", v);
 
-      ekf_last_pitch = pitch;
-      ekf_last_roll = roll;
-      ekf_last_yaw = yaw;
+  if (v != 0.0){
+    lqr_p12 = sqrt(lqr_q11 * lqr_r);
+    lqr_p11 = sqrt(lqr_q11*(2 * lqr_p12 * v + lqr_q22)/(v*v));
+    lqr_p22 = sqrt(lqr_r) * v * lqr_p11 / sqrt(lqr_q11);
 
-      cmd_vel_pub.publish(cmd);
-      ROS_INFO("initial SET");
-    }
-    else{
-      double dt = (ros::Time::now().toSec() - ekf_lastTime.toSec());
-
-      double l;
-      nh.getParam("/vehicle_controller/wheel_separation", l);
-
-      double v_lin = ekf_lastCmd.linear.x;
-      double v_ang = ekf_lastCmd.angular.z;
-
-      double Vl_ = v_lin - l/2 * v_ang;
-      double Vr_ = v_lin + l/2 * v_ang;
-
-      if(dt > 0){
-        ekf.predict(Vl_, Vr_, ekf_last_pitch, ekf_last_roll, dt);
-
-        Eigen::Vector3d delta;
-        delta(0) = robot_control_state.pose.position.x;
-        delta(1) = robot_control_state.pose.position.y;
-        delta(2) = yaw;
-        ekf.correct(delta);
-
-        double omega = -(Vl_ - Vr_)/fabs(ekf.x_(4) - ekf.x_(3))  * std::cos(ekf_last_roll) * std::cos(ekf_last_pitch);
-        ROS_INFO("omega: %f, twist: %f, pose.twist: %f, yaw_diff: %f", omega, cmd.angular.z, robot_control_state.velocity_angular.z, (yaw-ekf_last_yaw)/dt);
-
-        double y_ICRr = ekf.x_(3,0);
-        double y_ICRl = ekf.x_(4,0);
-
-        double vl_corrected = cmd.linear.x - y_ICRl * cmd.angular.z;
-        double vr_corrected = cmd.linear.x - y_ICRr * cmd.angular.z;
-
-        ROS_INFO("vl: %f, vl_corrected: %f", Vl_, vl_corrected);
-        ROS_INFO("vr: %f, vr_corrected: %f", Vr_, vr_corrected);
-        ROS_INFO("vlin: %f, vlin_corrected: %f", cmd.linear.x, (vl_corrected + vr_corrected)/2);
-
-        cmd.linear.x = (vl_corrected + vr_corrected)/2;
-        cmd.angular.z = (vr_corrected - vl_corrected)/l;
-
-        cmd_vel_pub.publish(cmd);
-
-        ROS_INFO("yl: %f, yr: %f, x: %f",ekf.x_(4), ekf.x_(3), ekf.x_(5) );
-
-        double icr = (ekf.x_(4) + ekf.x_(3));
-        ROS_INFO("ICR: %f", icr);
-
-        ekf_lastCmd = cmd;
-        ekf_lastTime = ros::Time::now();
-        ekf_last_pitch = pitch;
-        ekf_last_roll = roll;
-        ekf_last_yaw = yaw;
-      }
-
-    }
+    lqr_k1 = 1/lqr_r * lqr_p12;
+    lqr_k2 = 1/lqr_r * lqr_p22;
   }
   else{
-    cmd_vel_pub.publish(cmd);
+    lqr_k1 = 0.0;
+    lqr_k2 = 0.0;
   }
-  ROS_INFO("ekf x: %f", ekf.x_(0,0));
-  //cmd_vel_pub.publish(cmd);
 
 }
 
-double Differential_Pure_Pursuit_Controller::exponentialSpeedControll(){
-  //Test: hadcoded kw and kg
-  double k_w_ = 0.0;
-  double k_g_ = 0.0;
+//void Lqr_Controller::solveDare(){
+//  double epsilon = 0.001;
 
-  //compute the curvature, and stop when the look-ahead distance is reached (w.r.t. orthogonal projection)
-//  double s_cum_sum = 0;
-//  curv_sum_ = 0.0;
+//  Eigen::Matrix<double, 2, 2> Q =  Eigen::Matrix<double, 2, 2>::Zero();
+//  Q(0,0) = lqr_q11;
+//  Q(1,1) = lqr_q22;
 
-//  for (unsigned int i = proj_ind_ + 1; i < path_interpol.n(); i++){
+//  Eigen::Matrix<double, 2, 2> P = Q;
 
-//      s_cum_sum = path_interpol.s(i) - path_interpol.s(proj_ind_);
-//      curv_sum_ += std::abs(path_interpol.curvature(i));
+//  Eigen::Matrix<double, 2, 2> P_new;
 
-//      if(s_cum_sum - look_ahead_dist_ >= 0){
-//          break;
-//      }
+//  Eigen::Matrix<double, 2, 2> A = Eigen::Matrix<double, 2, 2>::Zero();
+//  A(0,1) = fabs(robot_control_state.desired_velocity_linear);
+//  Eigen::Matrix<double, 2, 2> A_t = A.transpose();
+
+//  Eigen::Matrix<double, 2, 1> B = Eigen::Matrix<double, 2, 1>::Zero();
+//  B(1,0) = 1;
+//  Eigen::Matrix<double, 1, 2> B_t = B.transpose();
+
+//  Eigen::Matrix<double, 1, 2> K = B.transpose();
+
+//  double help_var = 1/(B_t*P*B+lqr_r);
+
+//  double diff;
+//  int max_iter = 1000;
+//  for(int i = 0; i< max_iter;i++){
+//    help_var = 1/(B_t*P*B+lqr_r);
+//    P_new = Q + A_t * P * A - A_t * P * B * help_var * B_t * P * A;
+//    std::cout << "Matrix P: " << P <<std::endl;
+//    std::cout << "Matrix Pnew: " << P_new <<std::endl;
+
+//    Eigen::Matrix2d P_test = P_new - P;
+//    diff = fabs(P_test.maxCoeff());
+
+//    ROS_INFO ("diff: %f", diff);
+//    ROS_INFO("helpvar: %f", help_var);
+//    std::cout << "Matrix P: " << P <<std::endl;
+//    std::cout << "Matrix Pnew: " << P_new <<std::endl;
+//    P = P_new;
+//    if(diff < epsilon){
+//      ROS_INFO("iterations: %i, p11: %f, p12: %f, p22: %f",i, P(0,0), P(0,1), P(1,1));
+//      K = help_var * B_t * P * A;
+//      ROS_INFO("k1: %f, k2:%f", K(0,0), K(0,1));
+//      return;
+//    }
+
 //  }
+//  ROS_INFO("max iterations, diff: %f, p11: %f, p12: %f, p22: %f",diff, P(0,0), P(0,1), P(1,1));
+//  K = help_var * B_t * P * A;
+//  ROS_INFO("k1: %f, k2:%f", K(0,0), K(0,1));
 
-  double goal_position_error =
-      std::sqrt(
-        std::pow(legs.back().p2.x - robot_control_state.pose.position.x, 2)
-        + std::pow(legs.back().p2.y - robot_control_state.pose.position.y, 2));
+//}
 
-  //get the robot's current angular velocity
-  double angular_vel = robot_control_state.velocity_angular.z;
+void Lqr_Controller::solveDare(){
+  double epsilon = 0.001;
 
-  //double obst_angle = 0.0;
-
-//  double min_dist = std::numeric_limits<double>::infinity();
-//  if(collision_avoider_->hasObstacles()) {
-//      auto obstacle_cloud = collision_avoider_->getObstacles();
-//      const pcl::PointCloud<pcl::PointXYZ>& cloud = *obstacle_cloud->cloud;
-//      if(cloud.header.frame_id == "base_link" || cloud.header.frame_id == "/base_link") {
-//          for(const pcl::PointXYZ& pt : cloud) {
-
-//              if(std::sqrt(pt.x*pt.x + pt.y*pt.y + pt.z*pt.z) < min_dist){
-
-//                  obst_angle = std::atan2(pt.y, pt.x);
-//              }
-//              min_dist = std::min<double>(min_dist, std::sqrt(pt.x*pt.x + pt.y*pt.y + pt.z*pt.z));
-//          }
-
-//      } else {
-//          tf::Transform trafo = pose_tracker_->getTransform(pose_tracker_->getRobotFrameId(), cloud.header.frame_id, ros::Time(0), ros::Duration(0));
-//          for(const pcl::PointXYZ& pt : cloud) {
-
-//              tf::Point pt_cloud(pt.x, pt.y, pt.z);
-//              tf::Point pt_robot = trafo * pt_cloud;
-
-//              if(pt_robot.length() < min_dist){
-//                  obst_angle = std::atan2(pt_robot.getY(), pt_robot.getX());
-//              }
-
-//              min_dist = std::min<double>(min_dist, pt_robot.length());
-//          }
-//      }
-//  }
-
-//  distance_to_obstacle_ = min_dist;
-
-  //ensure valid values
-//  if (!std::isnormal(distance_to_obstacle_)) distance_to_obstacle_ = 1e5;
-//  if (!std::isnormal(distance_to_goal_)) distance_to_goal_ = 1e5;
-
-  //consider only the obstacles closer than a threshold, and slow down only when driving forward
-//  double epsilon_o = 0.0;
-//  if(distance_to_obstacle_ <= obst_threshold_){
-//      epsilon_o = k_o_/distance_to_obstacle_;
-//  }
-//  //consider the obstacle orientation for backward driving
-//  if(getDirSign() < 0){
-//      obst_angle -= M_PI;
-//  }
-
-//  double fact_curv = k_curv_*curv_sum_;
-//  if (!std::isnormal(fact_curv)) fact_curv = 0.0;
-  double fact_w = k_w_*fabs(angular_vel);
-  if (!std::isnormal(fact_w)) fact_w = 0.0;
-//  double fact_obst = epsilon_o*std::max(0.0, cos(obst_angle));
-//  if (!std::isnormal(fact_obst)) fact_obst = 0.0;
-  double fact_goal = std::min(3.0, k_g_/goal_position_error); // TODO: remove this hack to avoid non-moving robot!
-  if (!std::isnormal(fact_goal)) fact_goal = 0.0;
-
-  //publish the factors of the exponential speed control
-//  std_msgs::Float64MultiArray exp_control_array;
-//  exp_control_array.data.resize(4);
-//  exp_control_array.data[0] = fact_curv;
-//  exp_control_array.data[1] = fact_w;
-//  exp_control_array.data[2] = fact_obst;
-//  exp_control_array.data[3] = fact_goal;
-//  exp_control_pub_.publish(exp_control_array);
-
-//    ROS_INFO("k_curv: %f, k_o: %f, k_w: %f, k_g: %f, look_ahead: %f, obst_thresh: %f",
-//             k_curv_, k_o_, k_w_, k_g_, look_ahead_dist_, obst_threshold_);
-  //double exponent = fact_curv + fact_w + fact_obst + fact_goal;
-  double exponent = fact_w + fact_goal;
-  return exp(-exponent);
-}
-
-void Differential_Pure_Pursuit_Controller::controllerParamsCallback(vehicle_controller::PurePursuitControllerParamsConfig &config, uint32_t level){
-  mp_.carrot_distance = config.lookahead_distance;
-  ekf_useEkf = config.use_ekf;
-  if(!ekf_useEkf){
-    ekf_setInitialPose = false;
+  double xicr = - robot_control_state.velocity_linear.y /robot_control_state.velocity_angular.z;
+  if(isnan(xicr)){
+    xicr = 0.0;
   }
+
+  ROS_INFO("xicr: %f", xicr);
+
+  Eigen::Matrix<double, 2, 2> Q =  Eigen::Matrix<double, 2, 2>::Zero();
+  Q(0,0) = 1000;
+  Q(1,1) = 0.0;
+
+  Eigen::Matrix<double, 2, 2> P = Eigen::Matrix<double, 2, 2>::Zero();
+
+  Eigen::Matrix<double, 2, 2> P_new;
+
+  Eigen::Matrix<double, 2, 2> A = Eigen::Matrix<double, 2, 2>::Zero();
+  A(0,1) = fabs(robot_control_state.desired_velocity_linear);
+  Eigen::Matrix<double, 2, 2> A_t = A.transpose();
+
+  Eigen::Matrix<double, 2, 1> B = Eigen::Matrix<double, 2, 1>::Zero();
+  B(0,0) =  ekf.x_(5,0);
+  B(1,0) = 1;
+  Eigen::Matrix<double, 1, 2> B_t = B.transpose();
+
+
+  double dt = 0.01;
+
+  double diff;
+  int max_iter = 1000;
+  for(int i = 0; i< max_iter;i++){
+    P_new = P - dt*(-Q - A_t*P-P*A+P*B*B_t*P*1/lqr_r);
+    Eigen::Matrix2d P_test = P_new - P;
+    diff = fabs(P_test.cwiseAbs().maxCoeff());
+
+//    ROS_INFO ("diff: %f", diff);
+//    std::cout << "Matrix P: " << P <<std::endl;
+//    std::cout << "Matrix Pnew: " << P_new <<std::endl;
+    P = P_new;
+    if(diff < epsilon){
+      ROS_INFO("iterations: %i, p11: %f, p12: %f, p22: %f",i, P(0,0), P(0,1), P(1,1));
+      K = 1/lqr_r * B_t*P;
+      ROS_INFO("k1: %f, k2:%f, k3: %f", K(0,0), K(0,1), K(0,2));
+       ROS_INFO("ekf_x: %f, stanni xicr: %f", ekf.x_(5,0), xicr);
+      return;
+    }
+
+  }
+  ROS_INFO("max iterations, diff: %f, p11: %f, p12: %f, p22: %f",diff, P(0,0), P(0,1), P(1,1));
+  K = 1/lqr_r * B_t*P;
+  ROS_INFO("k1: %f, k2:%f, k3: %f", K(0,0), K(0,1), K(0,2));
+
+  ROS_INFO("ekf_x: %f, stanni xicr: %f", ekf.x_(5,0), xicr);
+
 }
 
+void Lqr_Controller::limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate) const
+{
+  double SPEED_REDUCTION_GAIN_ = 0.5;
 
+  double speed = twist.linear.x;
+  double angular_rate = twist.angular.z;
+
+  speed        = std::max(-mp_.max_unlimited_speed, std::min(mp_.max_unlimited_speed, speed));
+  angular_rate = std::max(-mp_.max_unlimited_angular_rate, std::min(mp_.max_unlimited_angular_rate, angular_rate));
+
+  double m = -mp_.max_controller_speed / mp_.max_controller_angular_rate;
+  double t = mp_.max_controller_speed;
+  double speedAbsUL = std::min(std::max(0.05, m * std::abs(angular_rate) * SPEED_REDUCTION_GAIN_ + t), max_speed);
+
+  twist.linear.x = std::max(-speedAbsUL, std::min(speed, speedAbsUL));
+  twist.angular.z = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate));
+}

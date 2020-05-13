@@ -9,7 +9,7 @@
     
     <param name="frame_id" value="world" />
 
-    <param name="controller_type" value="carrot" />
+    <param name="controller_type" value="differential_pure_pursuit" />
 
     <param name="pub_cmd_hz" value="30" />
     <param name="rot_correction_factor" value="1.0" />
@@ -31,7 +31,7 @@
     
     <param name="y_symmetry" value="false" />
     
-    <param name="max_controller_speed" value="0.8" />
+    <param name="max_controller_speed" value="0.6" />
     <param name="max_unlimited_speed" value="0.6" />
     <param name="max_unlimited_angular_rate" value="3.0" />
     <param name="max_controller_angular_rate" value="1.4" />

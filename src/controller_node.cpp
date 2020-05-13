@@ -3,11 +3,15 @@
 Controller_Node::Controller_Node(ros::NodeHandle &nh_)
 {
   nh = nh_;
-  ros::NodeHandle params("~");
-  params.param<std::string>("controller_type", controller_type, "carrot");
+  //ros::NodeHandle params("~");
+  //  nh.getParam("controller_type", controller_type);
+  //  ROS_INFO ("type: %s", controller_type.c_str());
+
 
   dr_controller_type_server = new dynamic_reconfigure::Server<vehicle_controller::ControllerTypeConfig>;
   dr_controller_type_server->setCallback(boost::bind(&Controller_Node::controllerTypeCallback, this, _1, _2));
+
+
 
   reset();
 }
@@ -25,7 +29,11 @@ void Controller_Node::reset(){
   else if(controller_type == "differential_pure_pursuit"){
     control.reset(new Differential_Pure_Pursuit_Controller(nh));
   }
+  else if (controller_type == "lqr"){
+    control.reset(new Lqr_Controller(nh));
+  }
   else{
+    //control.reset(new Carrot_Controller(nh));
     control.reset(new Carrot_Controller(nh));
   }
   control->configure();

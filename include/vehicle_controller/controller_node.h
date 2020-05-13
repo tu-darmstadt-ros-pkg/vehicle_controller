@@ -7,13 +7,15 @@
 #include <vehicle_controller/differential_pure_pursuit_controller.h>
 #include <vehicle_controller/controller.h>
 
+#include <vehicle_controller/lqr_controller.h>
+
 #include <dynamic_reconfigure/server.h>
 #include <vehicle_controller/ControllerTypeConfig.h>
 
 class Controller_Node
 {
 public:
-  typedef enum { CARROT, DAF, ACKERM_PP, DIFF_PP } Control_Type_Enum;
+  typedef enum { CARROT, DAF, ACKERM_PP, DIFF_PP , LQR} Control_Type_Enum;
 
   Controller_Node(ros::NodeHandle& nh_);
   virtual ~Controller_Node();
@@ -40,6 +42,9 @@ protected:
     }
     else if(config.controller_type == DIFF_PP){
       controller_type = "differential_pure_pursuit";
+    }
+    else if (config.controller_type == LQR){
+      controller_type = "lqr";
     }
     else{
       controller_type = "carrot";
