@@ -43,6 +43,19 @@ void FourWheelSteerController::executeTwist(const geometry_msgs::Twist& velocity
   setDriveCommand(speed, kappa, tan_gamma);
 }
 
+void FourWheelSteerController::executeTwist(const geometry_msgs::Twist& velocity, RobotControlState rcs, double yaw, double pitch, double roll)
+{
+  double backward = (velocity.linear.x < 0) ? -1.0 : 1.0;
+  double speed = backward * sqrt(velocity.linear.x*velocity.linear.x + velocity.linear.y*velocity.linear.y);
+
+  limitSpeed(speed);
+
+  float kappa = velocity.angular.z * speed;
+  float tan_gamma = tan(velocity.linear.y / velocity.linear.x);
+
+  setDriveCommand(speed, kappa, tan_gamma);
+}
+
 void FourWheelSteerController::executeMotionCommand(RobotControlState rcs)
 {
     double sign      = rcs.desired_velocity_linear < 0.0 ? -1.0 : 1.0;

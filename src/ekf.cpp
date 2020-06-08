@@ -34,8 +34,8 @@ EKF::EKF()
     x_(0,0) = 0;
     x_(1,0) = 0;
     x_(2,0) = 0;
-    x_(3,0) = -0.12;
-    x_(4,0) = 0.12;
+    x_(3,0) = -0.15;
+    x_(4,0) = 0.15;
     x_(5,0) = -0.004;
 
 
@@ -72,10 +72,22 @@ EKF::EKF()
 }
 
 void EKF::reset()
-{
-    x_ = Eigen::Matrix<double, 6, 1>::Zero();
+{   
+    x_(0,0) = 0;
+    x_(1,0) = 0;
+    x_(2,0) = 0;
+    x_(3,0) = -0.2;
+    x_(4,0) = 0.2;
+    x_(5,0) = -0.004;
+
     F = Eigen::Matrix<double, 6, 6>::Zero();
     P = Eigen::Matrix<double, 6, 6>::Identity();
+
+    P(3,3) = 1;
+    P(3,4) = 1;
+    P(4,3) = 1;
+    P(4,4) = 1;
+    P(5,5) = 1;
 }
 
 
@@ -83,13 +95,10 @@ void EKF::reset()
 void EKF::predict(double Vl, double Vr, double pitch, double roll, double dt)
 {
 
-//    double flw = array->data[0];
-//    double frw = array->data[1];
-//    double brw = array->data[2];
-//    double blw = array->data[3];
-
-//    double Vl = (flw + blw)/2.0;
-//    double Vr = (frw + brw)/2.0;
+  if(fabs(x_(3,0) - x_(4,0)) < 0.01){
+    ROS_INFO("y ICR for left and right track too close, resetting");
+    reset();
+  }
 
     double theta = x_(2,0);
     double y_ICRr = x_(3,0);
@@ -106,6 +115,7 @@ void EKF::predict(double Vl, double Vr, double pitch, double roll, double dt)
     x_(3,0) = y_ICRr;
     x_(4,0) = y_ICRl;
     x_(5,0) = x_ICR;
+
 
     Eigen::Matrix<double, 6, 6> L;
     L = dt*Eigen::Matrix<double, 6, 6>::Identity();

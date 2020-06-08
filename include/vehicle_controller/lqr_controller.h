@@ -2,7 +2,7 @@
 #define LQR_CONTROLLER_H
 
 #include <vehicle_controller/controller.h>
-#include <vehicle_controller/CarrotControllerParamsConfig.h>
+#include <vehicle_controller/LqrControllerParamsConfig.h>
 
 #include <vehicle_controller/ekf.h>
 
@@ -56,7 +56,7 @@ protected:
   bool pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped> &transformed_path, bool fixed_path);
   bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
 
-//  virtual void controllerParamsCallback(vehicle_controller::CarrotControllerParamsConfig & config, uint32_t level);
+  virtual void controllerParamsCallback(vehicle_controller::LqrControllerParamsConfig & config, uint32_t level);
 
   //lqr control specific functions
   void calc_local_path();
@@ -141,7 +141,7 @@ private:
   nav_msgs::OdometryConstPtr latest_odom_;
 
   ros::NodeHandle nh_dr_params;
-  dynamic_reconfigure::Server<vehicle_controller::CarrotControllerParamsConfig> * dr_controller_params_server;
+  dynamic_reconfigure::Server<vehicle_controller::LqrControllerParamsConfig> * dr_controller_params_server;
 
   inline bool isDtInvalid()
   {
@@ -165,6 +165,8 @@ private:
   double lqr_last_angle_error;
   double lqr_expected_dy;
   double lqr_real_dy;
+
+  double lqr_speed_reduction_gain;
 
   double lqr_q11;
   double lqr_q22;

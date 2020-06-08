@@ -108,6 +108,8 @@ private:
 
   double flipper_state;
 
+  double yaw, roll, pitch;
+
   // motion parameters (set at launch)
   MotionParameters mp_;
   // path-specific settings

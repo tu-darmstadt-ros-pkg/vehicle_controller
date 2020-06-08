@@ -143,6 +143,10 @@ bool Ackermann_Pure_Pursuit_Controller::updateRobotState(const nav_msgs::Odometr
     listener.transformVector(base_frame_id, velocity_linear, velocity_linear);
     listener.transformVector(base_frame_id, velocity_angular, velocity_angular);
 
+    tf::Quaternion q(pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w);
+    tf::Matrix3x3 m(q);
+    m.getRPY(roll, pitch, yaw);
+
     robot_state_header = odom_state.header;
     robot_control_state.setRobotState(velocity_linear.vector, velocity_angular.vector, pose.pose, dt);
     robot_control_state.clearControlState();
@@ -992,7 +996,8 @@ void Ackermann_Pure_Pursuit_Controller::computeMoveCmd(RobotControlState control
   cmd.linear.y = 0.0;
   cmd.angular.z = delta;
 
-  cmd_vel_pub.publish(cmd);
+  //cmd_vel_pub.publish(cmd);
+  vehicle_control_interface_->executeTwist(cmd, robot_control_state, yaw ,pitch, roll);
 
 }
 

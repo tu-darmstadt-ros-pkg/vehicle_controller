@@ -41,6 +41,7 @@
 #include <vehicle_controller/PdParamsConfig.h>
 #include <vehicle_controller/PdParamsArgoConfig.h>
 
+#include <vehicle_controller/ekf.h>
 
 class DifferentialDriveController: public VehicleControlInterface
 {
@@ -66,6 +67,7 @@ class DifferentialDriveController: public VehicleControlInterface
     virtual void executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist);
 
     virtual void executeTwist(const geometry_msgs::Twist& inc_twist);
+    virtual void executeTwist(const geometry_msgs::Twist& inc_twist, RobotControlState rcs, double yaw, double pitch, double roll);
 
     /**
      * @brief DifferentialDriveController::executePDControlledMotionCommand
@@ -92,12 +94,21 @@ class DifferentialDriveController: public VehicleControlInterface
     }
 
   protected:
+    ros::NodeHandle nh;
     ros::NodeHandle nh_dr_pdparams;
     ros::Publisher cmd_vel_raw_pub_;
     ros::Publisher pdout_pub_;
 
     geometry_msgs::Twist twist;
     MotionParameters* mp_;
+
+    ros::Time ekf_lastTime;
+    geometry_msgs::Twist ekf_lastCmd;
+    EKF ekf;
+    bool ekf_setInitialPose = false;
+    bool ekf_useEkf;
+    double ekf_last_yaw, ekf_last_roll, ekf_last_pitch;
+    double wheel_separation;
 
     template <typename TPD> void pdParamCallback(TPD & config, uint32_t level)
     {
@@ -109,6 +120,17 @@ class DifferentialDriveController: public VehicleControlInterface
         SPEED_REDUCTION_GAIN_ = config.speed_reduction_gain;
         mp_->use_final_twist = config.use_final_twist;
         mp_->final_twist_trials_max = config.final_twist_trials_max;
+
+        ekf_useEkf = config.use_ekf;
+        if(!ekf_useEkf){
+          ekf_setInitialPose = false;
+        }
+        if(config.use_affw){
+          cmd_vel_raw_pub_         = nh.advertise<geometry_msgs::Twist>("/affw_ctrl/target_vel", 1, true);
+        }
+        else{
+          cmd_vel_raw_pub_         = nh.advertise<geometry_msgs::Twist>("cmd_vel_raw", 1, true);
+        }
     }
 
     void limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate) const;

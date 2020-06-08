@@ -993,6 +993,7 @@ void Differential_Pure_Pursuit_Controller::computeMoveCmd(RobotControlState cont
 
   try
   {
+    carrotPose.pose.position.z = robot_control_state.pose.position.z;
     listener.waitForTransform(base_frame_id, carrotPose.header.frame_id, carrotPose.header.stamp, ros::Duration(3.0));
     listener.transformPose(base_frame_id, carrotPose, carrotPose_baseframe);
   }
@@ -1009,82 +1010,84 @@ void Differential_Pure_Pursuit_Controller::computeMoveCmd(RobotControlState cont
   cmd.linear.y = 0.0;
   cmd.angular.z = curv * cmd.linear.x;
 
-  if(ekf_useEkf){
-    if (!ekf_setInitialPose){
-      ekf.x_(0,0) = robot_control_state.pose.position.x;
-      ekf.x_(1,0) = robot_control_state.pose.position.y;
-      ekf.x_(2,0) = yaw;
+//  if(ekf_useEkf){
+//    if (!ekf_setInitialPose){
+//      ekf.x_(0,0) = robot_control_state.pose.position.x;
+//      ekf.x_(1,0) = robot_control_state.pose.position.y;
+//      ekf.x_(2,0) = yaw;
 
-      ekf_setInitialPose = true;
-      ekf_lastTime = ros::Time::now();
-      ekf_lastCmd = cmd;
+//      ekf_setInitialPose = true;
+//      ekf_lastTime = ros::Time::now();
+//      ekf_lastCmd = cmd;
 
-      ekf_last_pitch = pitch;
-      ekf_last_roll = roll;
-      ekf_last_yaw = yaw;
+//      ekf_last_pitch = pitch;
+//      ekf_last_roll = roll;
+//      ekf_last_yaw = yaw;
 
-      cmd_vel_pub.publish(cmd);
-      ROS_INFO("initial SET");
-    }
-    else{
-      double dt = (ros::Time::now().toSec() - ekf_lastTime.toSec());
+//      //cmd_vel_pub.publish(cmd);
+//      vehicle_control_interface_->executeTwist(cmd);
+//      ROS_INFO("initial SET");
+//    }
+//    else{
+//      double dt = (ros::Time::now().toSec() - ekf_lastTime.toSec());
 
-      double l;
-      nh.getParam("/vehicle_controller/wheel_separation", l);
+//      double l;
+//      nh.getParam("/vehicle_controller/wheel_separation", l);
 
-      double v_lin = ekf_lastCmd.linear.x;
-      double v_ang = ekf_lastCmd.angular.z;
+//      double v_lin = ekf_lastCmd.linear.x;
+//      double v_ang = ekf_lastCmd.angular.z;
 
-      double Vl_ = v_lin - l/2 * v_ang;
-      double Vr_ = v_lin + l/2 * v_ang;
+//      double Vl_ = v_lin - l/2 * v_ang;
+//      double Vr_ = v_lin + l/2 * v_ang;
 
-      if(dt > 0){
-        ekf.predict(Vl_, Vr_, ekf_last_pitch, ekf_last_roll, dt);
+//      if(dt > 0){
+//        ekf.predict(Vl_, Vr_, ekf_last_pitch, ekf_last_roll, dt);
 
-        Eigen::Vector3d delta;
-        delta(0) = robot_control_state.pose.position.x;
-        delta(1) = robot_control_state.pose.position.y;
-        delta(2) = yaw;
-        ekf.correct(delta);
+//        Eigen::Vector3d delta;
+//        delta(0) = robot_control_state.pose.position.x;
+//        delta(1) = robot_control_state.pose.position.y;
+//        delta(2) = yaw;
+//        ekf.correct(delta);
 
-        double omega = -(Vl_ - Vr_)/fabs(ekf.x_(4) - ekf.x_(3))  * std::cos(ekf_last_roll) * std::cos(ekf_last_pitch);
-        ROS_INFO("omega: %f, twist: %f, pose.twist: %f, yaw_diff: %f", omega, cmd.angular.z, robot_control_state.velocity_angular.z, (yaw-ekf_last_yaw)/dt);
+//        double omega = -(Vl_ - Vr_)/fabs(ekf.x_(4) - ekf.x_(3))  * std::cos(ekf_last_roll) * std::cos(ekf_last_pitch);
+//        ROS_INFO("omega: %f, twist: %f, pose.twist: %f, yaw_diff: %f", omega, cmd.angular.z, robot_control_state.velocity_angular.z, (yaw-ekf_last_yaw)/dt);
 
-        double y_ICRr = ekf.x_(3,0);
-        double y_ICRl = ekf.x_(4,0);
+//        double y_ICRr = ekf.x_(3,0);
+//        double y_ICRl = ekf.x_(4,0);
 
-        double vl_corrected = cmd.linear.x - y_ICRl * cmd.angular.z;
-        double vr_corrected = cmd.linear.x - y_ICRr * cmd.angular.z;
+//        double vl_corrected = cmd.linear.x - y_ICRl * cmd.angular.z;
+//        double vr_corrected = cmd.linear.x - y_ICRr * cmd.angular.z;
 
-        ROS_INFO("vl: %f, vl_corrected: %f", Vl_, vl_corrected);
-        ROS_INFO("vr: %f, vr_corrected: %f", Vr_, vr_corrected);
-        ROS_INFO("vlin: %f, vlin_corrected: %f", cmd.linear.x, (vl_corrected + vr_corrected)/2);
+//        ROS_INFO("vl: %f, vl_corrected: %f", Vl_, vl_corrected);
+//        ROS_INFO("vr: %f, vr_corrected: %f", Vr_, vr_corrected);
+//        ROS_INFO("vlin: %f, vlin_corrected: %f", cmd.linear.x, (vl_corrected + vr_corrected)/2);
 
-        cmd.linear.x = (vl_corrected + vr_corrected)/2;
-        cmd.angular.z = (vr_corrected - vl_corrected)/l;
+//        cmd.linear.x = (vl_corrected + vr_corrected)/2;
+//        cmd.angular.z = (vr_corrected - vl_corrected)/l;
 
-        cmd_vel_pub.publish(cmd);
+//        //cmd_vel_pub.publish(cmd);
+//        vehicle_control_interface_->executeTwist(cmd);
 
-        ROS_INFO("yl: %f, yr: %f, x: %f",ekf.x_(4), ekf.x_(3), ekf.x_(5) );
+//        ROS_INFO("yl: %f, yr: %f, x: %f",ekf.x_(4), ekf.x_(3), ekf.x_(5) );
 
-        double icr = (ekf.x_(4) + ekf.x_(3));
-        ROS_INFO("ICR: %f", icr);
+//        double icr = (ekf.x_(4) + ekf.x_(3));
+//        ROS_INFO("ICR: %f", icr);
 
-        ekf_lastCmd = cmd;
-        ekf_lastTime = ros::Time::now();
-        ekf_last_pitch = pitch;
-        ekf_last_roll = roll;
-        ekf_last_yaw = yaw;
-      }
+//        ekf_lastCmd = cmd;
+//        ekf_lastTime = ros::Time::now();
+//        ekf_last_pitch = pitch;
+//        ekf_last_roll = roll;
+//        ekf_last_yaw = yaw;
+//      }
 
-    }
-  }
-  else{
-    cmd_vel_pub.publish(cmd);
-  }
-  ROS_INFO("ekf x: %f", ekf.x_(0,0));
-  //cmd_vel_pub.publish(cmd);
+//    }
+//  }
+//  else{
+//    //cmd_vel_pub.publish(cmd);
+//    vehicle_control_interface_->executeTwist(cmd);
+//  }
 
+   vehicle_control_interface_->executeTwist(cmd, robot_control_state, yaw, pitch, roll);
 }
 
 double Differential_Pure_Pursuit_Controller::exponentialSpeedControll(){
@@ -1189,10 +1192,6 @@ double Differential_Pure_Pursuit_Controller::exponentialSpeedControll(){
 
 void Differential_Pure_Pursuit_Controller::controllerParamsCallback(vehicle_controller::PurePursuitControllerParamsConfig &config, uint32_t level){
   mp_.carrot_distance = config.lookahead_distance;
-  ekf_useEkf = config.use_ekf;
-  if(!ekf_useEkf){
-    ekf_setInitialPose = false;
-  }
 }
 
 

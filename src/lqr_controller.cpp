@@ -16,6 +16,8 @@ Lqr_Controller::Lqr_Controller(ros::NodeHandle& nh_)
   rot_vel_dir = 1;
   lin_vel_dir = 1;
 
+  lqr_speed_reduction_gain = 0.5;
+
   mp_.carrot_distance = 0.2;
   mp_.min_speed       = 0.0;
   mp_.commanded_speed = 0.0;
@@ -122,8 +124,8 @@ bool Lqr_Controller::configure()
   }
   empty_path.header.frame_id = map_frame_id;
 
-//  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::CarrotControllerParamsConfig>(nh_dr_params);
-//  dr_controller_params_server->setCallback(boost::bind(&Lqr_Controller::controllerParamsCallback, this, _1, _2));
+  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::LqrControllerParamsConfig>(nh_dr_params);
+  dr_controller_params_server->setCallback(boost::bind(&Lqr_Controller::controllerParamsCallback, this, _1, _2));
 
   return true;
 }
@@ -463,7 +465,7 @@ void Lqr_Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
   }
   reset();
   state = ((velocity.linear.x == 0.0) && (velocity.angular.z == 0.0)) ? INACTIVE : VELOCITY;
-  vehicle_control_interface_->executeTwist(velocity);
+  vehicle_control_interface_->executeTwist(velocity, robot_control_state, yaw, pitch, roll);
 }
 
 void Lqr_Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
@@ -900,17 +902,12 @@ void Lqr_Controller::update()
                                       reverseAllowed());
 
 
-  robot_control_state.desired_velocity_linear = 0.3;
-
-  //robot_control_state.desired_velocity_linear *= std::max(0.0, 1.0 - (fabs(robot_control_state.velocity_linear.y) / 0.3));
-
-  //solveDare();
 
   calc_local_path();
   calcLqr();
-  ROS_INFO("radius: %f", local_path_radius);
+  //ROS_INFO("radius: %f", local_path_radius);
 
-  ROS_INFO ("angle error: %f", lqr_angle_error);
+  //ROS_INFO ("angle error: %f", lqr_angle_error);
 
   if(reverseAllowed()){
     if (lqr_angle_error > M_PI/2){
@@ -931,166 +928,28 @@ void Lqr_Controller::update()
 
   //double omega_ff = (lin_vel_dir * rot_vel_dir * robot_control_state.velocity_linear.x / local_path_radius);
   double omega_ff = (lin_vel_dir * rot_vel_dir * robot_control_state.desired_velocity_linear / local_path_radius);
-  //omega_ff = omega_ff * std::cos(roll) * std::cos(pitch);
 
   double omega_fb = - lin_vel_dir *lqr_k1 * lqr_y_error - lqr_k2 * lqr_angle_error;
   //double omega_fb = - lin_vel_dir *K(0,0) * lqr_y_error - K(0,1) * lqr_angle_error;
 
-  //omega_fb = omega_fb * robot_control_state.velocity_linear.x/robot_control_state.desired_velocity_linear;
-
-  double dt_test = (ros::Time::now() - lqr_time).toSec();
-//  if(dt_test > 0.0){
-//    lqr_expected_dy = lqr_last_cmd.linear.x * lqr_last_angle_error * dt_test;
-//    lqr_real_dy = lqr_y_error - lqr_last_y_error;
-//  }
-
-//  double angular_vel;
-//  if (lqr_expected_dy * lqr_real_dy < 0.0){
-//    ROS_INFO("Just FF");
-//    angular_vel = omega_ff ;
-//  }
-//  else{
-//    angular_vel = omega_ff + omega_fb;
-//  }
-
   double angular_vel= omega_ff + omega_fb;
 
-  //_________________________________________________________________________--
-//  exakte LInearisierung
-//  double v = robot_control_state.desired_velocity_linear;
-//  double a1 = 2;
-//  double a0 = 10;
-
-//   double angular_vel = - (-v*std::cos(lqr_angle_error)*omega_ff + a1 * v *std::sin(lqr_angle_error) + a0 * lqr_y_error) / (v*std::cos(lqr_angle_error));
-
-
-  //____________________________________________________________________________
-
-//  double k_w = 0.4;
-//  double k_curv = 0.01;
-
-//  double fact_curv = k_curv*1/local_path_radius;
-//  if (!std::isnormal(fact_curv)) fact_curv = 0.0;
-//  double fact_w = k_w*fabs(angular_vel);
-//  if (!std::isnormal(fact_w)) fact_w = 0.0;
-
-//  ROS_INFO("fact curv: %f, fact w: %f", fact_curv, fact_w);
-
-//  //double exponent = fact_curv + fact_w + fact_obst + fact_goal;
-//  double exponent = fact_w + fact_curv;
-
   geometry_msgs::Twist cmd;
-  cmd.linear.x = lin_vel_dir * fabs(robot_control_state.desired_velocity_linear) ;//* exp(-exponent);
-  cmd.angular.z = angular_vel ;//* (1 - fabs(robot_control_state.desired_velocity_linear - robot_control_state.velocity_linear.x));
-  ROS_INFO("velocity x: %f, y: %f", robot_control_state.velocity_linear.x, robot_control_state.velocity_linear.y);
+  cmd.linear.x = lin_vel_dir * fabs(robot_control_state.desired_velocity_linear) ;
+  cmd.angular.z = angular_vel ;
+  //ROS_INFO("velocity x: %f, y: %f", robot_control_state.velocity_linear.x, robot_control_state.velocity_linear.y);
 
-  ROS_INFO("unlimited: lin: %f, ang: %f", cmd.linear.x, cmd.angular.z);
-  this->limitTwist(cmd, mp_.max_controller_speed, mp_.max_controller_angular_rate);
-  ROS_INFO("limited: lin: %f, ang: %f", cmd.linear.x, cmd.angular.z);
+  //ROS_INFO("unlimited: lin: %f, ang: %f", cmd.linear.x, cmd.angular.z);
+  //this->limitTwist(cmd, mp_.max_controller_speed, mp_.max_controller_angular_rate);
+ // ROS_INFO("limited: lin: %f, ang: %f", cmd.linear.x, cmd.angular.z);
 
-
-  //cmd.angular.z = cmd.angular.z / (std::cos(roll) * std::cos(pitch));
-
-  ROS_INFO ("ff: %f , fb: %f", omega_ff, omega_fb);
-  ROS_INFO ("k1: %f , k2: %f", lqr_k1, lqr_k2);
-  ROS_INFO ("y_error: %f, w_error: %f, x_error: %f", lqr_y_error, lqr_angle_error, lqr_x_error);
+  //ROS_INFO ("ff: %f , fb: %f", omega_ff, omega_fb);
+  //ROS_INFO ("k1: %f , k2: %f", lqr_k1, lqr_k2);
+  //ROS_INFO ("y_error: %f, w_error: %f, x_error: %f", lqr_y_error, lqr_angle_error, lqr_x_error);
   //cmd_vel_pub.publish(cmd);
 
-    if(ekf_useEkf){
-      if (!ekf_setInitialPose){
-        ekf.x_(0,0) = robot_control_state.pose.position.x;
-        ekf.x_(1,0) = robot_control_state.pose.position.y;
-        ekf.x_(2,0) = yaw;
-
-        ekf_setInitialPose = true;
-        ekf_lastTime = ros::Time::now();
-        ekf_lastCmd = cmd;
-
-        ekf_last_pitch = pitch;
-        ekf_last_roll = roll;
-        ekf_last_yaw = yaw;
-
-        cmd_vel_pub.publish(cmd);
-        ROS_INFO("initial SET");
-      }
-      else{
-        double dt = (ros::Time::now().toSec() - ekf_lastTime.toSec());
-
-        double l;
-        nh.getParam("/vehicle_controller/wheel_separation", l);
-
-        double v_lin = ekf_lastCmd.linear.x;
-        double v_ang = ekf_lastCmd.angular.z;
-
-        double Vl_ = v_lin - l/2 * v_ang;
-        double Vr_ = v_lin + l/2 * v_ang;
-
-        if(dt > 0){
-          ekf.predict(Vl_, Vr_, ekf_last_pitch, ekf_last_roll, dt);
-
-          Eigen::Vector3d delta;
-          delta(0) = robot_control_state.pose.position.x;
-          delta(1) = robot_control_state.pose.position.y;
-          delta(2) = yaw;
-          ekf.correct(delta);
-
-          double omega = -(Vl_ - Vr_)/fabs(ekf.x_(4) - ekf.x_(3))  * std::cos(ekf_last_roll) * std::cos(ekf_last_pitch);
-          ROS_INFO("omega: %f, twist: %f, pose.twist: %f, yaw_diff: %f", omega, cmd.angular.z, robot_control_state.velocity_angular.z, (yaw-ekf_last_yaw)/dt);
-
-          double y_ICRr = ekf.x_(3,0);
-          double y_ICRl = ekf.x_(4,0);
-
-          double vl_corrected = cmd.linear.x - y_ICRl * cmd.angular.z;
-          double vr_corrected = cmd.linear.x - y_ICRr * cmd.angular.z;
-
-          ROS_INFO("vl: %f, vl_corrected: %f", Vl_, vl_corrected);
-          ROS_INFO("vr: %f, vr_corrected: %f", Vr_, vr_corrected);
-          ROS_INFO("vlin: %f, vlin_corrected: %f", cmd.linear.x, (vl_corrected + vr_corrected)/2);
-
-          cmd_vel_pub.publish(cmd);
-
-          ROS_INFO("yl: %f, yr: %f, x: %f",ekf.x_(4), ekf.x_(3), ekf.x_(5) );
-
-          double icr = (ekf.x_(4) + ekf.x_(3));
-          ROS_INFO("ICR: %f", icr);
-
-          ekf_lastCmd = cmd;
-          ekf_lastTime = ros::Time::now();
-          ekf_last_pitch = pitch;
-          ekf_last_roll = roll;
-          ekf_last_yaw = yaw;
-        }
-
-      }
-    }
-    else{
-//      if(!lqr_aligning_2){
-//        if(fabs(lqr_y_error) > 0.03){
-//          lqr_aligning = true;
-//          lqr_aligning_2 = true;
-//        }
-//      }
-//      else{
-//        if(fabs(lqr_y_error) < 0.015){
-//          lqr_aligning = false;
-//          lqr_aligning_2 = false;
-//        }
-//      }
-//      if (lqr_aligning){
-//        if (robot_control_state.error_2_path_angular < 0.1){
-//          lqr_aligning = false;
-//        }
-//        else{
-//          cmd.linear.x = 0.0;
-//          cmd.angular.z = robot_control_state.error_2_path_angular;
-//        }
-//      }
-      cmd_vel_pub.publish(cmd);
-    }
-
-  ROS_INFO("expected dy: %f, real dy: %f, diff: %f, dt: %f", lqr_expected_dy, lqr_real_dy, lqr_expected_dy - lqr_real_dy, dt_test);
-  ROS_INFO("lin-out: %f ang-out: %f",cmd.linear.x, cmd.angular.z);
-  ROS_INFO("lin-ist: %f ang-ist: %f",robot_control_state.velocity_linear.x, robot_control_state.velocity_angular.z);
+  //send cmd to control interface
+  vehicle_control_interface_->executeTwist(cmd);
 
   lqr_last_cmd = cmd;
   lqr_time = ros::Time::now();
@@ -1203,10 +1062,6 @@ void Lqr_Controller::stop()
   if (camera_control)
     cameraOrientationPublisher.publish(cameraDefaultOrientation);
 }
-
-//void Lqr_Controller::controllerParamsCallback(){
-//  mp_.carrot_distance = config.carrot_distance;
-//}
 
 void Lqr_Controller::calc_local_path(){
   int next_point = calcClosestPoint();
@@ -1342,7 +1197,7 @@ void Lqr_Controller::calc_local_path(){
 
   //calculate radious
   local_path_radius = max_H/2 + (Wid*Wid)/(8*max_H);
-  ROS_INFO("Fitted circle radius: %f", local_path_radius);
+  //ROS_INFO("Fitted circle radius: %f", local_path_radius);
 
   //calculating circle center
   midX = (points[0][0] + points[co_points][0])/2;
@@ -1614,9 +1469,9 @@ int Lqr_Controller::calcClosestPoint(){
   closest_point.point.y = robot_control_state.pose.position.y + lambda * r2;
   closest_point.header = robot_state_header;
 
-  ROS_INFO("closest: %i, second: %i", closest, second_closest);
-  ROS_INFO("closest: x: %f, y: %f", current_path.poses[closest].pose.position.x, current_path.poses[closest].pose.position.y);
-  ROS_INFO("second: x: %f, y: %f", current_path.poses[second_closest].pose.position.x, current_path.poses[second_closest].pose.position.y);
+  //ROS_INFO("closest: %i, second: %i", closest, second_closest);
+  //ROS_INFO("closest: x: %f, y: %f", current_path.poses[closest].pose.position.x, current_path.poses[closest].pose.position.y);
+  //ROS_INFO("second: x: %f, y: %f", current_path.poses[second_closest].pose.position.x, current_path.poses[second_closest].pose.position.y);
 
   if (closest > second_closest){
     return closest;
@@ -1628,13 +1483,11 @@ int Lqr_Controller::calcClosestPoint(){
 }
 
 
+//compute the control parameters by solving the lqr optimization problem
 void Lqr_Controller::calcLqr(){
   geometry_msgs::PointStamped closest_point_baseframe;
 
-  lqr_last_y_error = lqr_y_error;
-  lqr_last_angle_error = lqr_angle_error;
   //compute errors
-
   if(fabs((ros::Time::now() - lqr_time).toSec()) < 0.2){
     double dt = (ros::Time::now() - lqr_time).toSec();
     lqr_y_error_integrate = lqr_y_error_integrate + dt*lqr_y_error;
@@ -1664,13 +1517,13 @@ void Lqr_Controller::calcLqr(){
   quaternion2angles(robot_control_state.pose.orientation, angles);
 
   lqr_angle_error =  constrainAngle_mpi_pi(angles[0] - alignment_angle);
-  ROS_INFO("yaw: %f, al_angle: %f", angles[0] , alignment_angle);
+  //ROS_INFO("yaw: %f, al_angle: %f", angles[0] , alignment_angle);
 
   //compute control gains
   double v = fabs(robot_control_state.desired_velocity_linear);
   //double v = fabs(robot_control_state.velocity_linear.x);
 
-  ROS_INFO ("speed: %f", v);
+  //ROS_INFO ("speed: %f", v);
 
   if (v != 0.0){
     lqr_p12 = sqrt(lqr_q11 * lqr_r);
@@ -1687,59 +1540,9 @@ void Lqr_Controller::calcLqr(){
 
 }
 
-//void Lqr_Controller::solveDare(){
-//  double epsilon = 0.001;
 
-//  Eigen::Matrix<double, 2, 2> Q =  Eigen::Matrix<double, 2, 2>::Zero();
-//  Q(0,0) = lqr_q11;
-//  Q(1,1) = lqr_q22;
 
-//  Eigen::Matrix<double, 2, 2> P = Q;
-
-//  Eigen::Matrix<double, 2, 2> P_new;
-
-//  Eigen::Matrix<double, 2, 2> A = Eigen::Matrix<double, 2, 2>::Zero();
-//  A(0,1) = fabs(robot_control_state.desired_velocity_linear);
-//  Eigen::Matrix<double, 2, 2> A_t = A.transpose();
-
-//  Eigen::Matrix<double, 2, 1> B = Eigen::Matrix<double, 2, 1>::Zero();
-//  B(1,0) = 1;
-//  Eigen::Matrix<double, 1, 2> B_t = B.transpose();
-
-//  Eigen::Matrix<double, 1, 2> K = B.transpose();
-
-//  double help_var = 1/(B_t*P*B+lqr_r);
-
-//  double diff;
-//  int max_iter = 1000;
-//  for(int i = 0; i< max_iter;i++){
-//    help_var = 1/(B_t*P*B+lqr_r);
-//    P_new = Q + A_t * P * A - A_t * P * B * help_var * B_t * P * A;
-//    std::cout << "Matrix P: " << P <<std::endl;
-//    std::cout << "Matrix Pnew: " << P_new <<std::endl;
-
-//    Eigen::Matrix2d P_test = P_new - P;
-//    diff = fabs(P_test.maxCoeff());
-
-//    ROS_INFO ("diff: %f", diff);
-//    ROS_INFO("helpvar: %f", help_var);
-//    std::cout << "Matrix P: " << P <<std::endl;
-//    std::cout << "Matrix Pnew: " << P_new <<std::endl;
-//    P = P_new;
-//    if(diff < epsilon){
-//      ROS_INFO("iterations: %i, p11: %f, p12: %f, p22: %f",i, P(0,0), P(0,1), P(1,1));
-//      K = help_var * B_t * P * A;
-//      ROS_INFO("k1: %f, k2:%f", K(0,0), K(0,1));
-//      return;
-//    }
-
-//  }
-//  ROS_INFO("max iterations, diff: %f, p11: %f, p12: %f, p22: %f",diff, P(0,0), P(0,1), P(1,1));
-//  K = help_var * B_t * P * A;
-//  ROS_INFO("k1: %f, k2:%f", K(0,0), K(0,1));
-
-//}
-
+//unused, simple numeric solver for the lqr omptimization problem
 void Lqr_Controller::solveDare(){
   double epsilon = 0.001;
 
@@ -1748,7 +1551,7 @@ void Lqr_Controller::solveDare(){
     xicr = 0.0;
   }
 
-  ROS_INFO("xicr: %f", xicr);
+  //ROS_INFO("xicr: %f", xicr);
 
   Eigen::Matrix<double, 2, 2> Q =  Eigen::Matrix<double, 2, 2>::Zero();
   Q(0,0) = 1000;
@@ -1800,8 +1603,6 @@ void Lqr_Controller::solveDare(){
 
 void Lqr_Controller::limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate) const
 {
-  double SPEED_REDUCTION_GAIN_ = 0.5;
-
   double speed = twist.linear.x;
   double angular_rate = twist.angular.z;
 
@@ -1810,8 +1611,16 @@ void Lqr_Controller::limitTwist(geometry_msgs::Twist& twist, double max_speed, d
 
   double m = -mp_.max_controller_speed / mp_.max_controller_angular_rate;
   double t = mp_.max_controller_speed;
-  double speedAbsUL = std::min(std::max(0.05, m * std::abs(angular_rate) * SPEED_REDUCTION_GAIN_ + t), max_speed);
+  double speedAbsUL = std::min(std::max(0.05, m * std::abs(angular_rate) * lqr_speed_reduction_gain + t), max_speed);
 
   twist.linear.x = std::max(-speedAbsUL, std::min(speed, speedAbsUL));
   twist.angular.z = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate));
+}
+
+void Lqr_Controller::controllerParamsCallback(vehicle_controller::LqrControllerParamsConfig &config, uint32_t level){
+  mp_.carrot_distance = config.lookahead_distance;
+  lqr_q11 = config.Q11;
+  lqr_q22 = config.Q22;
+  lqr_r = config.R;
+  //lqr_speed_reduction_gain = config.speed_reduction_gain;
 }

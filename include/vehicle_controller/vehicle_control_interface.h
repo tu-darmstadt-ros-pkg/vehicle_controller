@@ -39,6 +39,7 @@ class VehicleControlInterface
   public:
     virtual void configure(ros::NodeHandle& pnh, MotionParameters* mp) = 0;
     virtual void executeTwist(const geometry_msgs::Twist& twist) = 0;
+    virtual void executeTwist(const geometry_msgs::Twist& inc_twist, RobotControlState rcs, double yaw, double pitch, double roll) = 0;
     virtual void executeUnlimitedTwist(const geometry_msgs::Twist& twist) = 0;
 
     virtual void executeMotionCommand(RobotControlState rcs) = 0;

@@ -18,6 +18,7 @@ generate_dynamic_reconfigure_options(
   cfg/DafControllerParams.cfg
   cfg/CarrotControllerParams.cfg
   cfg/PurePursuitControllerParams.cfg
+  cfg/LqrControllerParams.cfg
 )
 
 catkin_package(

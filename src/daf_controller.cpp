@@ -835,7 +835,6 @@ void Daf_Controller::calc_local_path()
 
     //calculate radious
     rad = max_H/2 + (Wid*Wid)/(8*max_H);
-    ROS_INFO("Fitted circle radius: %f", rad);
 
     //calculating circle center
     midX = (points[0][0] + points[co_points][0])/2;
@@ -851,23 +850,31 @@ void Daf_Controller::calc_local_path()
     double curr_dist_x = points[0][0] -  (midX + mDx);
     double curr_dist_y = points[0][1] - (midY + mDy);
 
-    //correct angle directions
-    if((curr_dist_x < 0)&&(curr_dist_y < 0))
-    {
-        alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*PI/2;
+    if(isinf(rad)){
+      alignment_angle = atan2(curr_path.poses[co_points].pose.position.y - odom.pose.pose.position.y,
+                              curr_path.poses[co_points].pose.position.x - odom.pose.pose.position.x);
     }
-    else if((curr_dist_x > 0)&&(curr_dist_y > 0))
-    {
+    else{
+      //correct angle directions
+      if((curr_dist_x < 0)&&(curr_dist_y < 0))
+      {
         alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*PI/2;
-    }
-    else if((curr_dist_x < 0)&&(curr_dist_y > 0))
-    {
+      }
+      else if((curr_dist_x > 0)&&(curr_dist_y > 0))
+      {
         alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*PI/2;
-    }
-    else if((curr_dist_x > 0)&&(curr_dist_y < 0))
-    {
+      }
+      else if((curr_dist_x < 0)&&(curr_dist_y > 0))
+      {
         alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*PI/2;
+      }
+      else if((curr_dist_x > 0)&&(curr_dist_y < 0))
+      {
+        alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*PI/2;
+      }
     }
+
+    //ROS_INFO("Fitted circle radius: %f", rad);
 
     //reduce angle on -PI to +PI
     if(alignment_angle > PI)
@@ -1193,6 +1200,12 @@ void Daf_Controller::update()
                 std::pow(curr_path.poses.back().pose.position.x - odom.pose.pose.position.x, 2)
               + std::pow(curr_path.poses.back().pose.position.y - odom.pose.pose.position.y, 2));
 
+    if(goal_position_error < 0.2)
+    {
+      alignment_angle = atan2(curr_path.poses.back().pose.position.y - odom.pose.pose.position.y,
+                              curr_path.poses.back().pose.position.x - odom.pose.pose.position.x);
+      rad = DBL_MAX;
+    }
 
     //check if robot has reached a treshod for inclination
     check_robot_stability();
@@ -1334,7 +1347,8 @@ void Daf_Controller::update()
     }
 
     //publish commad
-    cmd_vel_pub.publish(cmd);
+    //cmd_vel_pub.publish(cmd);
+    vehicle_control_interface_->executeTwist(cmd, robot_control_state, yaw, pitch, roll);
     //ROS_INFO("goal_position_error: %f, tolerance: %f", goal_position_error, linear_tolerance_for_current_path);
   }
 }

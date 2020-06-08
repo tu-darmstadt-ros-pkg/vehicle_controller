@@ -44,7 +44,7 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
 {
     mp_ = mp;
 
-    ros::NodeHandle nh;
+    //ros::NodeHandle nh;
     cmd_vel_raw_pub_ = nh.advertise<geometry_msgs::Twist>("cmd_vel_raw", 1);
     pdout_pub_       = nh.advertise<monstertruck_msgs::Pdout>("pdout", 1);
 
@@ -52,6 +52,8 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
     params.getParam("max_unlimited_speed", mp_->max_unlimited_speed);
     params.getParam("max_controller_angular_rate", mp_->max_controller_angular_rate);
     params.getParam("max_unlimited_angular_rate", mp_->max_unlimited_angular_rate);
+    params.getParam("/vehicle_controller/wheel_separation", wheel_separation);
+
 
     KP_ANGLE_    = 2.0;
     KD_ANGLE_    = 0.5;
@@ -85,9 +87,88 @@ void DifferentialDriveController::executeUnlimitedTwist(const geometry_msgs::Twi
 
 void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_twist)
 {
-    twist = inc_twist;
+  twist = inc_twist;
+  this->limitTwist(twist, mp_->max_controller_speed, mp_->max_controller_angular_rate);
+  cmd_vel_raw_pub_.publish(twist);
+}
+
+
+void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_twist, RobotControlState rcs, double yaw ,double pitch, double roll)
+{
+    twist = inc_twist; 
     this->limitTwist(twist, mp_->max_controller_speed, mp_->max_controller_angular_rate);
-    cmd_vel_raw_pub_.publish(twist);
+
+    if(ekf_useEkf){
+      if (!ekf_setInitialPose){
+        ekf.x_(0,0) = rcs.pose.position.x;
+        ekf.x_(1,0) = rcs.pose.position.y;
+        ekf.x_(2,0) = yaw;
+
+        ekf_setInitialPose = true;
+        ekf_lastTime = ros::Time::now();
+        ekf_lastCmd = twist;
+
+        ekf_last_pitch = pitch;
+        ekf_last_roll = roll;
+        ekf_last_yaw = yaw;
+
+        cmd_vel_raw_pub_.publish(twist);
+      }
+      else{
+        double dt = (ros::Time::now().toSec() - ekf_lastTime.toSec());
+
+        double v_lin = ekf_lastCmd.linear.x;
+        double v_ang = ekf_lastCmd.angular.z;
+
+        double Vl_ = v_lin - wheel_separation/2 * v_ang;
+        double Vr_ = v_lin + wheel_separation/2 * v_ang;
+
+        if(dt > 0){
+          ekf.predict(Vl_, Vr_, ekf_last_pitch, ekf_last_roll, dt);
+
+          Eigen::Vector3d delta;
+          delta(0) = rcs.pose.position.x;
+          delta(1) = rcs.pose.position.y;
+          delta(2) = yaw;
+          ekf.correct(delta);
+
+          double omega = -(Vl_ - Vr_)/fabs(ekf.x_(4) - ekf.x_(3))  * std::cos(ekf_last_roll) * std::cos(ekf_last_pitch);
+          //ROS_INFO("omega: %f, twist: %f, pose.twist: %f, yaw_diff: %f", omega, cmd.angular.z, robot_control_state.velocity_angular.z, (yaw-ekf_last_yaw)/dt);
+
+          double y_ICRr = ekf.x_(3,0);
+          double y_ICRl = ekf.x_(4,0);
+
+          double vl_corrected = twist.linear.x - y_ICRl * twist.angular.z;
+          double vr_corrected = twist.linear.x - y_ICRr * twist.angular.z;
+
+//          ROS_INFO("vl: %f, vl_corrected: %f", Vl_, vl_corrected);
+//          ROS_INFO("vr: %f, vr_corrected: %f", Vr_, vr_corrected);
+//          ROS_INFO("vlin: %f, vlin_corrected: %f", twist.linear.x, (vl_corrected + vr_corrected)/2);
+
+          twist.linear.x = (vl_corrected + vr_corrected)/2;
+          twist.angular.z = (vr_corrected - vl_corrected)/wheel_separation;
+
+          cmd_vel_raw_pub_.publish(twist);
+
+          //ROS_INFO("yl: %f, yr: %f, x: %f",ekf.x_(4), ekf.x_(3), ekf.x_(5) );
+
+          double icr = (ekf.x_(4) + ekf.x_(3));
+          ROS_INFO("ICR: %f", icr);
+
+          ekf_lastCmd = twist;
+          ekf_lastTime = ros::Time::now();
+          ekf_last_pitch = pitch;
+          ekf_last_roll = roll;
+          ekf_last_yaw = yaw;
+        }
+
+      }
+    }
+    else{
+      cmd_vel_raw_pub_.publish(twist);
+    }
+
+
 }
 
 void DifferentialDriveController::executePDControlledMotionCommand(double e_angle,
