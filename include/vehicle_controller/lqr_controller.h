@@ -193,6 +193,17 @@ private:
   double ekf_last_yaw, ekf_last_roll, ekf_last_pitch;
 
   ros::Publisher cmd_vel_pub;
+
+
+  //observer
+  double obs_error_1;
+  double obs_error_2;
+  double obs_r = 100;
+  double obs_q11 = 100;
+  double obs_q22 = 0.1;
+  double obs_b1;
+  double obs_b2;
+  ros::Time obs_last_time = ros::Time::now();
 };
 
 

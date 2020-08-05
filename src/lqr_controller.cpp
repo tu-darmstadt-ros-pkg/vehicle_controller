@@ -903,6 +903,28 @@ void Lqr_Controller::update()
 
 
 
+
+//  double obs_l11 = sqrt(obs_q11 * obs_r) / obs_r;
+//  double obs_l22 = sqrt(obs_q22 * obs_r) / obs_r;
+
+//  double obs_dt = (ros::Time::now() - obs_last_time).toSec();
+//  obs_last_time = ros::Time::now();
+
+//  if(lqr_last_cmd.angular.z > 1.4){
+//    lqr_last_cmd.angular.z = 1.4;
+//  }
+//  else if(lqr_last_cmd.angular.z < -1.4){
+//    lqr_last_cmd.angular.z = -1.4;
+//  }
+
+//  obs_b1 = obs_b1 + obs_dt*(-obs_l11 * obs_b1 - obs_l11 * obs_l11 * lqr_last_y_error - obs_l11 * robot_control_state.velocity_linear.x * lqr_last_angle_error);
+//  obs_b2 = obs_b2 + obs_dt*(-obs_l22 * obs_b2 - obs_l22* lqr_last_cmd.angular.z - obs_l11 * obs_l11 * lqr_last_angle_error);
+
+//  obs_error_1 = obs_b1 + obs_l11 * lqr_y_error;
+//  obs_error_2 = obs_b2 + obs_l22 * lqr_angle_error;
+
+//  ROS_INFO("obs_err1: %f, obs_err2: %f", obs_error_1, obs_error_2);
+
   calc_local_path();
   calcLqr();
   //ROS_INFO("radius: %f", local_path_radius);
@@ -933,6 +955,8 @@ void Lqr_Controller::update()
   //double omega_fb = - lin_vel_dir *K(0,0) * lqr_y_error - K(0,1) * lqr_angle_error;
 
   double angular_vel= omega_ff + omega_fb;
+
+  //angular_vel += -lqr_k2/robot_control_state.desired_velocity_linear * obs_error_1 - obs_error_2;
 
   geometry_msgs::Twist cmd;
   cmd.linear.x = lin_vel_dir * fabs(robot_control_state.desired_velocity_linear) ;
@@ -1501,6 +1525,8 @@ void Lqr_Controller::calcLqr(){
     listener.transformPoint(base_frame_id, closest_point, closest_point_baseframe);
 
     lqr_x_error = -closest_point_baseframe.point.x;
+
+    lqr_last_y_error = lqr_y_error;
     lqr_y_error = -closest_point_baseframe.point.y;
 //    std::cout << "robot pose odom: " << robot_control_state.pose.position << std::endl;
 //    std::cout << "robot pose robotpose: " << current_pose << std::endl;
@@ -1516,12 +1542,14 @@ void Lqr_Controller::calcLqr(){
   double angles[3];
   quaternion2angles(robot_control_state.pose.orientation, angles);
 
+  lqr_last_angle_error = lqr_angle_error;
   lqr_angle_error =  constrainAngle_mpi_pi(angles[0] - alignment_angle);
   //ROS_INFO("yaw: %f, al_angle: %f", angles[0] , alignment_angle);
 
   //compute control gains
   double v = fabs(robot_control_state.desired_velocity_linear);
-  //double v = fabs(robot_control_state.velocity_linear.x);
+  //double v = std::sqrt(std::pow(robot_control_state.velocity_linear.x, 2) + std::pow(robot_control_state.velocity_linear.y, 2)
+  //                     + std::pow(robot_control_state.velocity_linear.z, 2));
 
   //ROS_INFO ("speed: %f", v);
 
