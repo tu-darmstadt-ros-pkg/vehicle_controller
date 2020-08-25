@@ -554,7 +554,13 @@ void Daf_Controller::followPathGoalCallback()
   drivepath(follow_path_goal_->target_path);
   drivepathPublisher.publish(follow_path_goal_->target_path);
 
-  lin_vel = follow_path_goal_->follow_path_options.desired_speed;
+  if(follow_path_goal_->follow_path_options.desired_speed != 0){
+    lin_vel = follow_path_goal_->follow_path_options.desired_speed;
+  }
+  else{
+    lin_vel = mp_.commanded_speed;
+  }
+
   lin_vel_ref = lin_vel;
 
   psize = (int)curr_path.poses.size();
@@ -851,8 +857,8 @@ void Daf_Controller::calc_local_path()
     double curr_dist_y = points[0][1] - (midY + mDy);
 
     if(isinf(rad)){
-      alignment_angle = atan2(curr_path.poses[co_points].pose.position.y - odom.pose.pose.position.y,
-                              curr_path.poses[co_points].pose.position.x - odom.pose.pose.position.x);
+      alignment_angle = atan2(points[co_points][1] - odom.pose.pose.position.y,
+                              points[co_points][0] - odom.pose.pose.position.x);
     }
     else{
       //correct angle directions
@@ -1368,6 +1374,13 @@ void Daf_Controller::controllerParamsCallback(vehicle_controller::DafControllerP
   k_p_rotation = config.kp_rot;
   lower_al_angle = config.lower_al_angle;
   upper_al_angle = config.upper_al_angle;
+
+  show_trajectory_planing = config.show_trajectory_planning;
+  if(show_trajectory_planing)
+  {
+    local_path_pub = nh.advertise<nav_msgs::Path>("/local_calc_path", 1);
+    marker_pub = nh.advertise<visualization_msgs::Marker>("visualization_marker", 1);
+  }
 }
 
 

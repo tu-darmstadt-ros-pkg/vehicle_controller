@@ -929,8 +929,6 @@ void Lqr_Controller::update()
   calcLqr();
   //ROS_INFO("radius: %f", local_path_radius);
 
-  //ROS_INFO ("angle error: %f", lqr_angle_error);
-
   if(reverseAllowed()){
     if (lqr_angle_error > M_PI/2){
       lqr_angle_error = lqr_angle_error - M_PI;
@@ -947,6 +945,10 @@ void Lqr_Controller::update()
   else{
     lin_vel_dir = 1;
   }
+
+  ROS_INFO ("angle error: %f, alignment angle: %f", lqr_angle_error, alignment_angle);
+  ROS_INFO("lin vel dir: %f",  lin_vel_dir);
+  ROS_INFO("y error: %f",  lqr_y_error);
 
   //double omega_ff = (lin_vel_dir * rot_vel_dir * robot_control_state.velocity_linear.x / local_path_radius);
   double omega_ff = (lin_vel_dir * rot_vel_dir * robot_control_state.desired_velocity_linear / local_path_radius);
@@ -1238,8 +1240,8 @@ void Lqr_Controller::calc_local_path(){
   double curr_dist_y = points[0][1] - (midY + mDy);
 
   if(isinf(local_path_radius)){
-    alignment_angle = atan2(current_path.poses[co_points].pose.position.y - closest_point.point.y,
-                            current_path.poses[co_points].pose.position.x - closest_point.point.x);
+    alignment_angle = atan2(points[co_points][1] - closest_point.point.y,
+                            points[co_points][0] - closest_point.point.x);
   }
   else{
     //correct angle directions
@@ -1512,39 +1514,44 @@ void Lqr_Controller::calcLqr(){
   geometry_msgs::PointStamped closest_point_baseframe;
 
   //compute errors
-  if(fabs((ros::Time::now() - lqr_time).toSec()) < 0.2){
-    double dt = (ros::Time::now() - lqr_time).toSec();
-    lqr_y_error_integrate = lqr_y_error_integrate + dt*lqr_y_error;
-  }
-  //lqr_time = ros::Time::now();
 
-  try
-  {
-    closest_point.point.z = robot_control_state.pose.position.z;
-    listener.waitForTransform(base_frame_id, robot_state_header.frame_id, robot_state_header.stamp, ros::Duration(3.0));
-    listener.transformPoint(base_frame_id, closest_point, closest_point_baseframe);
+//  try
+//  {
+//    closest_point.point.z = robot_control_state.pose.position.z;
+//    listener.waitForTransform(base_frame_id, robot_state_header.frame_id, robot_state_header.stamp, ros::Duration(3.0));
+//    listener.transformPoint(base_frame_id, closest_point, closest_point_baseframe);
 
-    lqr_x_error = -closest_point_baseframe.point.x;
+//    lqr_x_error = -closest_point_baseframe.point.x;
 
-    lqr_last_y_error = lqr_y_error;
-    lqr_y_error = -closest_point_baseframe.point.y;
-//    std::cout << "robot pose odom: " << robot_control_state.pose.position << std::endl;
-//    std::cout << "robot pose robotpose: " << current_pose << std::endl;
-//    std::cout << "closest point: " << closest_point << std::endl;
-//    std::cout << "closest point baseframe: " << closest_point_baseframe << std::endl;
-  }
-  catch (tf::TransformException ex)
-  {
-      ROS_ERROR("%s", ex.what());
-      return;
-  }
+//    lqr_last_y_error = lqr_y_error;
+//    lqr_y_error = -closest_point_baseframe.point.y;
+////    std::cout << "robot pose odom: " << robot_control_state.pose.position << std::endl;
+////    std::cout << "robot pose robotpose: " << current_pose << std::endl;
+////    std::cout << "closest point: " << closest_point << std::endl;
+////    std::cout << "closest point baseframe: " << closest_point_baseframe << std::endl;
+//  }
+//  catch (tf::TransformException ex)
+//  {
+//      ROS_ERROR("%s", ex.what());
+//      return;
+//  }
 
+  //angle error
   double angles[3];
   quaternion2angles(robot_control_state.pose.orientation, angles);
 
   lqr_last_angle_error = lqr_angle_error;
   lqr_angle_error =  constrainAngle_mpi_pi(angles[0] - alignment_angle);
   //ROS_INFO("yaw: %f, al_angle: %f", angles[0] , alignment_angle);
+
+  //y position error
+  double dist_2_closest_point = std::sqrt(std::pow(closest_point.point.x - robot_control_state.pose.position.x, 2)
+                                          + std::pow(closest_point.point.y - robot_control_state.pose.position.y, 2));
+  double angle_closest_point = atan2(closest_point.point.y - robot_control_state.pose.position.y,
+                                     closest_point.point.x - robot_control_state.pose.position.x);
+  double angle_to_closest_point = constrainAngle_mpi_pi(angles[0] - angle_closest_point);
+  lqr_last_y_error = lqr_y_error;
+  lqr_y_error = std::sin(angle_to_closest_point) * dist_2_closest_point;
 
   //compute control gains
   double v = fabs(robot_control_state.desired_velocity_linear);
