@@ -20,7 +20,7 @@
     <param name="upper_al_angle" value="1.0" />
     <param name="enable_angle_compensation" value="true" />
     <param name="enable_ground_compensation" value="true" />
-    <param name="enable_velocity_increase" value="true" />
+    <param name="enable_velocity_increase" value="false" />
     <param name="show_trajectory_planing" value="true" />
     <param name="stability_angle" value="1.0" />
 

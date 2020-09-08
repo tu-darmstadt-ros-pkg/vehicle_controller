@@ -98,6 +98,8 @@ void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_t
     twist = inc_twist; 
     this->limitTwist(twist, mp_->max_controller_speed, mp_->max_controller_angular_rate);
 
+    //ROS_INFO("limited: lin: %f, ang: %f", twist.linear.x, twist.angular.z);
+
     if(ekf_useEkf){
       if (!ekf_setInitialPose){
         ekf.x_(0,0) = rcs.pose.position.x;
@@ -269,6 +271,7 @@ void DifferentialDriveController::stop()
 void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate) const
 {
     double speed = twist.linear.x;
+    double unlimited_speed = speed;
     double angular_rate = twist.angular.z;
 
     speed        = std::max(-mp_->max_unlimited_speed, std::min(mp_->max_unlimited_speed, speed));
@@ -276,8 +279,15 @@ void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double
 
     double m = -mp_->max_controller_speed / mp_->max_controller_angular_rate;
     double t = mp_->max_controller_speed;
-    double speedAbsUL = std::min(std::max(0.0, m * std::abs(angular_rate) * SPEED_REDUCTION_GAIN_ + t), max_speed);
+    double speedAbsUL = std::min(std::max(0.1, m * std::abs(angular_rate) * SPEED_REDUCTION_GAIN_ + t), max_speed);
 
     twist.linear.x = std::max(-speedAbsUL, std::min(speed, speedAbsUL));
-    twist.angular.z = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate));
+
+    if(unlimited_speed != 0.0){
+      twist.angular.z = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate * twist.linear.x/unlimited_speed));
+    }
+    else{
+      twist.angular.z = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate));
+    }
+
 }

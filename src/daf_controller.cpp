@@ -70,7 +70,7 @@ bool Daf_Controller::configure()
     params.param("show_trajectory_planing", show_trajectory_planing, false);
     params.param<double>("stability_angle", stability_angle, 1.0);
 
-    params.getParam("max_controller_speed", mp_.max_controller_speed);
+    params.param("max_controller_speed", mp_.max_controller_speed, 0.6);
     params.getParam("max_controller_angular_rate", mp_.max_controller_angular_rate);
 
     params.getParam("carrot_distance", mp_.carrot_distance);
@@ -170,8 +170,8 @@ bool Daf_Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
       listener.transformVector(base_frame_id, velocity_linear, velocity_linear);
       listener.transformVector(base_frame_id, velocity_angular, velocity_angular);
 
-      odom.header = odom_state.header;
-      odom.pose.pose= pose.pose;
+//      odom.header = odom_state.header;
+//      odom.pose.pose= pose.pose;
 
       tf::Quaternion q(pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w);
       tf::Matrix3x3 m(q);
@@ -710,16 +710,16 @@ void Daf_Controller::reset()
   co_unchanged = 0;
   st_point = 0;
   path_po_lenght = 0;
-  lin_vel = mp_.max_controller_speed/2;
+  //lin_vel = mp_.max_controller_speed/2;
 
   //save reference for linar velocity
-  lin_vel_ref = lin_vel;
+  //lin_vel_ref = lin_vel;
 
   //rot_vel_dir = 1;
   //rot_dir_opti = 1;
   old_pos_x = 0;
   old_pos_y = 0;
-  rad = 0;
+  //rad = 0;
   err_cont = 0;
   //oscilation_rotation = 1;
 
@@ -730,106 +730,108 @@ void Daf_Controller::reset()
  */
 void Daf_Controller::calc_local_path()
 {
-    path_po_lenght = 0;
-    //calculate path_po_lenght
-    for(int i=0; i < psize; i++)
+
+  //start point from robot current pose
+  points[0][0] = robot_control_state.pose.position.x;
+  points[0][1] = robot_control_state.pose.position.y;
+
+  //search for closest point on path
+  double min_dif = 20.0;
+  for(int i=0; i < psize; i++)
+  {
+    double po_dist = std::sqrt(std::pow(curr_path.poses[i].pose.position.x - points[0][0] , 2) + std::pow(curr_path.poses[i].pose.position.y - points[0][1], 2));
+    if(po_dist < min_dif)
     {
-        double curr_dist_x =fabs(odom.pose.pose.position.x - curr_path.poses[i].pose.position.x);
-        double curr_dist_y =fabs(odom.pose.pose.position.y - curr_path.poses[i].pose.position.y);
-        double curr_dist = sqrt(curr_dist_x*curr_dist_x + curr_dist_y*curr_dist_y);
-
-
-        if(fabs(curr_dist) > mp_.carrot_distance) //search for points
-        {
-            continue;
-        }
-        path_po_lenght = path_po_lenght + 1;
+      min_dif = po_dist;
+      st_point = i;
     }
+  }
 
-    double min_dif = 10.0;
+  co_points = 0;
+  path_po_lenght = 0;
+  //calculate path_po_lenght -> number of waypoints in the carrot distance
+  for(int i=st_point + 1; i < psize; i++)
+  {
+    double curr_dist = std::sqrt(std::pow(robot_control_state.pose.position.x - curr_path.poses[i].pose.position.x, 2) +
+                                 std::pow(robot_control_state.pose.position.y - curr_path.poses[i].pose.position.y, 2));
 
-    //start point from robot current pose
-    points[0][0] = odom.pose.pose.position.x;
-    points[0][1] = odom.pose.pose.position.y;
-
-    //search for closest point to path
-    for(int i=0; i < psize; i++)
+    if(curr_dist > mp_.carrot_distance) //search for points
     {
-        double po_dist = sqrt((curr_path.poses[i].pose.position.x - points[0][0])*(curr_path.poses[i].pose.position.x - points[0][0]) + (curr_path.poses[i].pose.position.y - points[0][1])*(curr_path.poses[i].pose.position.y - points[0][1]));
-        if(fabs(po_dist) < min_dif)
-        {
-            min_dif = fabs(po_dist);
-            st_point = i;
-        }
+      break;
     }
-    //ROS_INFO("Founded closest point on path: x: %f y: %f at postition: %i", curr_path.poses[st_point].pose.position.x, curr_path.poses[st_point].pose.position.x, st_point);
-
-    //calculate execution path distance
-    co_points = 0;
-    for(int i=st_point; i < (st_point+path_po_lenght); i++)
-    {
-        if(i > (psize-2))
-        {
-            co_points = co_points +1;
-            points[co_points][0] = curr_path.poses[i].pose.position.x;
-            points[co_points][1] = curr_path.poses[i].pose.position.y;
-            i = (st_point+path_po_lenght)+1;
-        }else
-        {
-            co_points = co_points +1;
-            points[co_points][0] = curr_path.poses[i].pose.position.x;
-            points[co_points][1] = curr_path.poses[i].pose.position.y;
-        }
+    else{
+      path_po_lenght = path_po_lenght + 1;
     }
+  }
 
-    th_po_x = 0; th_po_y = 0; fi_po_x = 0; fi_po_y = 0;
-    se_po_x = 0; se_po_y = 0; dirx = 1; diry = -1; max_H = 0;
+  double angle_carrot = std::atan2(curr_path.poses[st_point + path_po_lenght].pose.position.y - robot_control_state.pose.position.y,
+                                      curr_path.poses[st_point + path_po_lenght].pose.position.x - robot_control_state.pose.position.x);
+  double angle_to_carrot = constrainAngle_mpi_pi(angle_carrot - yaw);
+
+  for(int i=0; i <= path_po_lenght; i++){
+    double angle_waypoint = std::atan2(curr_path.poses[st_point + i].pose.position.y - robot_control_state.pose.position.y,
+                            curr_path.poses[st_point + i].pose.position.x - robot_control_state.pose.position.x);
+    double angle_diff_carrot2waypoint = constrainAngle_mpi_pi(angle_carrot - angle_waypoint);
+    //ROS_INFO("angle diff carrot2waypoint: %f", angle_diff_carrot2waypoint);
+    if (fabs(angle_diff_carrot2waypoint) < M_PI_2){
+      co_points = co_points + 1;
+      points[co_points][0] = curr_path.poses[st_point + i].pose.position.x;
+      points[co_points][1] = curr_path.poses[st_point + i].pose.position.y;
+    }
+  }
+
+
+  th_po_x = 0; th_po_y = 0; fi_po_x = 0; fi_po_y = 0;
+  se_po_x = 0; se_po_y = 0; dirx = 1; diry = -1; max_H = 0;
+
+  if(co_points < 2){
+    rot_vel_dir = 0;
+    max_H = 0.001;
+    rad = 99999;
+    alignment_angle = atan2(curr_path.poses[st_point + co_points].pose.position.y - robot_control_state.pose.position.y,
+        curr_path.poses[st_point + co_points].pose.position.x - robot_control_state.pose.position.x);
+  }
+  else{
+
+    sideC = sqrt(((points[co_points][0] - points[0][0])*(points[co_points][0] - points[0][0])) + (points[co_points][1] - points[0][1])*(points[co_points][1] - points[0][1]));
+    Wid = sideC;
 
     //calculate triangle height height
-    for(int i=0; i < co_points; i++)
+    for(int i=1; i < co_points; i++)
     {
-                                       //p1            p2              p3
-        //ROS_INFO("Points X: %f %f %f", points[0][0], points[i][0], points[co_points][0]);
-        //ROS_INFO("Points Y: %f %f %f", points[0][1], points[i][1], points[co_points][1]);
-        sideA = sqrt(((points[0][0] - points[i][0])*(points[0][0] - points[i][0])) + (points[0][1] - points[i][1])*(points[0][1] - points[i][1]));
-        sideB = sqrt(((points[i][0] - points[co_points][0])*(points[i][0] - points[co_points][0])) + (points[i][1] - points[co_points][1])*(points[i][1] - points[co_points][1]));
-        sideC = sqrt(((points[co_points][0] - points[0][0])*(points[co_points][0] - points[0][0])) + (points[co_points][1] - points[0][1])*(points[co_points][1] - points[0][1]));
-        //ROS_INFO("triangle sides: %f %f %f", sideA, sideB, sideC);
-        ss = (sideA + sideB + sideC)/2;
-        area = sqrt(ss*(ss-sideA)*(ss-sideB)*(ss-sideC));
-        //determine params for radius calculation
-        tmp_H = (area*2)/sideC;
+      //p1            p2              p3
+      //ROS_INFO("Points X: %f %f %f", points[0][0], points[i][0], points[co_points][0]);
+      //ROS_INFO("Points Y: %f %f %f", points[0][1], points[i][1], points[co_points][1]);
+      sideA = sqrt(((points[0][0] - points[i][0])*(points[0][0] - points[i][0])) + (points[0][1] - points[i][1])*(points[0][1] - points[i][1]));
+      sideB = sqrt(((points[i][0] - points[co_points][0])*(points[i][0] - points[co_points][0])) + (points[i][1] - points[co_points][1])*(points[i][1] - points[co_points][1]));
+      //ROS_INFO("triangle sides: %f %f %f", sideA, sideB, sideC);
+      ss = (sideA + sideB + sideC)/2;
+      area = sqrt(ss*(ss-sideA)*(ss-sideB)*(ss-sideC));
+      //determine params for radius calculation
+      tmp_H = (area*2)/sideC;
 
-        if(tmp_H > max_H)
+      if(tmp_H > max_H)
+      {
+        max_H = tmp_H;
+        float det_dir = (points[co_points][0] - points[0][0])*(points[i][1] - points[0][1]) - (points[co_points][1] - points[0][1])*(points[i][0]- points[0][0]);
+        se_po_x = points[i][0];
+        se_po_y = points[i][1];
+
+        if(det_dir > 0)
         {
-            max_H = tmp_H;
-            //float det_dir = (points[co_points][0] - points[1][0])*(points[i][1] - points[0][1]) - (points[co_points][1] - points[0][1])*(points[i][0]- points[0][0]);
-            float det_dir = (points[co_points][0] - points[0][0])*(points[i][1] - points[0][1]) - (points[co_points][1] - points[0][1])*(points[i][0]- points[0][0]);
-            se_po_x = points[i][0];
-            se_po_y = points[i][1];
-
-            if(det_dir > 0)
-            {
-                dirx = -1;
-                diry = 1;
-                rot_vel_dir = -1;
-            }else
-            {
-                dirx = 1;
-                diry = -1;
-                rot_vel_dir = 1;
-            }
+          dirx = -1;
+          diry = 1;
+          rot_vel_dir = -1;
+        }else
+        {
+          dirx = 1;
+          diry = -1;
+          rot_vel_dir = 1;
         }
-        Wid = sideC;
+      }
     }
 
-    //if local path is too short
-    if(co_points < 3)
-    {
-        max_H = 0.001;
-    }
-    //smooth local path
-    //max_H = max_H/2;
+    //ROS_INFO("Mid Point: x: %f, y: %f", se_po_x, se_po_y);
 
     //calculate ground compensation, which modifiy max_H and W
     calc_ground_compensation();
@@ -841,6 +843,8 @@ void Daf_Controller::calc_local_path()
 
     //calculate radious
     rad = max_H/2 + (Wid*Wid)/(8*max_H);
+
+    ROS_INFO("max H: %f, Wid: %f, rad: %f", max_H, Wid, rad);
 
     //calculating circle center
     midX = (points[0][0] + points[co_points][0])/2;
@@ -857,174 +861,180 @@ void Daf_Controller::calc_local_path()
     double curr_dist_y = points[0][1] - (midY + mDy);
 
     if(isinf(rad)){
-      alignment_angle = atan2(points[co_points][1] - odom.pose.pose.position.y,
-                              points[co_points][0] - odom.pose.pose.position.x);
+      alignment_angle = atan2(points[co_points][1] - robot_control_state.pose.position.y,
+          points[co_points][0] - robot_control_state.pose.position.x);
     }
     else{
       //correct angle directions
-      if((curr_dist_x < 0)&&(curr_dist_y < 0))
-      {
-        alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*PI/2;
+      alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*PI/2;
+    }
+  }
+
+  ROS_INFO("co points: %i, point y: %f, point x: %f", co_points, points[co_points][1], points[co_points][0]);
+  ROS_INFO("st point: %i, path_po length: %i", st_point, path_po_lenght);
+
+  //ROS_INFO("Fitted circle radius: %f", rad);
+
+  //reduce angle on -PI to +PI
+  if(alignment_angle > PI)
+  {
+    alignment_angle = alignment_angle - 2*PI;
+  }
+  if(alignment_angle < -PI)
+  {
+    alignment_angle = alignment_angle + 2*PI;
+  }
+
+
+  if(isnan(alignment_angle))
+  {
+    ROS_WARN("Alignment Angle can not be computed!");
+  }
+
+  //ROS_INFO("Alignment angle is: %f", alignment_angle);
+  if(isnan(alignment_angle))
+  {
+    ROS_INFO("Alignment angle is nan - return to calc_local_path");
+    calc_local_path();
+  }
+
+  //check if robot should drive backwards
+  lin_vel_dir = 1;
+  //ROS_INFO("angle to carrot: %f", angle_to_carrot);
+  if (reverseAllowed()){
+    if(fabs(angle_to_carrot) > M_PI/2){
+      lin_vel_dir = -1;
+
+      if(alignment_angle < 0){
+        alignment_angle = alignment_angle + M_PI;
       }
-      else if((curr_dist_x > 0)&&(curr_dist_y > 0))
-      {
-        alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*PI/2;
-      }
-      else if((curr_dist_x < 0)&&(curr_dist_y > 0))
-      {
-        alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*PI/2;
-      }
-      else if((curr_dist_x > 0)&&(curr_dist_y < 0))
-      {
-        alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*PI/2;
+      else{
+        alignment_angle = alignment_angle - M_PI;
       }
     }
+  }
 
-    //ROS_INFO("Fitted circle radius: %f", rad);
+  //send feedback
+  //feedback.feedback = (int)round((100*st_point)/psize); //calculated progress relative to given path
+  //execute_path_action_server_.publishFeedback(feedback);
 
-    //reduce angle on -PI to +PI
-    if(alignment_angle > PI)
+  //display of all lines to plan a path
+  if(show_trajectory_planing == true)
+  {
+    uint32_t shape = visualization_msgs::Marker::CUBE;
+
+    local_calc_path.header.frame_id = map_frame_id;
+    local_calc_path.poses.resize(360);
+
+    for(int d= 0; d < 360; d++)
     {
-        alignment_angle = alignment_angle - 2*PI;
+      double xp = sin(d*0.0174532925)*rad + (midX + mDx);
+      double yp = cos(d*0.0174532925)*rad + (midY + mDy);
+      local_calc_path.poses[d].pose.position.x = xp;
+      local_calc_path.poses[d].pose.position.y = yp;
+      local_calc_path.poses[d].pose.position.z = 0;
     }
-    if(alignment_angle < -PI)
-    {
-        alignment_angle = alignment_angle + 2*PI;
-    }
+    //publish circle
+    local_path_pub.publish(local_calc_path);
 
-    if(isnan(alignment_angle))
-    {
-        ROS_WARN("Alignment Angle can not be computed!");
-    }
+    //pub triangle
+    calc_path.header.frame_id = map_frame_id;
+    calc_path.poses.resize(4);
 
-    //ROS_INFO("Alignment angle is: %f", alignment_angle);
-    if(isnan(alignment_angle))
-    {
-        ROS_INFO("Alignment angle is nan - return to calc_local_path");
-        calc_local_path();
-    }
+    //pub path
+    calc_path.poses[0].pose.position.x = points[0][0];
+    calc_path.poses[0].pose.position.y = points[0][1];
+    calc_path.poses[0].pose.position.z = 0;
+    calc_path.poses[1].pose.position.x = se_po_x;
+    calc_path.poses[1].pose.position.y = se_po_y;
+    calc_path.poses[1].pose.position.z = 0;
+    calc_path.poses[2].pose.position.x = points[co_points][0];
+    calc_path.poses[2].pose.position.y = points[co_points][1];
+    calc_path.poses[2].pose.position.z = 0;
+    calc_path.poses[3].pose.position.x = points[0][0];
+    calc_path.poses[3].pose.position.y = points[0][1];
+    calc_path.poses[3].pose.position.z = 0;
+    calc_path.poses.resize(4);
+    drivepathPublisher.publish(calc_path);
 
-    //send feedback
-    //feedback.feedback = (int)round((100*st_point)/psize); //calculated progress relative to given path
-    //execute_path_action_server_.publishFeedback(feedback);
+    //start point
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = map_frame_id;
+    marker.header.stamp = ros::Time::now();
 
-    //display of all lines to plan a path
-    if(show_trajectory_planing == true)
-    {
-        uint32_t shape = visualization_msgs::Marker::CUBE;
+    marker.ns = "first_point";
+    marker.id = 0;
+    marker.type = shape;
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.pose.position.x = fi_po_x;
+    marker.pose.position.y = fi_po_y;
+    marker.pose.position.z = 0;
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = 0.0;
+    marker.pose.orientation.w = 1.0;
+    // Set the scale of the marker -- 1x1x1 here means 1m on a side
+    marker.scale.x = 0.02;
+    marker.scale.y = 0.02;
+    marker.scale.z = 0.02;
+    // Set the color -- be sure to set alpha to something non-zero!
+    marker.color.r = 1;
+    marker.color.g = 0;
+    marker.color.b = 0;
+    marker.color.a = 1.0;
+    marker.lifetime = ros::Duration();
+    // Publish the marker
+    marker_pub.publish(marker);
 
-        local_calc_path.header.frame_id = map_frame_id;
-        local_calc_path.poses.resize(360);
+    marker.ns = "second_point";
+    marker.id = 2;
+    marker.type = shape;
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.pose.position.x = se_po_x;
+    marker.pose.position.y = se_po_y;
+    marker.pose.position.z = 0;
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = 0.0;
+    marker.pose.orientation.w = 1.0;
+    // Set the scale of the marker -- 1x1x1 here means 1m on a side
+    marker.scale.x = 0.02;
+    marker.scale.y = 0.02;
+    marker.scale.z = 0.02;
+    // Set the color -- be sure to set alpha to something non-zero!
+    marker.color.r = 0;
+    marker.color.g = 1;
+    marker.color.b = 0;
+    marker.color.a = 1.0;
+    marker.lifetime = ros::Duration();
+    // Publish the marker
+    marker_pub.publish(marker);
 
-        for(int d= 0; d < 360; d++)
-        {
-            double xp = sin(d*0.0174532925)*rad + (midX + mDx);
-            double yp = cos(d*0.0174532925)*rad + (midY + mDy);
-            local_calc_path.poses[d].pose.position.x = xp;
-            local_calc_path.poses[d].pose.position.y = yp;
-            local_calc_path.poses[d].pose.position.z = 0;
-        }
-        //publish circle
-        local_path_pub.publish(local_calc_path);
-
-        //pub triangle
-        calc_path.header.frame_id = map_frame_id;
-        calc_path.poses.resize(4);
-
-        //pub path
-        calc_path.poses[0].pose.position.x = points[0][0];
-        calc_path.poses[0].pose.position.y = points[0][1];
-        calc_path.poses[0].pose.position.z = 0;
-        calc_path.poses[1].pose.position.x = se_po_x;
-        calc_path.poses[1].pose.position.y = se_po_y;
-        calc_path.poses[1].pose.position.z = 0;
-        calc_path.poses[2].pose.position.x = points[co_points][0];
-        calc_path.poses[2].pose.position.y = points[co_points][1];
-        calc_path.poses[2].pose.position.z = 0;
-        calc_path.poses[3].pose.position.x = points[0][0];
-        calc_path.poses[3].pose.position.y = points[0][1];
-        calc_path.poses[3].pose.position.z = 0;
-        calc_path.poses.resize(4);
-        drivepathPublisher.publish(calc_path);
-
-        //start point
-        visualization_msgs::Marker marker;
-        marker.header.frame_id = map_frame_id;
-        marker.header.stamp = ros::Time::now();
-
-        marker.ns = "first_point";
-        marker.id = 0;
-        marker.type = shape;
-        marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x = fi_po_x;
-        marker.pose.position.y = fi_po_y;
-        marker.pose.position.z = 0;
-        marker.pose.orientation.x = 0.0;
-        marker.pose.orientation.y = 0.0;
-        marker.pose.orientation.z = 0.0;
-        marker.pose.orientation.w = 1.0;
-        // Set the scale of the marker -- 1x1x1 here means 1m on a side
-        marker.scale.x = 0.02;
-        marker.scale.y = 0.02;
-        marker.scale.z = 0.02;
-        // Set the color -- be sure to set alpha to something non-zero!
-        marker.color.r = 1;
-        marker.color.g = 0;
-        marker.color.b = 0;
-        marker.color.a = 1.0;
-        marker.lifetime = ros::Duration();
-        // Publish the marker
-        marker_pub.publish(marker);
-
-        marker.ns = "second_point";
-        marker.id = 2;
-        marker.type = shape;
-        marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x = se_po_x;
-        marker.pose.position.y = se_po_y;
-        marker.pose.position.z = 0;
-        marker.pose.orientation.x = 0.0;
-        marker.pose.orientation.y = 0.0;
-        marker.pose.orientation.z = 0.0;
-        marker.pose.orientation.w = 1.0;
-        // Set the scale of the marker -- 1x1x1 here means 1m on a side
-        marker.scale.x = 0.02;
-        marker.scale.y = 0.02;
-        marker.scale.z = 0.02;
-        // Set the color -- be sure to set alpha to something non-zero!
-        marker.color.r = 0;
-        marker.color.g = 1;
-        marker.color.b = 0;
-        marker.color.a = 1.0;
-        marker.lifetime = ros::Duration();
-        // Publish the marker
-        marker_pub.publish(marker);
-
-        //end point
-        marker.ns = "third_point";
-        marker.id = 4;
-        marker.type = shape;
-        marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x = th_po_x;
-        marker.pose.position.y = th_po_y;
-        marker.pose.position.z = 0;
-        marker.pose.orientation.x = 0.0;
-        marker.pose.orientation.y = 0.0;
-        marker.pose.orientation.z = 0.0;
-        marker.pose.orientation.w = 1.0;
-        // Set the scale of the marker -- 1x1x1 here means 1m on a side
-        marker.scale.x = 0.02;
-        marker.scale.y = 0.02;
-        marker.scale.z = 0.02;
-        // Set the color -- be sure to set alpha to something non-zero!
-        marker.color.r = 0;
-        marker.color.g = 0;
-        marker.color.b = 1;
-        marker.color.a = 1.0;
-        marker.lifetime = ros::Duration();
-        // Publish the marker
-        marker_pub.publish(marker);
-    }
+    //end point
+    marker.ns = "third_point";
+    marker.id = 4;
+    marker.type = shape;
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.pose.position.x = th_po_x;
+    marker.pose.position.y = th_po_y;
+    marker.pose.position.z = 0;
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = 0.0;
+    marker.pose.orientation.w = 1.0;
+    // Set the scale of the marker -- 1x1x1 here means 1m on a side
+    marker.scale.x = 0.02;
+    marker.scale.y = 0.02;
+    marker.scale.z = 0.02;
+    // Set the color -- be sure to set alpha to something non-zero!
+    marker.color.r = 0;
+    marker.color.g = 0;
+    marker.color.b = 1;
+    marker.color.a = 1.0;
+    marker.lifetime = ros::Duration();
+    // Publish the marker
+    marker_pub.publish(marker);
+  }
 }
 
 /*****************************************************************************************************************
@@ -1032,19 +1042,19 @@ void Daf_Controller::calc_local_path()
  */
 void Daf_Controller::calc_ground_compensation()
 {
-    if(enable_ground_compensation == true)
-    {
-        //ROS_INFO("Distances before ground compensation: max_H: %f and W: %f", max_H, Wid);
-//        double dh = fabs((max_H/cos(imu_roll))-max_H);
-//        double dw = fabs((Wid/cos(imu_pitch))-Wid);
+  if(enable_ground_compensation == true)
+  {
+    //ROS_INFO("Distances before ground compensation: max_H: %f and W: %f", max_H, Wid);
+    //        double dh = fabs((max_H/cos(imu_roll))-max_H);
+    //        double dw = fabs((Wid/cos(imu_pitch))-Wid);
 
-        double dh = fabs((max_H/cos(roll))-max_H);
-        double dw = fabs((Wid/cos(pitch))-Wid);
-        //ROS_INFO("Angle compensation diferences: dh: %f, dw: %f", dh, dw);
-        max_H = max_H + dh;
-        Wid = Wid + dw;
-        //ROS_INFO("Distances after ground compensation: max_H: %f and W: %f", max_H, Wid);
-    }
+    double dh = fabs((max_H/cos(roll))-max_H);
+    double dw = fabs((Wid/cos(pitch))-Wid);
+    //ROS_INFO("Angle compensation diferences: dh: %f, dw: %f", dh, dw);
+    max_H = max_H + dh;
+    Wid = Wid + dw;
+    //ROS_INFO("Distances after ground compensation: max_H: %f and W: %f", max_H, Wid);
+  }
 }
 
 /*****************************************************************************************************************
@@ -1052,18 +1062,18 @@ void Daf_Controller::calc_ground_compensation()
  */
 void Daf_Controller::check_robot_stability()
 {
-//if robot reaches treshodl of its stability angle it responds with error
-    //if((imu_roll > stability_angle)||(imu_pitch > stability_angle))
+  //if robot reaches treshodl of its stability angle it responds with error
+  //if((imu_roll > stability_angle)||(imu_pitch > stability_angle))
   if((roll > stability_angle)||(pitch > stability_angle))
-    {
-      if (follow_path_server_->isActive()){
-        move_base_lite_msgs::FollowPathResult result;
-        result.result.val = move_base_lite_msgs::ErrorCodes::INVALID_MOTION_PLAN;
-        follow_path_server_->setAborted(result, "Robot has exceeded angle of stability!");
-      }
-      reset();
-      ROS_WARN("Robot has exceeded angle of stability!");
+  {
+    if (follow_path_server_->isActive()){
+      move_base_lite_msgs::FollowPathResult result;
+      result.result.val = move_base_lite_msgs::ErrorCodes::INVALID_MOTION_PLAN;
+      follow_path_server_->setAborted(result, "Robot has exceeded angle of stability!");
     }
+    reset();
+    ROS_WARN("Robot has exceeded angle of stability!");
+  }
 }
 
 /*****************************************************************************************************************
@@ -1124,6 +1134,7 @@ void Daf_Controller::calc_angel_compensation()
  //upper and lower angle treshods are same
        lower_al_angle = upper_al_angle;
     }
+    //ROS_INFO("radius: %f", rad);
 }
 /*****************************************************************************************************************
  * Increase Velocity if Robot Does not Move
@@ -1132,8 +1143,8 @@ void Daf_Controller::velocity_increase()
 {
 
     //check if there is no change in position it increase linear speed
-    double pose_diff_x = fabs(odom.pose.pose.position.x - old_pos_x);
-    double pose_diff_y = fabs(odom.pose.pose.position.y - old_pos_y);
+    double pose_diff_x = fabs(robot_control_state.pose.position.x - old_pos_x);
+    double pose_diff_y = fabs(robot_control_state.pose.position.y - old_pos_y);
 
     if((pose_diff_x <= std::numeric_limits<double>::epsilon()) && (pose_diff_y <= std::numeric_limits<double>::epsilon()))
     {
@@ -1175,8 +1186,8 @@ void Daf_Controller::velocity_increase()
     else
     {
         //else reference linear velocity is used
-        old_pos_x = odom.pose.pose.position.x;
-        old_pos_y = odom.pose.pose.position.y;
+        old_pos_x = robot_control_state.pose.position.x;
+        old_pos_y = robot_control_state.pose.position.y;
         co_unchanged = 0;
         lin_vel = lin_vel_ref;
     }
@@ -1203,13 +1214,22 @@ void Daf_Controller::update()
     }
     double goal_position_error =
             std::sqrt(
-                std::pow(curr_path.poses.back().pose.position.x - odom.pose.pose.position.x, 2)
-              + std::pow(curr_path.poses.back().pose.position.y - odom.pose.pose.position.y, 2));
+                std::pow(curr_path.poses.back().pose.position.x - robot_control_state.pose.position.x, 2)
+              + std::pow(curr_path.poses.back().pose.position.y - robot_control_state.pose.position.y, 2));
 
+    //If close to the goal point drive in a straight line
     if(goal_position_error < 0.2)
     {
-      alignment_angle = atan2(curr_path.poses.back().pose.position.y - odom.pose.pose.position.y,
-                              curr_path.poses.back().pose.position.x - odom.pose.pose.position.x);
+      alignment_angle = atan2(curr_path.poses.back().pose.position.y - robot_control_state.pose.position.y,
+                              curr_path.poses.back().pose.position.x - robot_control_state.pose.position.x);
+      if(lin_vel_dir < 0){
+        if(alignment_angle < 0){
+          alignment_angle = alignment_angle + M_PI;
+        }
+        else{
+          alignment_angle = alignment_angle - M_PI;
+        }
+      }
       rad = DBL_MAX;
     }
 
@@ -1228,32 +1248,32 @@ void Daf_Controller::update()
       al_an_diff = 2 * M_PI + al_an_diff;
     }
 
-    //check if robot should drive backwards
-    lin_vel_dir = 1;
+//    //check if robot should drive backwards
+//    lin_vel_dir = 1;
 
-    if (reverseAllowed()){
-      if(fabs(al_an_diff) > M_PI/2){
-        lin_vel_dir = -1;
+//    if (reverseAllowed()){
+//      if(fabs(al_an_diff) > M_PI/2){
+//        lin_vel_dir = -1;
 
-        if(alignment_angle < 0){
-          alignment_angle = alignment_angle + M_PI;
-        }
-        else{
-          alignment_angle = alignment_angle - M_PI;
-        }
+//        if(alignment_angle < 0){
+//          alignment_angle = alignment_angle + M_PI;
+//        }
+//        else{
+//          alignment_angle = alignment_angle - M_PI;
+//        }
 
-        al_an_diff = alignment_angle - yaw;
+//        al_an_diff = alignment_angle - yaw;
 
-        if(al_an_diff > M_PI)
-        {
-          al_an_diff = -2 * M_PI + al_an_diff;
-        }
-        else if (al_an_diff < -M_PI){
-          al_an_diff = 2 * M_PI + al_an_diff;
-        }
+//        if(al_an_diff > M_PI)
+//        {
+//          al_an_diff = -2 * M_PI + al_an_diff;
+//        }
+//        else if (al_an_diff < -M_PI){
+//          al_an_diff = 2 * M_PI + al_an_diff;
+//        }
 
-      }
-    }
+//      }
+//    }
 
     calculate_al_rot();
 
@@ -1261,18 +1281,11 @@ void Daf_Controller::update()
     if((fabs(al_an_diff) > (upper_al_angle))||(alignment_finished == false))
     {
       // turn in place
-      //ROS_INFO("ROBOT IS ALIGNING || yaw: %f angle: %f al_an_diff: %f", yaw, alignment_angle, al_an_diff);
+      ROS_INFO("ROBOT IS ALIGNING || yaw: %f angle: %f al_an_diff: %f", yaw, alignment_angle, al_an_diff);
       //ROS_INFO("lower_al: %f upper_al: %f",lower_al_angle, upper_al_angle );
-      if (yaw > alignment_angle)
-      {
-        cmd.linear.x = 0.0;
-        cmd.angular.z = rot_dir_opti*mp_.max_controller_speed/2;
-      }
-      else if (yaw < alignment_angle)
-      {
-        cmd.linear.x = 0.0;
-        cmd.angular.z = rot_dir_opti*mp_.max_controller_speed/2;
-      }
+
+      cmd.linear.x = 0.0;
+      cmd.angular.z = rot_dir_opti * (mp_.max_controller_angular_rate/3);
 
       if(fabs(al_an_diff) < upper_al_angle/2)
       {
@@ -1302,7 +1315,7 @@ void Daf_Controller::update()
     // else if difference is between lower treshold (angle correction) and upper treshold (middle_al_offset) the angle compensation is used
     else if((fabs(al_an_diff) > lower_al_angle)&&((fabs(al_an_diff) < (upper_al_angle))))
     {
-      //ROS_INFO("DRIVE ROBOT MIDDLE STAGE || yaw: %f al_angle: %f", yaw*57.2957795, alignment_angle*57.2957795);
+      ROS_INFO("DRIVE ROBOT MIDDLE STAGE || yaw: %f al_angle: %f", yaw, alignment_angle);
 
       //add additional rotation speed based on ground
       calc_angel_compensation();
@@ -1310,50 +1323,40 @@ void Daf_Controller::update()
       cmd.linear.x = lin_vel_dir * lin_vel;
       cmd.angular.z = rot_vel;
 
-      //check for global goal proximitiy
-      if(goal_position_error < linear_tolerance_for_current_path)
-      {
-        ROS_INFO("GLOBAL GOAL REACHED");
-        cmd.linear.x = 0;
-        cmd.angular.z = 0;
-        //goal reach reporting
-        if (follow_path_server_->isActive()){
-          move_base_lite_msgs::FollowPathResult result;
-          result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
-          follow_path_server_->setSucceeded(result, "reached goal");
-        }
-        move_robot = false;
-      }
+      ROS_INFO("cmd: lin: %f, ang: %f", cmd.linear.x, cmd.angular.z);
+
     }
     //if difference is below lower treshold ()
     else
     {
-      //ROS_INFO("DRIVE ROBOT || yaw: %f al_angle: %f", yaw*57.2957795, alignment_angle*57.2957795);
+      ROS_INFO("DRIVE ROBOT || yaw: %f al_angle: %f", yaw, alignment_angle);
 
       rot_vel = rot_vel_dir * lin_vel/rad*rot_correction_factor;  //pazi za meso je dva krat
 
       cmd.linear.x = lin_vel_dir * lin_vel;
       cmd.angular.z = rot_vel;
 
-      //check for global goal proximitiy
-      if(goal_position_error < linear_tolerance_for_current_path)
-      {
-        ROS_INFO("GLOBAL GOAL REACHED");
-        cmd.linear.x = 0;
-        cmd.angular.z = 0;
-        //goal reach reporting
-        if (follow_path_server_->isActive()){
-          move_base_lite_msgs::FollowPathResult result;
-          result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
-          follow_path_server_->setSucceeded(result, "reached goal");
-        }
-        move_robot = false;
+      ROS_INFO("cmd: lin: %f, ang: %f, rad: %f, rot_veldir: %f, correct_fact: %f", cmd.linear.x, cmd.angular.z, rad, rot_vel_dir, rot_correction_factor);
+    }
 
+    //check for global goal proximitiy
+    if(goal_position_error < linear_tolerance_for_current_path)
+    {
+      ROS_INFO("GLOBAL GOAL REACHED");
+      cmd.linear.x = 0;
+      cmd.angular.z = 0;
+      stop();
+      //goal reach reporting
+      if (follow_path_server_->isActive()){
+        move_base_lite_msgs::FollowPathResult result;
+        result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
+        follow_path_server_->setSucceeded(result, "reached goal");
       }
+      move_robot = false;
+      return;
     }
 
     //publish commad
-    //cmd_vel_pub.publish(cmd);
     vehicle_control_interface_->executeTwist(cmd, robot_control_state, yaw, pitch, roll);
     //ROS_INFO("goal_position_error: %f, tolerance: %f", goal_position_error, linear_tolerance_for_current_path);
   }

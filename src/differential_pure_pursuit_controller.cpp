@@ -821,9 +821,19 @@ void Differential_Pure_Pursuit_Controller::update()
     ROS_DEBUG_STREAM("[vehicle_controller] Start time of waypoint " << current << " not reached yet, waiting..");
     speed = 0;
   } else {
-    //exponential speed control
-    double exp_factor = exponentialSpeedControll();
-    speed = sign * legs[current].speed * exp_factor;
+    // if we are lagging behind the trajectory, increase speed accordingly
+    if (legs[current].finish_time != ros::Time(0)) {
+      ros::Duration dt = current_time - legs[current].start_time;
+      double dx_des = dt.toSec() * legs[current].speed;
+      double dx_cur = std::sqrt(std::pow(robot_control_state.pose.position.x - legs[current].p1.x, 2)
+                                + std::pow(robot_control_state.pose.position.y - legs[current].p1.y, 2));
+      double error = dx_des - dx_cur;
+      speed = legs[current].speed + 1.5 * error;
+
+    } else {
+      speed = legs[current].speed;
+    }
+    speed = sign * speed;
   }
   //    ROS_INFO_STREAM("Speed: " << speed);
 
@@ -1124,6 +1134,9 @@ void Differential_Pure_Pursuit_Controller::computeMoveCmd(RobotControlState cont
 //  }
 
    vehicle_control_interface_->executeTwist(cmd, robot_control_state, yaw, pitch, roll);
+
+   ROS_INFO("lin vel: %f, ang vel: %f", cmd.linear.x, cmd.angular.z);
+   ROS_INFO("curv: %f", curv);
 }
 
 double Differential_Pure_Pursuit_Controller::exponentialSpeedControll(){

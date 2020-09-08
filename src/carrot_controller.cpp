@@ -239,6 +239,7 @@ void Carrot_Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path
     move_base_lite_msgs::FollowPathResult result;
     result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
     follow_path_server_->setPreempted(result, "drive path callback");
+    ROS_INFO("Preempted, new path. desired vel: %f", robot_control_state.desired_velocity_linear);
   }
   drivepath(*path);
 }
@@ -875,6 +876,7 @@ void Carrot_Controller::update()
                                       reverseAllowed());
 
   vehicle_control_interface_->executeMotionCommand(robot_control_state);
+  ROS_INFO("speed: %f", speed);
 
   if (check_stuck)
   {
