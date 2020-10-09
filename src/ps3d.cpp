@@ -38,6 +38,16 @@ using std::vector;
 using std::exp;
 using std::pow;
 
+void Pathsmoother3D::setSmoothedPathDiscretization(double value)
+{
+  SMOOTHED_PATH_DISCRETIZATION = value;
+}
+
+void Pathsmoother3D::setPathSmoothness(double value)
+{
+  PATH_SMOOTHNESS = value;
+}
+
 Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths)
     : SMOOTHED_PATH_DISCRETIZATION(0.05),// Hector best practice values
       PATH_SMOOTHNESS(0.125),            // Hector best practice values

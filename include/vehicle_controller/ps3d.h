@@ -48,10 +48,9 @@ typedef std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterni
 class Pathsmoother3D
 {
 private:
-    double const SMOOTHED_PATH_DISCRETIZATION;
-    double const PATH_SMOOTHNESS;             // Temperature / smoothness parameter. Current value is manually tuned.
+    double SMOOTHED_PATH_DISCRETIZATION;
+    double PATH_SMOOTHNESS;             // Temperature / smoothness parameter. Current value is manually tuned.
                                               // The smaller the smoother. <-> The bigger the smaller the error to the original path.
-    int         MINIMUM_WAY_POINTS;           // Minimum number of points
     bool        allow_reverse_paths;          // Flag indicating if reverse paths are allowed
                                               // Switch on for tracked vehicles
     vec3 const  local_robot_direction;
@@ -78,6 +77,9 @@ public:
      * @return Smoothed path
      */
     nav_msgs::Path smooth(const nav_msgs::Path& path_in, bool reverse) const;
+
+    void setSmoothedPathDiscretization(double value);
+    void setPathSmoothness(double value);
 
 protected:
     std::vector<double> computeAccumulatedDistances(deque_vec3 const & positions) const;
