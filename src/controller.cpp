@@ -347,7 +347,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     if(!options.is_fixed)
     {
         ROS_DEBUG("[vehicle_controller] Using PathSmoother.");
-        Pathsmoother3D ps3d(reverseAllowed(), &mp_);
+        Pathsmoother3D ps3d(reverseAllowed());
 
         quat in_start_orientation;
         quat in_end_orientation;

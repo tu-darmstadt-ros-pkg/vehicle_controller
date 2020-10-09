@@ -28,8 +28,6 @@
 #ifndef ps3d_h
 #define ps3d_h
 
-#include <vehicle_controller/ps3d_motion_parameters.h>
-
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/StdVector>
@@ -37,6 +35,8 @@
 #include <deque>
 #include <vector>
 #include <string>
+
+#include <nav_msgs/Path.h>
 
 typedef Eigen::Vector3d vec3;
 typedef Eigen::Quaterniond quat;
@@ -55,10 +55,9 @@ private:
     bool        allow_reverse_paths;          // Flag indicating if reverse paths are allowed
                                               // Switch on for tracked vehicles
     vec3 const  local_robot_direction;
-    PS3dMotionParameters * mp;
 
 public:
-    Pathsmoother3D(bool allow_reverse_paths, PS3dMotionParameters * mp);
+    Pathsmoother3D(bool allow_reverse_paths);
 
     /**
      * @brief smooth is the core function of the path smoother, it computes a smoothed path from a given path
@@ -72,6 +71,13 @@ public:
      */
     void smooth(deque_vec3 const & in_path, quat const & in_start_orientation, quat const & in_end_orientation, vector_vec3 & out_smooth_positions,
                 vector_quat & out_smooth_orientations, bool reverse) const;
+
+    /**
+     * @brief smooth Convenience function to smooth a path given by a msg
+     * @param path_in Path to be smoothed
+     * @return Smoothed path
+     */
+    nav_msgs::Path smooth(const nav_msgs::Path& path_in, bool reverse) const;
 
 protected:
     std::vector<double> computeAccumulatedDistances(deque_vec3 const & positions) const;

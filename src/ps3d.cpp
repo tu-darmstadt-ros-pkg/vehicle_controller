@@ -28,6 +28,8 @@
 #include <vehicle_controller/ps3d.h>
 #include <vehicle_controller/quaternions.h>
 
+#include <eigen_conversions/eigen_msg.h>
+
 #include <cmath>
 
 #include <ros/ros.h>
@@ -36,12 +38,11 @@ using std::vector;
 using std::exp;
 using std::pow;
 
-Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths, PS3dMotionParameters * mp)
+Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths)
     : SMOOTHED_PATH_DISCRETIZATION(0.05),// Hector best practice values
       PATH_SMOOTHNESS(0.125),            // Hector best practice values
       allow_reverse_paths(allow_reverse_paths),
-      local_robot_direction(vec3(1,0,0)), // ROS Cosy has always x axis being perpendicular to the front of the robot
-      mp(mp)
+      local_robot_direction(vec3(1,0,0)) // ROS Cosy has always x axis being perpendicular to the front of the robot
 {
 
 }
@@ -118,6 +119,38 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path,
     smoothed_orientations = computeSmoothedOrientations(smoothed_positions, in_start_orientation, in_end_orientation, reverse);
     out_smooth_positions = smoothed_positions;
     out_smooth_orientations = smoothed_orientations;
+}
+
+nav_msgs::Path Pathsmoother3D::smooth(const nav_msgs::Path& path_in, bool reverse) const
+{
+  deque_vec3 in_path;
+  std::transform(path_in.poses.begin(), path_in.poses.end(), std::back_inserter(in_path),
+                 [](geometry_msgs::PoseStamped const & pose_)
+                 { return vec3(pose_.pose.position.x, pose_.pose.position.y, pose_.pose.position.z); });
+
+  quat in_start_orientation;
+//  = geomQuat2EigenQuat(robot_control_state.pose.orientation);
+  tf::quaternionMsgToEigen(path_in.poses.front().pose.orientation, in_start_orientation);
+  quat in_end_orientation;
+  tf::quaternionMsgToEigen(path_in.poses.back().pose.orientation, in_end_orientation);
+
+  vector_vec3 out_smoothed_positions;
+  vector_quat out_smoothed_orientations;
+
+  smooth(in_path, in_start_orientation, in_end_orientation,
+              out_smoothed_positions, out_smoothed_orientations, reverse);
+
+  nav_msgs::Path path_out;
+  path_out.header = path_in.header;
+  for (unsigned int i = 0; i < out_smoothed_positions.size(); i++) {
+    geometry_msgs::PoseStamped pose;
+    pose.header.frame_id = path_out.header.frame_id;
+    tf::pointEigenToMsg(out_smoothed_positions[i], pose.pose.position);
+    tf::quaternionEigenToMsg(out_smoothed_orientations[i], pose.pose.orientation);
+    path_out.poses.push_back(pose);
+  }
+
+  return path_out;
 }
 
 /**

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(vehicle_controller)
 
-find_package(catkin REQUIRED COMPONENTS tf actionlib dynamic_reconfigure nav_msgs geometry_msgs cmake_modules move_base_lite_msgs monstertruck_msgs)
+find_package(catkin REQUIRED COMPONENTS tf actionlib dynamic_reconfigure nav_msgs geometry_msgs cmake_modules move_base_lite_msgs monstertruck_msgs eigen_conversions)
 
 find_package(Eigen REQUIRED)
 include_directories(${EIGEN_INCLUDE_DIRS} include)
