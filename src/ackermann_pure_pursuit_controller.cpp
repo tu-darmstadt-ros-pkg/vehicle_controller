@@ -1,7 +1,7 @@
 #include <vehicle_controller/ackermann_pure_pursuit_controller.h>
 
 Ackermann_Pure_Pursuit_Controller::Ackermann_Pure_Pursuit_Controller(ros::NodeHandle& nh_)
-  : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/controller_params")
+  : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/ackermann_purep_controller_params")
 {
   nh = nh_;
 
@@ -46,8 +46,7 @@ Ackermann_Pure_Pursuit_Controller::Ackermann_Pure_Pursuit_Controller(ros::NodeHa
 Ackermann_Pure_Pursuit_Controller::~Ackermann_Pure_Pursuit_Controller()
 {
   if(dr_controller_params_server){
-    nh_dr_params.shutdown();
-    delete dr_controller_params_server;
+    dr_controller_params_server->clearCallback();
   }
 }
 

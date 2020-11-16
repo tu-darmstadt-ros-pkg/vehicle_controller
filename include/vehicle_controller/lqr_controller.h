@@ -63,7 +63,6 @@ protected:
   int calcClosestPoint();
   void calcLqr();
   void solveDare();
-  void limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate) const;
 
 private:
   ros::NodeHandle nh;

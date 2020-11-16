@@ -1,7 +1,7 @@
 #include <vehicle_controller/carrot_controller.h>
 
 Carrot_Controller::Carrot_Controller(ros::NodeHandle& nh_)
-  : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/controller_params")
+  : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/carrot_controller_params")
 {
   nh = nh_;
 
@@ -47,7 +47,7 @@ Carrot_Controller::~Carrot_Controller()
 {
   if(dr_controller_params_server){
     nh_dr_params.shutdown();
-    delete dr_controller_params_server;
+    dr_controller_params_server->clearCallback();
   }
 }
 
@@ -110,6 +110,8 @@ bool Carrot_Controller::configure()
 
   dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::CarrotControllerParamsConfig>(nh_dr_params);
   dr_controller_params_server->setCallback(boost::bind(&Carrot_Controller::controllerParamsCallback, this, _1, _2));
+
+  ROS_INFO("configure");
 
   return true;
 }
@@ -876,7 +878,6 @@ void Carrot_Controller::update()
                                       reverseAllowed());
 
   vehicle_control_interface_->executeMotionCommand(robot_control_state);
-  ROS_INFO("speed: %f", speed);
 
   if (check_stuck)
   {
@@ -988,5 +989,7 @@ void Carrot_Controller::stop()
 }
 
 void Carrot_Controller::controllerParamsCallback(vehicle_controller::CarrotControllerParamsConfig &config, uint32_t level){
+  ROS_INFO_STREAM("HALLO" << mp_.carrot_distance << " " << config.carrot_distance);
   mp_.carrot_distance = config.carrot_distance;
+  ROS_INFO_STREAM("HALLO2" << mp_.carrot_distance);
 }

@@ -5,7 +5,7 @@
 #include <Eigen/Dense>
 
 Lqr_Controller::Lqr_Controller(ros::NodeHandle& nh_)
-  : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/controller_params")
+  : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/lqr_controller_params")
 {
   nh = nh_;
 
@@ -60,7 +60,7 @@ Lqr_Controller::~Lqr_Controller()
 {
   if(dr_controller_params_server){
     nh_dr_params.shutdown();
-    delete dr_controller_params_server;
+    dr_controller_params_server->clearCallback();
   }
 }
 
@@ -903,28 +903,6 @@ void Lqr_Controller::update()
 
 
 
-
-//  double obs_l11 = sqrt(obs_q11 * obs_r) / obs_r;
-//  double obs_l22 = sqrt(obs_q22 * obs_r) / obs_r;
-
-//  double obs_dt = (ros::Time::now() - obs_last_time).toSec();
-//  obs_last_time = ros::Time::now();
-
-//  if(lqr_last_cmd.angular.z > 1.4){
-//    lqr_last_cmd.angular.z = 1.4;
-//  }
-//  else if(lqr_last_cmd.angular.z < -1.4){
-//    lqr_last_cmd.angular.z = -1.4;
-//  }
-
-//  obs_b1 = obs_b1 + obs_dt*(-obs_l11 * obs_b1 - obs_l11 * obs_l11 * lqr_last_y_error - obs_l11 * robot_control_state.velocity_linear.x * lqr_last_angle_error);
-//  obs_b2 = obs_b2 + obs_dt*(-obs_l22 * obs_b2 - obs_l22* lqr_last_cmd.angular.z - obs_l11 * obs_l11 * lqr_last_angle_error);
-
-//  obs_error_1 = obs_b1 + obs_l11 * lqr_y_error;
-//  obs_error_2 = obs_b2 + obs_l22 * lqr_angle_error;
-
-//  ROS_INFO("obs_err1: %f, obs_err2: %f", obs_error_1, obs_error_2);
-
   calc_local_path();
   calcLqr();
   //ROS_INFO("radius: %f", local_path_radius);
@@ -946,33 +924,16 @@ void Lqr_Controller::update()
 //    lin_vel_dir = 1;
 //  }
 
-  ROS_INFO ("angle error: %f, alignment angle: %f", lqr_angle_error, alignment_angle);
-  //ROS_INFO("lin vel dir: %f",  lin_vel_dir);
-  ROS_INFO("y error: %f",  lqr_y_error);
-
   //double omega_ff = (lin_vel_dir * rot_vel_dir * robot_control_state.velocity_linear.x / local_path_radius);
   double omega_ff = (lin_vel_dir * rot_vel_dir * robot_control_state.desired_velocity_linear / local_path_radius);
 
   double omega_fb = - lin_vel_dir *lqr_k1 * lqr_y_error - lqr_k2 * lqr_angle_error;
-  //double omega_fb = - lin_vel_dir *K(0,0) * lqr_y_error - K(0,1) * lqr_angle_error;
 
   double angular_vel= omega_ff + omega_fb;
-
-  //angular_vel += -lqr_k2/robot_control_state.desired_velocity_linear * obs_error_1 - obs_error_2;
 
   geometry_msgs::Twist cmd;
   cmd.linear.x = lin_vel_dir * fabs(robot_control_state.desired_velocity_linear) ;
   cmd.angular.z = angular_vel ;
-  //ROS_INFO("velocity x: %f, y: %f", robot_control_state.velocity_linear.x, robot_control_state.velocity_linear.y);
-
-  //ROS_INFO("unlimited: lin: %f, ang: %f", cmd.linear.x, cmd.angular.z);
-  //this->limitTwist(cmd, mp_.max_controller_speed, mp_.max_controller_angular_rate);
- // ROS_INFO("limited: lin: %f, ang: %f", cmd.linear.x, cmd.angular.z);
-
-  //ROS_INFO ("ff: %f , fb: %f", omega_ff, omega_fb);
-  //ROS_INFO ("k1: %f , k2: %f", lqr_k1, lqr_k2);
-  //ROS_INFO ("y_error: %f, w_error: %f, x_error: %f", lqr_y_error, lqr_angle_error, lqr_x_error);
-  //cmd_vel_pub.publish(cmd);
 
   //send cmd to control interface
   vehicle_control_interface_->executeTwist(cmd, robot_control_state, yaw, pitch, roll);
@@ -1256,8 +1217,8 @@ void Lqr_Controller::calc_local_path(){
     }
   }
 
-  ROS_INFO("st_point: %i, co_points: %i, radius: %f", st_point, co_points, local_path_radius);
-  ROS_INFO("closest point: x: %f, y: %f", closest_point.point.x ,closest_point.point.y);
+  //ROS_INFO("st_point: %i, co_points: %i, radius: %f", st_point, co_points, local_path_radius);
+  //ROS_INFO("closest point: x: %f, y: %f", closest_point.point.x ,closest_point.point.y);
 
   //reduce angle on -PI to +PI
   if(alignment_angle > M_PI)
@@ -1509,36 +1470,20 @@ void Lqr_Controller::solveDare(){
 //    std::cout << "Matrix Pnew: " << P_new <<std::endl;
     P = P_new;
     if(diff < epsilon){
-      ROS_INFO("iterations: %i, p11: %f, p12: %f, p22: %f",i, P(0,0), P(0,1), P(1,1));
+      //ROS_INFO("iterations: %i, p11: %f, p12: %f, p22: %f",i, P(0,0), P(0,1), P(1,1));
       K = 1/lqr_r * B_t*P;
-      ROS_INFO("k1: %f, k2:%f, k3: %f", K(0,0), K(0,1), K(0,2));
-       ROS_INFO("ekf_x: %f, stanni xicr: %f", ekf.x_(5,0), xicr);
+      //ROS_INFO("k1: %f, k2:%f, k3: %f", K(0,0), K(0,1), K(0,2));
+       //ROS_INFO("ekf_x: %f, stanni xicr: %f", ekf.x_(5,0), xicr);
       return;
     }
 
   }
-  ROS_INFO("max iterations, diff: %f, p11: %f, p12: %f, p22: %f",diff, P(0,0), P(0,1), P(1,1));
+  //ROS_INFO("max iterations, diff: %f, p11: %f, p12: %f, p22: %f",diff, P(0,0), P(0,1), P(1,1));
   K = 1/lqr_r * B_t*P;
-  ROS_INFO("k1: %f, k2:%f, k3: %f", K(0,0), K(0,1), K(0,2));
+  //ROS_INFO("k1: %f, k2:%f, k3: %f", K(0,0), K(0,1), K(0,2));
 
-  ROS_INFO("ekf_x: %f, stanni xicr: %f", ekf.x_(5,0), xicr);
+  //ROS_INFO("ekf_x: %f, stanni xicr: %f", ekf.x_(5,0), xicr);
 
-}
-
-void Lqr_Controller::limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate) const
-{
-  double speed = twist.linear.x;
-  double angular_rate = twist.angular.z;
-
-  speed        = std::max(-mp_.max_unlimited_speed, std::min(mp_.max_unlimited_speed, speed));
-  angular_rate = std::max(-mp_.max_unlimited_angular_rate, std::min(mp_.max_unlimited_angular_rate, angular_rate));
-
-  double m = -mp_.max_controller_speed / mp_.max_controller_angular_rate;
-  double t = mp_.max_controller_speed;
-  double speedAbsUL = std::min(std::max(0.05, m * std::abs(angular_rate) * lqr_speed_reduction_gain + t), max_speed);
-
-  twist.linear.x = std::max(-speedAbsUL, std::min(speed, speedAbsUL));
-  twist.angular.z = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate));
 }
 
 void Lqr_Controller::controllerParamsCallback(vehicle_controller::LqrControllerParamsConfig &config, uint32_t level){

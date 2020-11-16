@@ -155,7 +155,7 @@ void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_t
           //ROS_INFO("yl: %f, yr: %f, x: %f",ekf.x_(4), ekf.x_(3), ekf.x_(5) );
 
           double icr = (ekf.x_(4) + ekf.x_(3));
-          ROS_INFO("ICR: %f", icr);
+          //ROS_INFO("ICR: %f", icr);
 
           ekf_lastCmd = twist;
           ekf_lastTime = ros::Time::now();

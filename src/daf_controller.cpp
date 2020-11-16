@@ -2,7 +2,7 @@
 
 
 Daf_Controller::Daf_Controller(ros::NodeHandle& nh_)
-  : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/controller_params")
+  : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/daf_controller_params")
 {
   nh = nh_;
 
@@ -48,7 +48,7 @@ Daf_Controller::~Daf_Controller()
 {
   if(dr_controller_params_server){
     nh_dr_params.shutdown();
-    delete dr_controller_params_server;
+    dr_controller_params_server->clearCallback();
   }
 }
 
@@ -844,7 +844,7 @@ void Daf_Controller::calc_local_path()
     //calculate radious
     rad = max_H/2 + (Wid*Wid)/(8*max_H);
 
-    ROS_INFO("max H: %f, Wid: %f, rad: %f", max_H, Wid, rad);
+    //ROS_INFO("max H: %f, Wid: %f, rad: %f", max_H, Wid, rad);
 
     //calculating circle center
     midX = (points[0][0] + points[co_points][0])/2;
@@ -870,8 +870,8 @@ void Daf_Controller::calc_local_path()
     }
   }
 
-  ROS_INFO("co points: %i, point y: %f, point x: %f", co_points, points[co_points][1], points[co_points][0]);
-  ROS_INFO("st point: %i, path_po length: %i", st_point, path_po_lenght);
+  //ROS_INFO("co points: %i, point y: %f, point x: %f", co_points, points[co_points][1], points[co_points][0]);
+  //ROS_INFO("st point: %i, path_po length: %i", st_point, path_po_lenght);
 
   //ROS_INFO("Fitted circle radius: %f", rad);
 
@@ -1315,7 +1315,7 @@ void Daf_Controller::update()
     // else if difference is between lower treshold (angle correction) and upper treshold (middle_al_offset) the angle compensation is used
     else if((fabs(al_an_diff) > lower_al_angle)&&((fabs(al_an_diff) < (upper_al_angle))))
     {
-      ROS_INFO("DRIVE ROBOT MIDDLE STAGE || yaw: %f al_angle: %f", yaw, alignment_angle);
+      //ROS_INFO("DRIVE ROBOT MIDDLE STAGE || yaw: %f al_angle: %f", yaw, alignment_angle);
 
       //add additional rotation speed based on ground
       calc_angel_compensation();
@@ -1323,20 +1323,20 @@ void Daf_Controller::update()
       cmd.linear.x = lin_vel_dir * lin_vel;
       cmd.angular.z = rot_vel;
 
-      ROS_INFO("cmd: lin: %f, ang: %f", cmd.linear.x, cmd.angular.z);
+      //ROS_INFO("cmd: lin: %f, ang: %f", cmd.linear.x, cmd.angular.z);
 
     }
     //if difference is below lower treshold ()
     else
     {
-      ROS_INFO("DRIVE ROBOT || yaw: %f al_angle: %f", yaw, alignment_angle);
+      //ROS_INFO("DRIVE ROBOT || yaw: %f al_angle: %f", yaw, alignment_angle);
 
       rot_vel = rot_vel_dir * lin_vel/rad*rot_correction_factor;  //pazi za meso je dva krat
 
       cmd.linear.x = lin_vel_dir * lin_vel;
       cmd.angular.z = rot_vel;
 
-      ROS_INFO("cmd: lin: %f, ang: %f, rad: %f, rot_veldir: %f, correct_fact: %f", cmd.linear.x, cmd.angular.z, rad, rot_vel_dir, rot_correction_factor);
+      //ROS_INFO("cmd: lin: %f, ang: %f, rad: %f, rot_veldir: %f, correct_fact: %f", cmd.linear.x, cmd.angular.z, rad, rot_vel_dir, rot_correction_factor);
     }
 
     //check for global goal proximitiy

@@ -1,7 +1,7 @@
 #include <vehicle_controller/differential_pure_pursuit_controller.h>
 
 Differential_Pure_Pursuit_Controller::Differential_Pure_Pursuit_Controller(ros::NodeHandle& nh_)
-  : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/controller_params")
+  : state(INACTIVE), stuck(new StuckDetector), nh_dr_params("~/purep_controller_params")
 {
   nh = nh_;
 
@@ -47,7 +47,7 @@ Differential_Pure_Pursuit_Controller::~Differential_Pure_Pursuit_Controller()
 {
   if(dr_controller_params_server){
     nh_dr_params.shutdown();
-    delete dr_controller_params_server;
+    dr_controller_params_server->clearCallback();
   }
 }
 
@@ -999,19 +999,6 @@ void Differential_Pure_Pursuit_Controller::computeMoveCmd(RobotControlState cont
 
   double dist_to_carrot = control_state.signed_carrot_distance_2_robot;
 
-//  geometry_msgs::PoseStamped carrotPose_baseframe;
-//  try
-//  {
-//    carrotPose.pose.position.z = robot_control_state.pose.position.z;
-//    listener.waitForTransform(base_frame_id, carrotPose.header.frame_id, carrotPose.header.stamp, ros::Duration(3.0));
-//    listener.transformPose(base_frame_id, carrotPose, carrotPose_baseframe);
-//  }
-//  catch (tf::TransformException ex)
-//  {
-//    ROS_ERROR("%s", ex.what());
-//    return;
-//  }
-
   double carrot_distance_y = std::sin(robot_control_state.error_2_path_angular) * dist_to_carrot;
 
   double curv =  2 * carrot_distance_y / (dist_to_carrot*dist_to_carrot);
@@ -1021,122 +1008,10 @@ void Differential_Pure_Pursuit_Controller::computeMoveCmd(RobotControlState cont
   cmd.linear.y = 0.0;
   cmd.angular.z = curv * cmd.linear.x;
 
-  //if(ekf_useEkf){
-//    if (!ekf_setInitialPose){
-//      ekf.x_(0,0) = robot_control_state.pose.position.x;
-//      ekf.x_(1,0) = robot_control_state.pose.position.y;
-//      ekf.x_(2,0) = yaw;
+  vehicle_control_interface_->executeTwist(cmd, robot_control_state, yaw, pitch, roll);
 
-//      ekf_setInitialPose = true;
-//      ekf_lastTime = ros::Time::now();
-//      //ekf_lastCmd = cmd;
-
-//      ekf_last_pitch = pitch;
-//      ekf_last_roll = roll;
-//      ekf_last_yaw = yaw;
-
-//      //cmd_vel_pub.publish(cmd);
-//      //vehicle_control_interface_->executeTwist(cmd);
-//      ROS_INFO("initial SET");
-//    }
-//    else{
-//      double dt = (ros::Time::now().toSec() - ekf_lastTime.toSec());
-
-//      double l;
-//      nh.getParam("/vehicle_controller/wheel_separation", l);
-
-//      double v_lin = ekf_lastCmd.linear.x;
-//      double v_ang = ekf_lastCmd.angular.z;
-
-//      double Vl_ = v_lin - l/2 * v_ang;
-//      double Vr_ = v_lin + l/2 * v_ang;
-
-//      if(dt > 0){
-//        ekf.predict(Vl_, Vr_, ekf_last_pitch, ekf_last_roll, dt);
-
-//        Eigen::Vector3d delta;
-//        delta(0) = robot_control_state.pose.position.x;
-//        delta(1) = robot_control_state.pose.position.y;
-//        delta(2) = yaw;
-//        ekf.correct(delta);
-
-//        double omega = -(Vl_ - Vr_)/fabs(ekf.x_(4) - ekf.x_(3))  * std::cos(ekf_last_roll) * std::cos(ekf_last_pitch);
-//        //ROS_INFO("omega: %f, twist: %f, pose.twist: %f, yaw_diff: %f", omega, cmd.angular.z, robot_control_state.velocity_angular.z, (yaw-ekf_last_yaw)/dt);
-
-//        double y_ICRr = ekf.x_(3,0);
-//        double y_ICRl = ekf.x_(4,0);
-
-////        double vl_corrected = cmd.linear.x - y_ICRl * cmd.angular.z;
-////        double vr_corrected = cmd.linear.x - y_ICRr * cmd.angular.z;
-
-////        ROS_INFO("vl: %f, vl_corrected: %f", Vl_, vl_corrected);
-////        ROS_INFO("vr: %f, vr_corrected: %f", Vr_, vr_corrected);
-////        ROS_INFO("vlin: %f, vlin_corrected: %f", cmd.linear.x, (vl_corrected + vr_corrected)/2);
-
-//        //cmd.linear.x = (vl_corrected + vr_corrected)/2;
-//        //cmd.angular.z = (vr_corrected - vl_corrected)/l;
-
-//        //cmd_vel_pub.publish(cmd);
-//        //vehicle_control_interface_->executeTwist(cmd);
-
-//        ROS_INFO("yl: %f, yr: %f, x: %f",ekf.x_(4), ekf.x_(3), ekf.x_(5) );
-
-//        double icr = (ekf.x_(4) + ekf.x_(3));
-//        ROS_INFO("ICR: %f", icr);
-
-//        //ekf_lastCmd = cmd;
-//        ekf_lastTime = ros::Time::now();
-//        ekf_last_pitch = pitch;
-//        ekf_last_roll = roll;
-//        ekf_last_yaw = yaw;
-//      }
-//    }
-//    geometry_msgs::Pose augmented_pose = robot_control_state.pose;
-//    double r_x = ekf.x_(5);
-//    double r_y = (ekf.x_(3) + ekf.x_(4))/2;
-
-//    augmented_pose.position.x += std::cos(yaw) * r_x - std::sin(yaw) * r_y;
-//    augmented_pose.position.y += std::sin(yaw) * r_x + std::cos(yaw) * r_y;
-
-//    geometry_msgs::PoseStamped augmented_carrot = carrotPose;
-//    double current_waypoint_orientation = atan2(legs[current].p2.y - legs[current].p1.y,
-//                                                legs[current].p2.x - legs[current].p1.x);
-
-//    augmented_carrot.pose.position.x += std::cos(current_waypoint_orientation) * r_x - std::sin(current_waypoint_orientation) * r_y;
-//    augmented_carrot.pose.position.y += std::sin(current_waypoint_orientation) * r_x + std::cos(current_waypoint_orientation) * r_y;
-
-//    double dist_to_aug_carrot = std::sqrt(std::pow(augmented_pose.position.x - augmented_carrot.pose.position.x, 2)
-//                                            + std::pow(augmented_pose.position.y - augmented_carrot.pose.position.y, 2));
-
-//    double beta  = atan2(augmented_carrot.pose.position.y - augmented_pose.position.y,
-//                         augmented_carrot.pose.position.x - augmented_pose.position.x);
-
-//    double error_2_path   = constrainAngle_mpi_pi( beta - yaw );
-
-//    ROS_INFO("yaw: %f, carrot_orientation: %f", yaw, current_waypoint_orientation);
-
-//    double carrot_distance_aug_y = std::sin(error_2_path) * dist_to_aug_carrot;
-
-//    double curv =  2 * carrot_distance_aug_y / (dist_to_aug_carrot*dist_to_aug_carrot);
-
-//    geometry_msgs::Twist cmd;
-//    cmd.linear.x = control_state.desired_velocity_linear;
-//    cmd.linear.y = 0.0;
-//    cmd.angular.z = curv * cmd.linear.x;
-
-//    ekf_lastCmd = cmd;
-
-//    }
-//  }
-//  else{
-//    //cmd_vel_pub.publish(cmd);
-//    vehicle_control_interface_->executeTwist(cmd);
-//  }
-
-   vehicle_control_interface_->executeTwist(cmd, robot_control_state, yaw, pitch, roll);
-
-   ROS_INFO("lin vel: %f, ang vel: %f", cmd.linear.x, cmd.angular.z);
-   ROS_INFO("curv: %f", curv);
+  //ROS_INFO("lin vel: %f, ang vel: %f", cmd.linear.x, cmd.angular.z);
+  //ROS_INFO("curv: %f", curv);
 }
 
 double Differential_Pure_Pursuit_Controller::exponentialSpeedControll(){
