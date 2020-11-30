@@ -3,8 +3,7 @@
 Differential_Pure_Pursuit_Controller::Differential_Pure_Pursuit_Controller(ros::NodeHandle& nh_)
   : Controller(nh_), nh_dr_params("~/purep_controller_params")
 {
-  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::PurePursuitControllerParamsConfig>(nh_dr_params);
-  dr_controller_params_server->setCallback(boost::bind(&Differential_Pure_Pursuit_Controller::controllerParamsCallback, this, _1, _2));
+
 }
 
 Differential_Pure_Pursuit_Controller::~Differential_Pure_Pursuit_Controller()
@@ -13,6 +12,16 @@ Differential_Pure_Pursuit_Controller::~Differential_Pure_Pursuit_Controller()
     nh_dr_params.shutdown();
     dr_controller_params_server->clearCallback();
   }
+}
+
+bool Differential_Pure_Pursuit_Controller::configure()
+{
+  Controller::configure();
+
+  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::PurePursuitControllerParamsConfig>(nh_dr_params);
+  dr_controller_params_server->setCallback(boost::bind(&Differential_Pure_Pursuit_Controller::controllerParamsCallback, this, _1, _2));
+
+  return true;
 }
 
 

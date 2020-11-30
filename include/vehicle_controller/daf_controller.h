@@ -17,7 +17,7 @@ public:
   Daf_Controller(ros::NodeHandle &nh_);
   virtual ~Daf_Controller();
 
-   virtual bool configure() override;
+  virtual bool configure() override;
 
   inline virtual std::string getName()
   {

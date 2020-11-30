@@ -13,6 +13,8 @@ public:
   Differential_Pure_Pursuit_Controller(ros::NodeHandle& nh_);
   virtual ~Differential_Pure_Pursuit_Controller();
 
+  virtual bool configure() override;
+
   inline virtual std::string getName()
   {
     return "Differential Pure Pursuit Controller";

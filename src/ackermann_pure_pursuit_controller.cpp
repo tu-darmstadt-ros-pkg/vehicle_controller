@@ -3,9 +3,6 @@
 Ackermann_Pure_Pursuit_Controller::Ackermann_Pure_Pursuit_Controller(ros::NodeHandle& nh_)
   : Controller(nh_), nh_dr_params("~/ackermann_purep_controller_params")
 {
-  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::PurePursuitControllerParamsConfig>(nh_dr_params);
-  dr_controller_params_server->setCallback(boost::bind(&Ackermann_Pure_Pursuit_Controller::controllerParamsCallback, this, _1, _2));
-
 }
 
 Ackermann_Pure_Pursuit_Controller::~Ackermann_Pure_Pursuit_Controller()
@@ -21,6 +18,10 @@ bool Ackermann_Pure_Pursuit_Controller::configure()
   ros::NodeHandle params("~");  
   params.param("vehicle_length", vehicle_length, 0.5);
 
+  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::PurePursuitControllerParamsConfig>(nh_dr_params);
+  dr_controller_params_server->setCallback(boost::bind(&Ackermann_Pure_Pursuit_Controller::controllerParamsCallback, this, _1, _2));
+
+  return true;
 }
 
 

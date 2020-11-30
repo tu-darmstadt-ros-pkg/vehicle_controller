@@ -7,18 +7,12 @@
 Lqr_Controller::Lqr_Controller(ros::NodeHandle& nh_)
   : Controller(nh_), nh_dr_params("~/lqr_controller_params")
 {
-  nh = nh_;
-
   //LQR parameters
   lqr_q11 = 1000;
   lqr_q22 = 0;
   lqr_r = 1;
   rot_vel_dir = 1;
   lin_vel_dir = 1;
-
-  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::LqrControllerParamsConfig>(nh_dr_params);
-  dr_controller_params_server->setCallback(boost::bind(&Lqr_Controller::controllerParamsCallback, this, _1, _2));
-
 }
 
 Lqr_Controller::~Lqr_Controller()
@@ -27,6 +21,16 @@ Lqr_Controller::~Lqr_Controller()
     nh_dr_params.shutdown();
     dr_controller_params_server->clearCallback();
   }
+}
+
+bool Lqr_Controller::configure()
+{
+  Controller::configure();
+
+  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::LqrControllerParamsConfig>(nh_dr_params);
+  dr_controller_params_server->setCallback(boost::bind(&Lqr_Controller::controllerParamsCallback, this, _1, _2));
+
+  return true;
 }
 
 void Lqr_Controller::reset()

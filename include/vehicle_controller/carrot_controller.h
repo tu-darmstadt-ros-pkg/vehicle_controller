@@ -12,6 +12,8 @@ public:
   Carrot_Controller(ros::NodeHandle& nh_);
   virtual ~Carrot_Controller();
 
+  virtual bool configure() override;
+
   inline virtual std::string getName()
   {
     return "Carrot controller";

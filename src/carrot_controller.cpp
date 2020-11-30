@@ -3,8 +3,6 @@
 Carrot_Controller::Carrot_Controller(ros::NodeHandle& nh_)
   : Controller(nh_), nh_dr_params("~/carrot_controller_params")
 {
-  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::CarrotControllerParamsConfig>(nh_dr_params);
-  dr_controller_params_server->setCallback(boost::bind(&Carrot_Controller::controllerParamsCallback, this, _1, _2));
 }
 
 Carrot_Controller::~Carrot_Controller()
@@ -15,6 +13,14 @@ Carrot_Controller::~Carrot_Controller()
   }
 }
 
+bool Carrot_Controller::configure(){
+  Controller::configure();
+
+  dr_controller_params_server = new dynamic_reconfigure::Server<vehicle_controller::CarrotControllerParamsConfig>(nh_dr_params);
+  dr_controller_params_server->setCallback(boost::bind(&Carrot_Controller::controllerParamsCallback, this, _1, _2));
+
+  return true;
+}
 
 
 void Carrot_Controller::update()

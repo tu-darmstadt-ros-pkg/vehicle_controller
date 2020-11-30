@@ -13,6 +13,8 @@ public:
   Lqr_Controller(ros::NodeHandle& nh_);
   virtual ~Lqr_Controller();
 
+  virtual bool configure() override;
+
   inline virtual std::string getName()
   {
     return "LQR Controller";
