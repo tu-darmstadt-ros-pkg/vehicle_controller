@@ -17,7 +17,7 @@ public:
   Daf_Controller(ros::NodeHandle &nh_);
   virtual ~Daf_Controller();
 
-   virtual bool configure();
+   virtual bool configure() override;
 
   inline virtual std::string getName()
   {
@@ -25,141 +25,29 @@ public:
   }
 
 protected:
-  virtual void reset();
-  virtual void stop();
+  virtual void reset() override;
 
-  virtual bool driveto(const geometry_msgs::PoseStamped&, double speed);
-  virtual bool drivepath(const nav_msgs::Path& path);
+  virtual void update() override;
 
-  virtual bool updateRobotState(const nav_msgs::Odometry& odom_state);
-  virtual void stateCallback(const nav_msgs::OdometryConstPtr& odom_state);
-  virtual void imuCallback(const sensor_msgs::ImuConstPtr& imu_msg);
-  virtual void drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&);
-  virtual void drivepathCallback(const ros::MessageEvent<nav_msgs::Path>&);
-  virtual void cmd_velCallback(const geometry_msgs::Twist&);
-  virtual void cmd_velTeleopCallback(const geometry_msgs::Twist&);
-  virtual void speedCallback(const std_msgs::Float32&);
-  virtual void poseCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&);
+  virtual void stateCallback(const nav_msgs::OdometryConstPtr& odom_state) override;
 
-  void stopVehicle();
-
-  void followPathGoalCallback();
-  void followPathPreemptCallback();
-
-  /**
-   * @brief addLeg to current tracking path
-   * @param pose to be added
-   * @param speed 0 indicates that the speed from the configuration is used as
-   *        desired linear speed in the lower controllers, otherwise the given
-   *        value is used for this purpose
-   */
-  void addLeg(const geometry_msgs::PoseStamped &pose, double speed = 0.0);
-
-  bool reverseAllowed();
-  bool reverseForced();
-  bool pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped> &transformed_path, bool fixed_path);
-  bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
+  void followPathGoalCallback() override;
 
   //Daf specific methods:
   void calc_local_path();
   void calc_ground_compensation();
   void check_robot_stability();
   void velocity_increase();
-  void update();
   void calc_angel_compensation();
   void calculate_al_rot();
 
   virtual void controllerParamsCallback(vehicle_controller::DafControllerParamsConfig & config, uint32_t level);
 
-private:
-  ros::NodeHandle nh;
-  tf::TransformListener listener;
 
-  ros::Subscriber stateSubscriber;
-  ros::Subscriber imuSubscriber;
-  ros::Subscriber drivetoSubscriber;
-  ros::Subscriber drivepathSubscriber;
-  ros::Subscriber cmd_velSubscriber;
-  ros::Subscriber cmd_velTeleopSubscriber;
-  ros::Subscriber speedSubscriber;
-  ros::Subscriber poseSubscriber;
-
-
-  ros::Publisher endPosePoublisher;
-  ros::Publisher carrotPosePublisher;
-  ros::Publisher lookatPublisher;
-  ros::Publisher cameraOrientationPublisher;
-  ros::Publisher drivepathPublisher;
-  ros::Publisher diagnosticsPublisher;
-
-  ros::Publisher pathPosePublisher;
-  ros::Publisher autonomy_level_pub_;
-
-  ros::Publisher cmd_vel_pub;
   ros::Publisher local_path_pub;
   ros::Publisher marker_pub;
 
-  // action interface
-  boost::shared_ptr<actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction> > follow_path_server_;
-  actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>::GoalConstPtr follow_path_goal_;
-
-  //Service Provider
-  ros::ServiceServer alternative_tolerances_service;
-
-  State state;
-  std_msgs::Header  robot_state_header;
-  RobotControlState robot_control_state;
-
-
-  //monstertruck_msgs::MotionCommand drive;
-  geometry_msgs::PoseStamped carrotPose;
-  actionlib_msgs::GoalIDPtr goalID;
-
-  nav_msgs::Path empty_path;
-
-  unsigned int current;
-  geometry_msgs::PoseStamped start;
-  Legs legs;
-
-  double flipper_state;
-
-  // motion parameters (set at launch)
-  MotionParameters mp_;
-  // path-specific settings
-  move_base_lite_msgs::FollowPathOptions default_path_options_;
-
-  std::string map_frame_id;
-  std::string base_frame_id;
-
-  bool camera_control;
-  double camera_lookat_distance;
-  double camera_lookat_height;
-  geometry_msgs::QuaternionStamped cameraDefaultOrientation;
-
-  bool check_stuck;
-  double dt;
-
-  double velocity_error;
-
-  geometry_msgs::PoseStamped current_pose;
-
-
-  boost::shared_ptr<VehicleControlInterface> vehicle_control_interface_;
-
-  std::string vehicle_control_type;
-  int final_twist_trials;
-
-  nav_msgs::OdometryConstPtr latest_odom_;
-
-  inline bool isDtInvalid()
-  {
-      return dt <= 0.0;
-  }
-
-  std::unique_ptr<StuckDetector> stuck;
-
   //Daf specific variables
-  nav_msgs::Odometry odom;
   geometry_msgs::Twist cmd;
 
   nav_msgs::Path curr_path;
@@ -180,10 +68,8 @@ private:
   double pub_cmd_hz;
   double max_lin_speed, min_lin_speed;
   double max_rot_speed, min_rot_speed;
-  double execution_period;
   double k_p_rotation;
   double alignment_angle;
-  double roll, pitch, yaw;
   double update_skip;
   double curr_dist;
   double rot_dir_opti, rot_vel_dir;
@@ -205,7 +91,6 @@ private:
   double old_pos_y;
   double glo_pos_diff_x, glo_pos_diff_y;
   double rot_correction_factor;
-  double imu_roll, imu_pitch, imu_yaw;
   double lower_al_angle, upper_al_angle;
   double stability_angle;
 

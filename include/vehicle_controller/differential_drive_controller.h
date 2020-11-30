@@ -106,7 +106,7 @@ class DifferentialDriveController: public VehicleControlInterface
     geometry_msgs::Twist ekf_lastCmd;
     EKF ekf;
     bool ekf_setInitialPose = false;
-    bool ekf_useEkf;
+    bool ekf_useEkf = false;
     double ekf_last_yaw, ekf_last_roll, ekf_last_pitch;
     double wheel_separation;
 

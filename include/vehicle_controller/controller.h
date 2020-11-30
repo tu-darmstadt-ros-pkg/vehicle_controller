@@ -42,31 +42,35 @@ class Controller {
 public:
   typedef enum { INACTIVE, VELOCITY, DRIVETO, DRIVEPATH } State;
 
-  virtual bool configure() = 0;
+  Controller(ros::NodeHandle& nh_);
+  virtual ~Controller();
+
+  virtual bool configure();
 
   virtual std::string getName() = 0;
 
+  virtual void followPathGoalCallback();
+  virtual void followPathPreemptCallback();
+
 protected:
   virtual void update() = 0;
-  virtual void reset() = 0;
-  virtual void stop() = 0;
+  virtual void reset();
+  virtual void stop();
 
-  virtual bool driveto(const geometry_msgs::PoseStamped&, double speed) = 0;
-  virtual bool drivepath(const nav_msgs::Path& path) = 0;
+  virtual bool driveto(const geometry_msgs::PoseStamped&, double speed);
+  virtual bool drivepath(const nav_msgs::Path& path);
 
-  virtual bool updateRobotState(const nav_msgs::Odometry& odom_state) = 0;
-  virtual void stateCallback(const nav_msgs::OdometryConstPtr& odom_state) = 0;
-  virtual void drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&) = 0;
-  virtual void drivepathCallback(const ros::MessageEvent<nav_msgs::Path>&) = 0;
-  virtual void cmd_velCallback(const geometry_msgs::Twist&) = 0;
-  virtual void cmd_velTeleopCallback(const geometry_msgs::Twist&) = 0;
-  virtual void speedCallback(const std_msgs::Float32&) = 0;
-  virtual void poseCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&) = 0;
+  virtual bool updateRobotState(const nav_msgs::Odometry& odom_state);
+  virtual void stateCallback(const nav_msgs::OdometryConstPtr& odom_state);
+  virtual void drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&);
+  virtual void drivepathCallback(const ros::MessageEvent<nav_msgs::Path>&);
+  virtual void cmd_velCallback(const geometry_msgs::Twist&);
+  virtual void cmd_velTeleopCallback(const geometry_msgs::Twist&);
+  virtual void speedCallback(const std_msgs::Float32&);
+  virtual void poseCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>&);
 
-  virtual void stopVehicle() = 0;
+  virtual void stopVehicle();
 
-  virtual void followPathGoalCallback() = 0;
-  virtual void followPathPreemptCallback() = 0;
 
   /**
    * @brief addLeg to current tracking path
@@ -75,12 +79,98 @@ protected:
    *        desired linear speed in the lower controllers, otherwise the given
    *        value is used for this purpose
    */
-  //void addLeg(const geometry_msgs::PoseStamped &pose, double speed = 0.0);
+  void addLeg(const geometry_msgs::PoseStamped &pose, double speed = 0.0);
 
-  virtual bool reverseAllowed() = 0;
-  virtual bool reverseForced() = 0;
-  virtual bool pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped> &transformed_path, bool fixed_path) = 0;
-  virtual bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path) = 0;
+  virtual bool reverseAllowed();
+  virtual bool reverseForced();
+  virtual bool pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped> &transformed_path, bool fixed_path);
+  virtual bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
+
+  ros::NodeHandle nh;
+  tf::TransformListener listener;
+
+  ros::Subscriber stateSubscriber;
+  ros::Subscriber drivetoSubscriber;
+  ros::Subscriber drivepathSubscriber;
+  ros::Subscriber cmd_velSubscriber;
+  ros::Subscriber cmd_velTeleopSubscriber;
+  ros::Subscriber speedSubscriber;
+  ros::Subscriber poseSubscriber;
+
+
+  ros::Publisher endPosePoublisher;
+  ros::Publisher carrotPosePublisher;
+  ros::Publisher lookatPublisher;
+  ros::Publisher cameraOrientationPublisher;
+  ros::Publisher drivepathPublisher;
+  ros::Publisher diagnosticsPublisher;
+
+  ros::Publisher pathPosePublisher;
+  ros::Publisher autonomy_level_pub_;
+
+  // action interface
+  boost::shared_ptr<actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction> > follow_path_server_;
+  actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>::GoalConstPtr follow_path_goal_;
+
+  //Service Provider
+  ros::ServiceServer alternative_tolerances_service;
+
+  State state;
+  std_msgs::Header  robot_state_header;
+  RobotControlState robot_control_state;
+
+
+  //monstertruck_msgs::MotionCommand drive;
+  geometry_msgs::PoseStamped carrotPose;
+  actionlib_msgs::GoalIDPtr goalID;
+
+  nav_msgs::Path empty_path;
+
+  unsigned int current;
+  geometry_msgs::PoseStamped start;
+  Legs legs;
+
+  double flipper_state;
+
+  // motion parameters (set at launch)
+  MotionParameters mp_;
+  // path-specific settings
+  move_base_lite_msgs::FollowPathOptions default_path_options_;
+
+  std::string map_frame_id;
+  std::string base_frame_id;
+
+  bool camera_control;
+  double camera_lookat_distance;
+  double camera_lookat_height;
+  geometry_msgs::QuaternionStamped cameraDefaultOrientation;
+
+  bool check_stuck;
+  double dt;
+
+  double velocity_error;
+
+  geometry_msgs::PoseStamped current_pose;
+
+
+  boost::shared_ptr<VehicleControlInterface> vehicle_control_interface_;
+
+  std::string vehicle_control_type;
+  int final_twist_trials;
+
+  nav_msgs::OdometryConstPtr latest_odom_;
+
+  double roll, pitch, yaw;
+
+  nav_msgs::Path current_path;
+
+  inline bool isDtInvalid()
+  {
+      return dt <= 0.0;
+  }
+
+  std::unique_ptr<StuckDetector> stuck;
+
 
 public:
 
@@ -95,6 +185,8 @@ public:
     pose.pose.orientation.z = orientation.z();
     return pose;
   }
+
+
 
 };
 
