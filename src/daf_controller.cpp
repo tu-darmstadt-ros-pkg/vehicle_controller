@@ -609,7 +609,7 @@ void Daf_Controller::velocity_increase()
 /*****************************************************************************************************************
  * calculate and Publish Velocity Commands
  */
-void Daf_Controller::update()
+void Daf_Controller::computeMoveCmd()
 {
   if(move_robot == true)
   {

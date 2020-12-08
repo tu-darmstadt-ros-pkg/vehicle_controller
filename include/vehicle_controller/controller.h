@@ -53,7 +53,8 @@ public:
   virtual void followPathPreemptCallback();
 
 protected:
-  virtual void update() = 0;
+  virtual void computeMoveCmd() = 0;
+  virtual void update();
   virtual void reset();
   virtual void stop();
 

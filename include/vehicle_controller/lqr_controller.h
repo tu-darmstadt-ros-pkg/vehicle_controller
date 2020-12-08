@@ -21,7 +21,7 @@ public:
   }
 
 protected:
-  virtual void update() override;
+  virtual void computeMoveCmd() override;
   virtual void reset() override;
 
   virtual void controllerParamsCallback(vehicle_controller::LqrControllerParamsConfig & config, uint32_t level);

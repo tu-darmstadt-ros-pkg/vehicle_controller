@@ -22,10 +22,9 @@ public:
 
 protected:
 
-  virtual void update() override;
+  virtual void computeMoveCmd() override;
 
   //Pure pursuit specific functions
-  virtual void computeMoveCmd(RobotControlState control_state);
 
   virtual void controllerParamsCallback(vehicle_controller::PurePursuitControllerParamsConfig & config, uint32_t level);
 

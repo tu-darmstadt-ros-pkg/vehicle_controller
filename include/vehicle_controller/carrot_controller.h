@@ -20,7 +20,7 @@ public:
   }
 
 protected:
-  virtual void update() override;
+  virtual void computeMoveCmd() override;
 
   virtual void controllerParamsCallback(vehicle_controller::CarrotControllerParamsConfig & config, uint32_t level);
 

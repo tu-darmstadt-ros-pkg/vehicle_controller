@@ -27,7 +27,7 @@ public:
 protected:
   virtual void reset() override;
 
-  virtual void update() override;
+  virtual void computeMoveCmd() override;
 
   virtual void stateCallback(const nav_msgs::OdometryConstPtr& odom_state) override;
 
