@@ -315,7 +315,8 @@ bool Controller::drivepath(const nav_msgs::Path& path)
                  [&transform, this](geometry_msgs::PoseStamped const & ps)
   {
     geometry_msgs::PoseStamped transformed_waypoint;
-    transformed_waypoint.header.stamp = ps.header.stamp;
+    //transformed_waypoint.header.stamp = ps.header.stamp;
+    transformed_waypoint.header.stamp = ros::Time::now();
     transformed_waypoint.header.frame_id = this->map_frame_id;
 
     tf::Pose tf_waypoint;
@@ -414,8 +415,8 @@ bool Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, 
   {
     try
     {
-      listener.waitForTransform(this->map_frame_id, path.header.frame_id, path.header.stamp, ros::Duration(3.0));
-      listener.lookupTransform(this->map_frame_id, path.header.frame_id, path.header.stamp, transform);
+      listener.waitForTransform(this->map_frame_id, path.header.frame_id, ros::Time::now(), ros::Duration(3.0));
+      listener.lookupTransform(this->map_frame_id, path.header.frame_id, ros::Time::now(), transform);
     }
     catch (tf::TransformException ex)
     {

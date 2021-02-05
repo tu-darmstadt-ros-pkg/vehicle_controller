@@ -20,8 +20,9 @@ Controller_Node::~Controller_Node(){
 }
 
 void Controller_Node::reset(){
-  if(controller_type == "daf"){
+  //if(controller_type == "daf"){
     control.reset(new Daf_Controller(nh));
+    /*
   }
   else if(controller_type == "ackermann_pure_pursuit"){
     control.reset(new Ackermann_Pure_Pursuit_Controller(nh));
@@ -36,6 +37,7 @@ void Controller_Node::reset(){
     //control.reset(new Carrot_Controller(nh));
     control.reset(new Carrot_Controller(nh));
   }
+  */
   control->configure();
   ROS_INFO("Vehicle Controller Type is: %s", this->control->getName().c_str());
 }
