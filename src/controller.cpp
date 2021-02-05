@@ -176,7 +176,7 @@ void Controller::poseCallback(const ros::MessageEvent<geometry_msgs::PoseStamped
 
 void Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
 {
-  ROS_INFO("base state callback");
+  ROS_DEBUG("base state callback");
   latest_odom_ = odom_state;
 
   if (state < DRIVETO) return;
