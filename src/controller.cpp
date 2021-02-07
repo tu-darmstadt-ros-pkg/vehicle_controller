@@ -279,7 +279,17 @@ bool Controller::pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped>& 
 bool Controller::drivepath(const nav_msgs::Path& path)
 {
   reset();
-  const move_base_lite_msgs::FollowPathOptions& options = follow_path_goal_->follow_path_options;
+
+  double desired_speed = 0.0;
+  bool smooth_path = true;
+
+  if (follow_path_server_->isActive()){
+    if (follow_path_goal_.get()){
+      const move_base_lite_msgs::FollowPathOptions& options = follow_path_goal_->follow_path_options;
+      desired_speed = options.desired_speed;
+      smooth_path = !options.is_fixed;
+    }
+  }
 
   if (!latest_odom_.get()){
     ROS_ERROR("No latest odom message received, aborting path planning in drivepath!");
@@ -335,13 +345,13 @@ bool Controller::drivepath(const nav_msgs::Path& path)
 
   // If path is too short, drive directly to last point
   if (map_path.size() <= 2) {
-    driveto(map_path.back(), options.desired_speed);
+    driveto(map_path.back(), desired_speed);
   }
 
   start = map_path[0];
   start.pose.orientation = robot_control_state.pose.orientation;
 
-  if(!options.is_fixed)
+  if(smooth_path)
   {
     ROS_DEBUG("[vehicle_controller] Using PathSmoother.");
     Pathsmoother3D ps3d(reverseAllowed(), &mp_);
@@ -367,7 +377,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
                    out_smoothed_orientations.begin(), std::back_inserter(smooth_path),
                    boost::bind(&Controller::createPoseFromQuatAndPosition, this, _1, _2));
 
-    std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Controller::addLeg, this, _1, options.desired_speed));
+    std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Controller::addLeg, this, _1, desired_speed));
 
     nav_msgs::Path path2publish;
     path2publish.header.frame_id = map_frame_id;
@@ -389,7 +399,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     for(std::vector<geometry_msgs::PoseStamped>::const_iterator it = map_path.begin()+1; it != map_path.end(); ++it)
     {
       const geometry_msgs::PoseStamped& waypoint = *it;
-      addLeg(waypoint, options.desired_speed);
+      addLeg(waypoint, desired_speed);
     }
     nav_msgs::Path path;
     path.header.frame_id = map_frame_id;
