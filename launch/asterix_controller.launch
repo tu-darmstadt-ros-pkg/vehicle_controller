@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+
+<launch>
+  
+  <node pkg="vehicle_controller" type="controller_node" name="vehicle_controller" output="screen" respawn="true">
+    
+    <param name="frame_id" value="world" />
+    <param name="carrot_distance" value="0.2" />
+    <param name="y_symmetry" value="false" />
+    
+    <param name="max_controller_speed" value="1.0" />
+    <param name="max_unlimited_speed" value="1.0" />
+    <param name="max_unlimited_angular_rate" value="3.0" />
+    <param name="max_controller_angular_rate" value="1.5" />
+    
+    <param name="vehicle_control_type" value="differential_steering"/>
+    <param name="pd_params" value="PdParamsArgo" />
+
+    <param name="goal_position_tolerance" value="0.1" />
+    <param name="goal_angle_tolerance" value="0.05" />
+    <param name="speed" value="0.6" />
+    
+    <param name="check_stuck" value="true" /> 
+    
+    <remap from="/state" to="/odom" />
+  </node>
+  
+</launch>
+
