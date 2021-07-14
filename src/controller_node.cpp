@@ -3,7 +3,7 @@
 ControllerNode::ControllerNode(const ros::NodeHandle &nh)
 : nh_(nh)
 {
-  controller_type_reconfigure_server_ = new dynamic_reconfigure::Server<vehicle_controller::ControllerTypeConfig>;
+  controller_type_reconfigure_server_ = std::make_shared<dynamic_reconfigure::Server<vehicle_controller::ControllerTypeConfig>>();
   controller_type_reconfigure_server_->setCallback(boost::bind(&ControllerNode::controllerTypeCallback, this, _1, _2));
 
   reset();

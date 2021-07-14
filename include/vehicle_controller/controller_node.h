@@ -24,7 +24,7 @@ protected:
   void controllerTypeCallback(vehicle_controller::ControllerTypeConfig & config, uint32_t level);
 
   ros::NodeHandle nh_;
-  dynamic_reconfigure::Server<vehicle_controller::ControllerTypeConfig> * controller_type_reconfigure_server_;
+  std::shared_ptr<dynamic_reconfigure::Server<vehicle_controller::ControllerTypeConfig>> controller_type_reconfigure_server_;
 
   std::shared_ptr<Controller> controller_;
   std::string controller_type_;

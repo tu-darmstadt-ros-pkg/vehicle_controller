@@ -43,7 +43,6 @@ class MotionParameters : public PS3dMotionParameters
     int final_twist_trials_max;
 
     bool y_symmetry;
-    std::string pd_params;
 
     double carrot_distance;
     double min_speed;

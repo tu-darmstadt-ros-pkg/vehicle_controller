@@ -14,7 +14,6 @@ Controller::Controller(ros::NodeHandle& nh_)
   mp_.max_controller_angular_rate =  0.4;
   mp_.inclination_speed_reduction_factor = 0.5 / (30 * M_PI/180.0); // 0.5 per 30 degrees
   mp_.inclination_speed_reduction_time_constant = 0.3;
-  mp_.pd_params = "PdParams";
 
   map_frame_id = "nav";
   base_frame_id = "base_link";
@@ -63,7 +62,6 @@ bool Controller::configure()
   params.param("goal_position_tolerance", default_path_options_.goal_pose_position_tolerance, 0.0);
   params.param("goal_angle_tolerance", default_path_options_.goal_pose_angle_tolerance, 0.0);
   params.getParam("speed",   mp_.commanded_speed);
-  params.param("pd_params",  mp_.pd_params, std::string("PdParams"));
   params.param("y_symmetry", mp_.y_symmetry, false);
   default_path_options_.reverse_allowed = params.param<bool>("reverse_allowed", true);
   default_path_options_.rotate_front_to_goal_pose_orientation = params.param<bool>("rotate_front_to_goal_pose_orientation", false);
@@ -106,9 +104,6 @@ bool Controller::configure()
     cameraOrientationPublisher.publish(cameraDefaultOrientation);
   }
   empty_path.header.frame_id = map_frame_id;
-
-
-  ROS_INFO("configure");
 
   return true;
 }
@@ -703,10 +698,10 @@ void Controller::update()
         }
         return;
       }
-      else // Perform twist at end of path to obtain a desired orientation
+      else // Perform twist_ at end of path to obtain a desired orientation
       {
         final_twist_trials++;
-        ROS_DEBUG("[vehicle_controller] Performing final twist.");
+        ROS_DEBUG("[vehicle_controller] Performing final twist_.");
 
         geometry_msgs::Vector3 desired_position;
         desired_position.x = legs.back().p2.x;

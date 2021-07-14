@@ -39,7 +39,6 @@
 
 #include <dynamic_reconfigure/server.h>
 #include <vehicle_controller/PdParamsConfig.h>
-#include <vehicle_controller/PdParamsArgoConfig.h>
 
 #include <vehicle_controller/ekf.h>
 
@@ -48,11 +47,9 @@ class DifferentialDriveController: public VehicleControlInterface
   public:
     DifferentialDriveController();
 
-    virtual ~DifferentialDriveController();
+    void configure(ros::NodeHandle& params, MotionParameters* mp) override;
 
-    virtual void configure(ros::NodeHandle& params, MotionParameters* mp);
-
-    inline virtual bool hasReachedFinalOrientation(double goal_angle_error, double tol, bool reverse_allowed)
+    inline bool hasReachedFinalOrientation(double goal_angle_error, double tol, bool reverse_allowed) override
     {
         if (reverse_allowed)
         {
@@ -64,10 +61,10 @@ class DifferentialDriveController: public VehicleControlInterface
         }
     }
 
-    virtual void executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist);
+    void executeUnlimitedTwist(const geometry_msgs::Twist& inc_twist) override;
 
-    virtual void executeTwist(const geometry_msgs::Twist& inc_twist);
-    virtual void executeTwist(const geometry_msgs::Twist& inc_twist, RobotControlState rcs, double yaw, double pitch, double roll);
+    void executeTwist(const geometry_msgs::Twist& inc_twist) override;
+    void executeTwist(const geometry_msgs::Twist& inc_twist, RobotControlState rcs, double yaw, double pitch, double roll) override;
 
     /**
      * @brief DifferentialDriveController::executePDControlledMotionCommand
@@ -77,18 +74,18 @@ class DifferentialDriveController: public VehicleControlInterface
      */
     void executePDControlledMotionCommand(double e_angle, double e_position, double dt, double cmded_speed, bool approaching_goal_point);
 
-    virtual void executeMotionCommand(RobotControlState rcs);
+    void executeMotionCommand(RobotControlState rcs) override;
 
     virtual void executeMotionCommandSimple(RobotControlState rcs);
 
-    virtual void stop();
+    void stop() override;
 
-    inline virtual double getCommandedSpeed() const
+    inline double getCommandedSpeed() const override
     {
-      return twist.linear.x;
+      return twist_.linear.x;
     }
 
-    inline virtual std::string getName()
+    inline std::string getName() override
     {
       return "Differential Drive Controller";
     }
@@ -99,7 +96,7 @@ class DifferentialDriveController: public VehicleControlInterface
     ros::Publisher cmd_vel_raw_pub_;
     ros::Publisher pdout_pub_;
 
-    geometry_msgs::Twist twist;
+    geometry_msgs::Twist twist_;
     MotionParameters* mp_;
 
     ros::Time ekf_lastTime;
@@ -149,8 +146,7 @@ class DifferentialDriveController: public VehicleControlInterface
     // or the controller itself but definitely not in this class
     // This has to be fixed!!!
     //
-    dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>     * dr_default_server_ = 0;
-    dynamic_reconfigure::Server<vehicle_controller::PdParamsArgoConfig> * dr_argo_server_ = 0;
+    std::shared_ptr<dynamic_reconfigure::Server<vehicle_controller::PdParamsConfig>> dr_default_server_;
 };
 
 #endif
