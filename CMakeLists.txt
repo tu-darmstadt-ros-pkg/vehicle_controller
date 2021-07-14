@@ -14,7 +14,6 @@ add_definitions(${EIGEN3_DEFINITIONS})
 
 generate_dynamic_reconfigure_options(
   cfg/PdParams.cfg
-  cfg/PdParamsArgo.cfg
   cfg/ControllerType.cfg
   cfg/DafControllerParams.cfg
   cfg/CarrotControllerParams.cfg

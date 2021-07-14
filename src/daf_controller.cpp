@@ -457,7 +457,7 @@ void Daf_Controller::calc_local_path()
  */
 void Daf_Controller::calc_ground_compensation()
 {
-  if(enable_ground_compensation == true)
+  if(enable_ground_compensation)
   {
     //ROS_INFO("Distances before ground compensation: max_H: %f and W: %f", max_H, Wid);
     //        double dh = fabs((max_H/cos(imu_roll))-max_H);
@@ -520,7 +520,7 @@ void Daf_Controller::calculate_al_rot()
  */
 void Daf_Controller::calc_angel_compensation()
 {
-    if(enable_angle_compensation == true)
+    if(enable_angle_compensation)
     {
         //cosider space
         angle_diff = alignment_angle - yaw;
@@ -567,7 +567,7 @@ void Daf_Controller::velocity_increase()
         {
             co_unchanged = 0;
 
-            if(enable_velocity_increase == true)
+            if(enable_velocity_increase)
             {
 
                 lin_vel = lin_vel + mp_.max_controller_speed/10;
@@ -611,7 +611,7 @@ void Daf_Controller::velocity_increase()
  */
 void Daf_Controller::computeMoveCmd()
 {
-  if(move_robot == true)
+  if(move_robot)
   {
     double linear_tolerance_for_current_path = default_path_options_.goal_pose_position_tolerance;
     double angular_tolerance_for_current_path = default_path_options_.goal_pose_angle_tolerance;
@@ -665,7 +665,7 @@ void Daf_Controller::computeMoveCmd()
     calculate_al_rot();
 
     // if difference is larger thatn both tresholds angle_correction and middle al_offset
-    if((fabs(al_an_diff) > (upper_al_angle))||(alignment_finished == false))
+    if((fabs(al_an_diff) > (upper_al_angle))||(!alignment_finished))
     {
       // turn in place
       ROS_INFO("ROBOT IS ALIGNING || yaw: %f angle: %f al_an_diff: %f", yaw, alignment_angle, al_an_diff);

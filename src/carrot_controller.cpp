@@ -29,7 +29,5 @@ void Carrot_Controller::computeMoveCmd(){
 
 
 void Carrot_Controller::controllerParamsCallback(vehicle_controller::CarrotControllerParamsConfig &config, uint32_t level){
-  ROS_INFO_STREAM("HALLO" << mp_.carrot_distance << " " << config.carrot_distance);
   mp_.carrot_distance = config.carrot_distance;
-  ROS_INFO_STREAM("HALLO2" << mp_.carrot_distance);
 }

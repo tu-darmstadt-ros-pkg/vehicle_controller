@@ -70,4 +70,16 @@ inline static Eigen::Quaterniond geomQuat2EigenQuat(geometry_msgs::Quaternion co
     return Eigen::Quaterniond(quat.w, quat.x, quat.y, quat.z);
 }
 
+inline static geometry_msgs::PoseStamped createPoseFromQuatAndPosition(const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation){
+  geometry_msgs::PoseStamped pose;
+  pose.pose.position.x = position(0);
+  pose.pose.position.y = position(1);
+  pose.pose.position.z = position(2);
+  pose.pose.orientation.w = orientation.w();
+  pose.pose.orientation.x = orientation.x();
+  pose.pose.orientation.y = orientation.y();
+  pose.pose.orientation.z = orientation.z();
+  return pose;
+}
+
 #endif // UTILITY_H

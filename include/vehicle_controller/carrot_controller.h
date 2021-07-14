@@ -12,15 +12,15 @@ public:
   Carrot_Controller(ros::NodeHandle& nh_);
   virtual ~Carrot_Controller();
 
-  virtual bool configure() override;
+  bool configure() override;
 
-  inline virtual std::string getName()
+  inline std::string getName() override
   {
     return "Carrot controller";
   }
 
 protected:
-  virtual void computeMoveCmd() override;
+  void computeMoveCmd() override;
 
   virtual void controllerParamsCallback(vehicle_controller::CarrotControllerParamsConfig & config, uint32_t level);
 

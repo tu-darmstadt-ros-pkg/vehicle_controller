@@ -106,7 +106,7 @@ protected:
   ros::Publisher drivepathPublisher;
   ros::Publisher diagnosticsPublisher;
 
-  ros::Publisher pathPosePublisher;
+  ros::Publisher smoothPathPublisher;
   ros::Publisher autonomy_level_pub_;
 
   // action interface
@@ -175,17 +175,7 @@ protected:
 
 public:
 
-  geometry_msgs::PoseStamped createPoseFromQuatAndPosition(vec3 const & position, quat const & orientation){
-    geometry_msgs::PoseStamped pose;
-    pose.pose.position.x = position(0);
-    pose.pose.position.y = position(1);
-    pose.pose.position.z = position(2);
-    pose.pose.orientation.w = orientation.w();
-    pose.pose.orientation.x = orientation.x();
-    pose.pose.orientation.y = orientation.y();
-    pose.pose.orientation.z = orientation.z();
-    return pose;
-  }
+
 
 
 

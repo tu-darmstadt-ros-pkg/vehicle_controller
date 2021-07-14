@@ -92,7 +92,7 @@ bool Controller::configure()
   carrotPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("carrot", 1, true);
   endPosePoublisher   = nh.advertise<geometry_msgs::PoseStamped>("end_pose", 1, true);
   drivepathPublisher  = nh.advertise<nav_msgs::Path>("drivepath", 1, true);
-  pathPosePublisher   = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
+  smoothPathPublisher   = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
 
   diagnosticsPublisher = params.advertise<std_msgs::Float32>("velocity_error", 1, true);
   autonomy_level_pub_ = nh.advertise<std_msgs::String>("/autonomy_level", 30);
@@ -171,7 +171,6 @@ void Controller::poseCallback(const ros::MessageEvent<geometry_msgs::PoseStamped
 
 void Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
 {
-  ROS_DEBUG("base state callback");
   latest_odom_ = odom_state;
 
   if (state < DRIVETO) return;
@@ -183,7 +182,7 @@ void Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
 
 void Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStamped>& event)
 {
-  geometry_msgs::PoseStampedConstPtr goal = event.getConstMessage();
+  const geometry_msgs::PoseStampedConstPtr& goal = event.getConstMessage();
 
   if (follow_path_server_->isActive()){
     move_base_lite_msgs::FollowPathResult result;
@@ -230,7 +229,7 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
 void Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& event)
 {
   if (event.getPublisherName() == ros::this_node::getName()) return;
-  nav_msgs::PathConstPtr path = event.getConstMessage();
+  const nav_msgs::PathConstPtr& path = event.getConstMessage();
 
   //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new path");
   if (follow_path_server_->isActive()){
@@ -275,14 +274,14 @@ bool Controller::drivepath(const nav_msgs::Path& path)
 {
   reset();
 
-  double desired_speed = 0.0;
-  bool smooth_path = true;
+  double desired_speed = default_path_options_.desired_speed;
+  bool is_fixed = default_path_options_.is_fixed;
 
   if (follow_path_server_->isActive()){
     if (follow_path_goal_.get()){
       const move_base_lite_msgs::FollowPathOptions& options = follow_path_goal_->follow_path_options;
       desired_speed = options.desired_speed;
-      smooth_path = !options.is_fixed;
+      is_fixed = options.is_fixed;
     }
   }
 
@@ -299,7 +298,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
 
   this->updateRobotState(*latest_odom_);
 
-  if (path.poses.size() == 0)
+  if (path.poses.empty())
   {
     ROS_WARN("[vehicle_controller] Received empty path");
     stop();
@@ -346,7 +345,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
   start = map_path[0];
   start.pose.orientation = robot_control_state.pose.orientation;
 
-  if(smooth_path)
+  if(!is_fixed)
   {
     ROS_DEBUG("[vehicle_controller] Using PathSmoother.");
     Pathsmoother3D ps3d(reverseAllowed());
@@ -370,24 +369,24 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     std::vector<geometry_msgs::PoseStamped> smooth_path;
     std::transform(out_smoothed_positions.begin(), out_smoothed_positions.end(),
                    out_smoothed_orientations.begin(), std::back_inserter(smooth_path),
-                   boost::bind(&Controller::createPoseFromQuatAndPosition, this, _1, _2));
+                   boost::bind(&createPoseFromQuatAndPosition, _1, _2));
 
     std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Controller::addLeg, this, _1, desired_speed));
 
-    nav_msgs::Path path2publish;
-    path2publish.header.frame_id = map_frame_id;
-    path2publish.header.stamp = ros::Time::now();
-    std::transform(smooth_path.begin(), smooth_path.end(), std::back_inserter(path2publish.poses),
-                   [path2publish](geometry_msgs::PoseStamped const & pose)
+    nav_msgs::Path smooth_path_msg;
+    smooth_path_msg.header.frame_id = map_frame_id;
+    smooth_path_msg.header.stamp = ros::Time::now();
+    std::transform(smooth_path.begin(), smooth_path.end(), std::back_inserter(smooth_path_msg.poses),
+                   [smooth_path_msg](geometry_msgs::PoseStamped const & pose)
                    {
                      geometry_msgs::PoseStamped ps;
-                     ps.header = path2publish.header;
+                     ps.header = smooth_path_msg.header;
                      ps.pose = pose.pose;
                      return ps;
                    });
-    pathPosePublisher.publish(path2publish);
+    smoothPathPublisher.publish(smooth_path_msg);
 
-    current_path = path2publish;
+    current_path = smooth_path_msg;
   }
   else
   {
@@ -396,11 +395,11 @@ bool Controller::drivepath(const nav_msgs::Path& path)
       const geometry_msgs::PoseStamped& waypoint = *it;
       addLeg(waypoint, desired_speed);
     }
-    nav_msgs::Path path;
-    path.header.frame_id = map_frame_id;
-    path.header.stamp = ros::Time::now();
-    path.poses = map_path;
-    pathPosePublisher.publish(path);
+    nav_msgs::Path map_path_msg;
+    map_path_msg.header.frame_id = map_frame_id;
+    map_path_msg.header.stamp = ros::Time::now();
+    map_path_msg.poses = map_path;
+    smoothPathPublisher.publish(map_path_msg);
   }
 
   state = DRIVEPATH;
@@ -422,7 +421,7 @@ bool Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, 
       listener.waitForTransform(this->map_frame_id, path.header.frame_id, path.header.stamp, ros::Duration(3.0));
       listener.lookupTransform(this->map_frame_id, path.header.frame_id, path.header.stamp, transform);
     }
-    catch (tf::TransformException ex)
+    catch (const tf::TransformException& ex)
     {
       ROS_ERROR("[vehicle_controller] Drivepath transformation to map frame failed: "
                 "%s", ex.what());
@@ -490,8 +489,6 @@ void Controller::stopVehicle()
 
 void Controller::followPathGoalCallback()
 {
-  ROS_INFO("Received Goal");
-  ROS_INFO("%f", follow_path_server_->isActive());
   follow_path_goal_ = follow_path_server_->acceptNewGoal();
   if (follow_path_goal_->follow_path_options.reset_stuck_history)
   {
@@ -858,7 +855,7 @@ void Controller::update()
                                  robot_control_state.pose.position);
   bool approaching_goal_point = goal_position_error < 0.4;
 
-  if(std::abs(signed_carrot_distance_2_robot) > (mp_.carrot_distance * 5))  //  CHANGED FROM 1.5 to 5
+  if(std::abs(signed_carrot_distance_2_robot) > (mp_.carrot_distance * 1.5))
   {
     ROS_WARN("[vehicle_controller] Control failed, distance to carrot is %f (allowed: %f)", signed_carrot_distance_2_robot, (mp_.carrot_distance * 1.5));
     state = INACTIVE;
