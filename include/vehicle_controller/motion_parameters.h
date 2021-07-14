@@ -56,7 +56,7 @@ class MotionParameters : public PS3dMotionParameters
     double max_controller_angular_rate;
     double max_unlimited_angular_rate;
 
-    inline virtual bool isYSymmetric()
+    inline bool isYSymmetric() override
     {
         return y_symmetry;
     }

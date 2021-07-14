@@ -1,5 +1,5 @@
-#ifndef VEHICLE_CONTROLLER_H
-#define VEHICLE_CONTROLLER_H
+#ifndef VEHICLE_CONTROLLER_CONTROLLER_NODE_H
+#define VEHICLE_CONTROLLER_CONTROLLER_NODE_H
 
 #include <vehicle_controller/carrot_controller.h>
 #include <vehicle_controller/daf_controller.h>
@@ -12,47 +12,22 @@
 #include <dynamic_reconfigure/server.h>
 #include <vehicle_controller/ControllerTypeConfig.h>
 
-class Controller_Node
+class ControllerNode
 {
 public:
   typedef enum { CARROT, DAF, ACKERM_PP, DIFF_PP , LQR} Control_Type_Enum;
 
-  Controller_Node(ros::NodeHandle& nh_);
-  virtual ~Controller_Node();
+  explicit ControllerNode(const ros::NodeHandle& nh);
 
 protected:
+  void reset();
+  void controllerTypeCallback(vehicle_controller::ControllerTypeConfig & config, uint32_t level);
 
-  boost::shared_ptr<Controller> control;
+  ros::NodeHandle nh_;
+  dynamic_reconfigure::Server<vehicle_controller::ControllerTypeConfig> * controller_type_reconfigure_server_;
 
-  std::string controller_type;
-
-  dynamic_reconfigure::Server<vehicle_controller::ControllerTypeConfig> * dr_controller_type_server = 0;
-
-  ros::NodeHandle nh;
-
-  virtual void reset();
-
-  virtual void controllerTypeCallback(vehicle_controller::ControllerTypeConfig & config, uint32_t level){
-
-    if(config.controller_type == DAF){
-      controller_type = "daf";
-    }
-    else if(config.controller_type == ACKERM_PP){
-      controller_type = "ackermann_pure_pursuit";
-    }
-    else if(config.controller_type == DIFF_PP){
-      controller_type = "differential_pure_pursuit";
-    }
-    else if (config.controller_type == LQR){
-      controller_type = "lqr";
-    }
-    else{
-      controller_type = "carrot";
-    }
-    reset();
-  }
-
-
+  std::shared_ptr<Controller> controller_;
+  std::string controller_type_;
 };
 
-#endif // VEHICLE_CONTROLLER_H
+#endif // VEHICLE_CONTROLLER_CONTROLLER_NODE_H

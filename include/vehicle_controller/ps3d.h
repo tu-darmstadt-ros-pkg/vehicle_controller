@@ -56,7 +56,7 @@ private:
     vec3 const  local_robot_direction;
 
 public:
-    Pathsmoother3D(bool allow_reverse_paths);
+    explicit Pathsmoother3D(bool allow_reverse_paths);
 
     /**
      * @brief smooth is the core function of the path smoother, it computes a smoothed path from a given path

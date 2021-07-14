@@ -56,7 +56,7 @@ protected:
 public:
     static const double DEFAULT_DETECTION_WINDOW;
 
-    StuckDetector(double detection_window = DEFAULT_DETECTION_WINDOW);
+    explicit StuckDetector(double detection_window = DEFAULT_DETECTION_WINDOW);
 
     /**
      * @brief update the pose history that is investigated to determine if the robot is stuck

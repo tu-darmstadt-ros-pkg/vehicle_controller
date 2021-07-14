@@ -1,45 +1,53 @@
 #include <vehicle_controller/controller_node.h>
 
-Controller_Node::Controller_Node(ros::NodeHandle &nh_)
+ControllerNode::ControllerNode(const ros::NodeHandle &nh)
+: nh_(nh)
 {
-  nh = nh_;
-  //ros::NodeHandle params("~");
-  //  nh.getParam("controller_type", controller_type);
-  //  ROS_INFO ("type: %s", controller_type.c_str());
-
-
-  dr_controller_type_server = new dynamic_reconfigure::Server<vehicle_controller::ControllerTypeConfig>;
-  dr_controller_type_server->setCallback(boost::bind(&Controller_Node::controllerTypeCallback, this, _1, _2));
-
-
+  controller_type_reconfigure_server_ = new dynamic_reconfigure::Server<vehicle_controller::ControllerTypeConfig>;
+  controller_type_reconfigure_server_->setCallback(boost::bind(&ControllerNode::controllerTypeCallback, this, _1, _2));
 
   reset();
 }
 
-Controller_Node::~Controller_Node(){
-}
-
-void Controller_Node::reset(){
-  if(controller_type == "daf"){
-    control.reset(new Daf_Controller(nh));
+void ControllerNode::reset(){
+  if(controller_type_ == "daf"){
+    controller_ = std::make_shared<Daf_Controller>(nh_);
   }
-  else if(controller_type == "ackermann_pure_pursuit"){
-    control.reset(new Ackermann_Pure_Pursuit_Controller(nh));
+  else if(controller_type_ == "ackermann_pure_pursuit"){
+    controller_ = std::make_shared<Ackermann_Pure_Pursuit_Controller>(nh_);
   }
-  else if(controller_type == "differential_pure_pursuit"){
-    control.reset(new Differential_Pure_Pursuit_Controller(nh));
+  else if(controller_type_ == "differential_pure_pursuit"){
+    controller_ = std::make_shared<Differential_Pure_Pursuit_Controller>(nh_);
   }
-  else if (controller_type == "lqr"){
-    control.reset(new Lqr_Controller(nh));
+  else if (controller_type_ == "lqr"){
+    controller_ = std::make_shared<Lqr_Controller>(nh_);
   }
   else{
-    //control.reset(new Carrot_Controller(nh));
-    control.reset(new Carrot_Controller(nh));
+    controller_ = std::make_shared<Carrot_Controller>(nh_);
   }
-  control->configure();
-  ROS_INFO("Vehicle Controller Type is: %s", this->control->getName().c_str());
+  controller_->configure();
+  ROS_INFO_STREAM("Vehicle Controller Type is: " << controller_->getName());
 }
 
+void ControllerNode::controllerTypeCallback(vehicle_controller::ControllerTypeConfig &config, uint32_t level) {
+
+  if(config.controller_type == DAF){
+    controller_type_ = "daf";
+  }
+  else if(config.controller_type == ACKERM_PP){
+    controller_type_ = "ackermann_pure_pursuit";
+  }
+  else if(config.controller_type == DIFF_PP){
+    controller_type_ = "differential_pure_pursuit";
+  }
+  else if (config.controller_type == LQR){
+    controller_type_ = "lqr";
+  }
+  else{
+    controller_type_ = "carrot";
+  }
+  reset();
+}
 
 
 int main(int argc, char **argv)
@@ -48,7 +56,7 @@ int main(int argc, char **argv)
 
   ros::NodeHandle nh;
 
-  Controller_Node cn(nh);
+  ControllerNode cn(nh);
 
 
   while(ros::ok())
