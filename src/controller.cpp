@@ -354,7 +354,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
   if(smooth_path)
   {
     ROS_DEBUG("[vehicle_controller] Using PathSmoother.");
-    Pathsmoother3D ps3d(reverseAllowed(), &mp_);
+    Pathsmoother3D ps3d(reverseAllowed());
 
     quat in_start_orientation;
     quat in_end_orientation;
@@ -362,7 +362,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     deque_vec3 in_path;
     std::transform(map_path.begin(), map_path.end(), std::back_inserter(in_path),
                    [](geometry_msgs::PoseStamped const & pose_)
-    { return vec3(pose_.pose.position.x, pose_.pose.position.y, pose_.pose.position.z); });
+                   { return vec3(pose_.pose.position.x, pose_.pose.position.y, pose_.pose.position.z); });
 
     in_start_orientation = geomQuat2EigenQuat(robot_control_state.pose.orientation);
     in_end_orientation   = geomQuat2EigenQuat(map_path.back().pose.orientation);
@@ -384,12 +384,12 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     path2publish.header.stamp = ros::Time::now();
     std::transform(smooth_path.begin(), smooth_path.end(), std::back_inserter(path2publish.poses),
                    [path2publish](geometry_msgs::PoseStamped const & pose)
-    {
-      geometry_msgs::PoseStamped ps;
-      ps.header = path2publish.header;
-      ps.pose = pose.pose;
-      return ps;
-    });
+                   {
+                     geometry_msgs::PoseStamped ps;
+                     ps.header = path2publish.header;
+                     ps.pose = pose.pose;
+                     return ps;
+                   });
     pathPosePublisher.publish(path2publish);
 
     current_path = path2publish;
