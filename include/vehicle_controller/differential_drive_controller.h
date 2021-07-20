@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <fstream>
 #include <queue>
+#include <std_msgs/Bool.h>
 
 #include <dynamic_reconfigure/server.h>
 #include <vehicle_controller/PdParamsConfig.h>
@@ -89,12 +90,16 @@ class DifferentialDriveController: public VehicleControlInterface
       return "Differential Drive Controller";
     }
 
+    void toggleController(const std_msgs::Bool::ConstPtr& cmd);
+
   protected:
     ros::Publisher cmd_vel_raw_pub_;
     ros::Publisher pdout_pub_;
+    ros::Subscriber flipper_control_sub_;
 
     geometry_msgs::Twist twist;
     MotionParameters* mp_;
+    bool is_active_;
 
     template <typename TPD> void pdParamCallback(TPD & config, uint32_t level)
     {

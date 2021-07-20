@@ -42,6 +42,7 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
     ros::NodeHandle nh;
     cmd_vel_raw_pub_ = nh.advertise<geometry_msgs::Twist>("cmd_vel_raw", 1);
     pdout_pub_       = nh.advertise<monstertruck_msgs::Pdout>("pdout", 1);
+    flipper_control_sub_ = nh.subscribe("/autonomous_flipper_control/vehicle_controller_cmd", 5, &DifferentialDriveController::toggleController, this);
 
     params.getParam("max_controller_speed", mp_->max_controller_speed);
     params.getParam("max_unlimited_speed", mp_->max_unlimited_speed);
@@ -175,6 +176,7 @@ void DifferentialDriveController::executeMotionCommandSimple(RobotControlState r
 
 void DifferentialDriveController::stop()
 {
+    ROS_ERROR("Vehicle controller stopped!");
     twist.angular.z = 0.0;
     twist.linear.x  = 0.0;
     cmd_vel_raw_pub_.publish(twist);
@@ -194,4 +196,12 @@ void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double
 
     twist.linear.x = std::max(-speedAbsUL, std::min(speed, speedAbsUL));
     twist.angular.z = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate));
+}
+
+void DifferentialDriveController::toggleController(const std_msgs::Bool::ConstPtr &cmd)
+{
+    is_active_ = cmd->data;
+    if(!is_active_) {
+        stop();
+    }
 }
