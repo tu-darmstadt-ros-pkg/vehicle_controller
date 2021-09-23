@@ -264,7 +264,7 @@ void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double
 
     double m = -mp_->max_controller_speed / mp_->max_controller_angular_rate;
     double t = mp_->max_controller_speed;
-    double speedAbsUL = std::min(std::max(0.1, m * std::abs(angular_rate) * SPEED_REDUCTION_GAIN_ + t), max_speed);
+    double speedAbsUL = std::min(std::max(0.0, m * std::abs(angular_rate) * SPEED_REDUCTION_GAIN_ + t), max_speed);
 
     twist.linear.x = std::max(-speedAbsUL, std::min(speed, speedAbsUL));
 
