@@ -4,12 +4,15 @@
 Daf_Controller::Daf_Controller(ros::NodeHandle& nh_)
   : Controller(nh_), nh_dr_params("~/daf_controller_params")
 {
-  follow_path_server_->shutdown();
-  follow_path_server_.reset(new actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>(nh, "/controller/follow_path", 0, false));
-
-  follow_path_server_->registerGoalCallback(boost::bind(&Daf_Controller::followPathGoalCallback, this));
-  follow_path_server_->registerPreemptCallback(boost::bind(&Controller::followPathPreemptCallback, this));
-
+  if (followPathServerIsActive()) {
+    move_base_lite_msgs::FollowPathResult result;
+    result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
+    follow_path_goal_.setCanceled(result, "Controller changed");
+  }
+  follow_path_server_.reset(new actionlib::ActionServer<move_base_lite_msgs::FollowPathAction>(nh, "/controller/follow_path",
+                                                                                               boost::bind(&Controller::followPathGoalCallback, this, _1),
+                                                                                               boost::bind(&Controller::followPathPreemptCallback, this, _1),
+                                                                                               false));
   follow_path_server_->start();
 }
 
@@ -72,34 +75,51 @@ void Daf_Controller::stateCallback(const nav_msgs::OdometryConstPtr& odom_state)
     //increase velocity if robot does not move
     velocity_increase();
 
-    if(follow_path_server_->isPreemptRequested() || !move_robot)
-    {
-      move_robot = false;
-      reset();
-      follow_path_server_->setPreempted();
-      ROS_INFO("path execution is preempted");
-      return;
-    }
+//    if(follow_path_server_->isPreemptRequested() || !move_robot)
+//    {
+//      move_robot = false;
+//      reset();
+//      follow_path_goal_.setCanceled();
+//      return;
+//    }
     update();
   }
 }
 
 
-void Daf_Controller::followPathGoalCallback()
+void Daf_Controller::followPathGoalCallback(actionlib::ActionServer<move_base_lite_msgs::FollowPathAction>::GoalHandle goal)
 {
-  follow_path_goal_ = follow_path_server_->acceptNewGoal();
-  if (follow_path_goal_->follow_path_options.reset_stuck_history)
+  // Check if another goal exists
+  if (followPathServerIsActive()) {
+    // Check if new one is newer
+    if (goal.getGoalID().stamp >= follow_path_goal_.getGoalID().stamp) {
+      // Abort previous goal
+      move_base_lite_msgs::FollowPathResult result;
+      result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
+      follow_path_goal_.setCanceled(result, "This goal has been preempted by a newer goal.");
+    } else {
+      move_base_lite_msgs::FollowPathResult result;
+      result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
+      goal.setCanceled(result, "This goal has been preempted by a newer goal.");
+      return;
+    }
+  }
+
+  // Accept new goal
+  goal.setAccepted();
+  follow_path_goal_ = goal;
+  if (follow_path_goal_.getGoal()->follow_path_options.reset_stuck_history)
   {
       stuck->reset();
   }
 
-  current_path = follow_path_goal_->target_path;
+  current_path = follow_path_goal_.getGoal()->target_path;
 
-  drivepath(follow_path_goal_->target_path);
-  drivepathPublisher.publish(follow_path_goal_->target_path);
+  drivepath(follow_path_goal_.getGoal()->target_path);
+  drivepathPublisher.publish(follow_path_goal_.getGoal()->target_path);
 
-  if(follow_path_goal_->follow_path_options.desired_speed != 0){
-    lin_vel = follow_path_goal_->follow_path_options.desired_speed;
+  if(follow_path_goal_.getGoal()->follow_path_options.desired_speed != 0){
+    lin_vel = follow_path_goal_.getGoal()->follow_path_options.desired_speed;
   }
   else{
     lin_vel = mp_.commanded_speed;
@@ -118,10 +138,10 @@ void Daf_Controller::followPathGoalCallback()
       move_robot = false;
 
       //sends aborted feedback
-      if (follow_path_server_->isActive()){
+      if (followPathServerIsActive()){
         move_base_lite_msgs::FollowPathResult result;
         result.result.val = move_base_lite_msgs::ErrorCodes::INVALID_MOTION_PLAN;
-        follow_path_server_->setAborted(result, "Path size is 0");
+        follow_path_goal_.setCanceled(result, "Path size is 0");
       }
   }
 }
@@ -481,10 +501,10 @@ void Daf_Controller::check_robot_stability()
   //if((imu_roll > stability_angle)||(imu_pitch > stability_angle))
   if((roll > stability_angle)||(pitch > stability_angle))
   {
-    if (follow_path_server_->isActive()){
+    if (followPathServerIsActive()){
       move_base_lite_msgs::FollowPathResult result;
       result.result.val = move_base_lite_msgs::ErrorCodes::INVALID_MOTION_PLAN;
-      follow_path_server_->setAborted(result, "Robot has exceeded angle of stability!");
+      follow_path_goal_.setCanceled(result, "Robot has exceeded angle of stability!");
     }
     reset();
     ROS_WARN("Robot has exceeded angle of stability!");
@@ -576,20 +596,20 @@ void Daf_Controller::velocity_increase()
                 {
                     lin_vel = mp_.max_controller_speed;
 
-                    if (follow_path_server_->isActive()){
+                    if (followPathServerIsActive()){
                       move_base_lite_msgs::FollowPathResult result;
                       result.result.val = move_base_lite_msgs::ErrorCodes::STUCK_DETECTED;
-                      follow_path_server_->setAborted(result, "Robot cannot move! Maximum speed reached!");
+                      follow_path_goal_.setCanceled(result, "Robot cannot move! Maximum speed reached!");
                     }
                     reset();
                     ROS_WARN("Robot cannot move! Maximum speed reached!");
                 }
             }else
             {
-              if (follow_path_server_->isActive()){
+              if (followPathServerIsActive()){
                 move_base_lite_msgs::FollowPathResult result;
                 result.result.val = move_base_lite_msgs::ErrorCodes::STUCK_DETECTED;
-                follow_path_server_->setAborted(result, "Robot cannot move!");
+                follow_path_goal_.setCanceled(result, "Robot cannot move!");
               }
               reset();
               ROS_WARN("Robot cannot move!");
@@ -616,13 +636,13 @@ void Daf_Controller::computeMoveCmd()
     double linear_tolerance_for_current_path = default_path_options_.goal_pose_position_tolerance;
     double angular_tolerance_for_current_path = default_path_options_.goal_pose_angle_tolerance;
 
-    if (follow_path_server_->isActive()){
-      if (follow_path_goal_->follow_path_options.goal_pose_position_tolerance > 0.0){
-        linear_tolerance_for_current_path = follow_path_goal_->follow_path_options.goal_pose_position_tolerance;
+    if (followPathServerIsActive()){
+      if (follow_path_goal_.getGoal()->follow_path_options.goal_pose_position_tolerance > 0.0){
+        linear_tolerance_for_current_path = follow_path_goal_.getGoal()->follow_path_options.goal_pose_position_tolerance;
       }
 
-      if (follow_path_goal_->follow_path_options.goal_pose_angle_tolerance > 0.0){
-        angular_tolerance_for_current_path = follow_path_goal_->follow_path_options.goal_pose_angle_tolerance;
+      if (follow_path_goal_.getGoal()->follow_path_options.goal_pose_angle_tolerance > 0.0){
+        angular_tolerance_for_current_path = follow_path_goal_.getGoal()->follow_path_options.goal_pose_angle_tolerance;
       }
     }
     double goal_position_error =
@@ -687,10 +707,10 @@ void Daf_Controller::computeMoveCmd()
         ++err_cont;
         if(err_cont > pub_cmd_hz*8) //second for delay
         {
-          if (follow_path_server_->isActive()){
+          if (followPathServerIsActive()){
             move_base_lite_msgs::FollowPathResult result;
             result.result.val = move_base_lite_msgs::ErrorCodes::STUCK_DETECTED;
-            follow_path_server_->setAborted(result, "robot misses alignment angle");
+            follow_path_goal_.setCanceled(result, "robot misses alignment angle");
           }
           reset();
           ROS_WARN("If your robot is oscilating, please increase lower_al_angle and upper_al_angle parameter (recommended: lower_al_angle=0.6, upper_al_angle=1.0)");
@@ -729,15 +749,14 @@ void Daf_Controller::computeMoveCmd()
     //check for global goal proximitiy
     if(goal_position_error < linear_tolerance_for_current_path)
     {
-      ROS_INFO("GLOBAL GOAL REACHED");
       cmd.linear.x = 0;
       cmd.angular.z = 0;
       stop();
       //goal reach reporting
-      if (follow_path_server_->isActive()){
+      if (followPathServerIsActive()){
         move_base_lite_msgs::FollowPathResult result;
         result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
-        follow_path_server_->setSucceeded(result, "reached goal");
+        follow_path_goal_.setSucceeded(result, "reached goal");
       }
       move_robot = false;
       return;

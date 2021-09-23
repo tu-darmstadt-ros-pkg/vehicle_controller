@@ -495,7 +495,6 @@ bool Controller::followPathServerIsActive() {
 
 void Controller::followPathGoalCallback(actionlib::ActionServer<move_base_lite_msgs::FollowPathAction>::GoalHandle goal)
 {
-  ROS_INFO_STREAM("Received new goal.");
   // Check if another goal exists
   if (followPathServerIsActive()) {
     // Check if new one is newer
@@ -504,12 +503,10 @@ void Controller::followPathGoalCallback(actionlib::ActionServer<move_base_lite_m
       move_base_lite_msgs::FollowPathResult result;
       result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
       follow_path_goal_.setCanceled(result, "This goal has been preempted by a newer goal.");
-      ROS_INFO_STREAM("Preempted the previous goal");
     } else {
       move_base_lite_msgs::FollowPathResult result;
       result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
       goal.setCanceled(result, "This goal has been preempted by a newer goal.");
-      ROS_INFO_STREAM("Old goal was newer");
       return;
     }
   }

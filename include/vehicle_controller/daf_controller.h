@@ -31,7 +31,7 @@ protected:
 
   virtual void stateCallback(const nav_msgs::OdometryConstPtr& odom_state) override;
 
-  void followPathGoalCallback() override;
+  virtual void followPathGoalCallback(actionlib::ActionServer<move_base_lite_msgs::FollowPathAction>::GoalHandle goal) override;
 
   //Daf specific methods:
   void calc_local_path();
