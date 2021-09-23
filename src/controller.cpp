@@ -484,7 +484,7 @@ void Controller::stopVehicle()
 {
   geometry_msgs::Vector3 p;
   robot_control_state.setControlState(0.0, p, 0, 0, mp_.carrot_distance, 0.0, false, true);
-  vehicle_control_interface_->executeMotionCommand(robot_control_state);
+  vehicle_control_interface_->stop();
 }
 
 void Controller::followPathGoalCallback()
