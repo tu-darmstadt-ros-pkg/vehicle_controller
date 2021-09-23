@@ -16,7 +16,7 @@
 #include <sensor_msgs/JointState.h>
 
 #include <move_base_lite_msgs/FollowPathAction.h>
-#include <actionlib/server/simple_action_server.h>
+#include <actionlib/server/action_server.h>
 
 #include <ros/ros.h>
 #include <tf/transform_listener.h>
@@ -49,8 +49,9 @@ public:
 
   virtual std::string getName() = 0;
 
-  virtual void followPathGoalCallback();
-  virtual void followPathPreemptCallback();
+  bool followPathServerIsActive();
+  virtual void followPathGoalCallback(actionlib::ActionServer<move_base_lite_msgs::FollowPathAction>::GoalHandle goal);
+  virtual void followPathPreemptCallback(actionlib::ActionServer<move_base_lite_msgs::FollowPathAction>::GoalHandle preempt);
 
 protected:
   virtual void computeMoveCmd() = 0;
@@ -110,8 +111,8 @@ protected:
   ros::Publisher autonomy_level_pub_;
 
   // action interface
-  boost::shared_ptr<actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction> > follow_path_server_;
-  actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>::GoalConstPtr follow_path_goal_;
+  boost::shared_ptr<actionlib::ActionServer<move_base_lite_msgs::FollowPathAction> > follow_path_server_;
+  actionlib::ActionServer<move_base_lite_msgs::FollowPathAction>::GoalHandle follow_path_goal_;
 
   //Service Provider
   ros::ServiceServer alternative_tolerances_service;

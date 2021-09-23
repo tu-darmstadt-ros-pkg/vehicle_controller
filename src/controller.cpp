@@ -34,11 +34,10 @@ Controller::Controller(ros::NodeHandle& nh_)
   cameraOrientationQuaternion.setEuler(0.0, 25.0*M_PI/180.0, 0.0);
   tf::quaternionTFToMsg(cameraOrientationQuaternion, cameraDefaultOrientation.quaternion);
 
-  follow_path_server_.reset(new actionlib::SimpleActionServer<move_base_lite_msgs::FollowPathAction>(nh, "/controller/follow_path", 0, false));
-
-  follow_path_server_->registerGoalCallback(boost::bind(&Controller::followPathGoalCallback, this));
-  follow_path_server_->registerPreemptCallback(boost::bind(&Controller::followPathPreemptCallback, this));
-
+  follow_path_server_.reset(new actionlib::ActionServer<move_base_lite_msgs::FollowPathAction>(nh, "/controller/follow_path",
+                                                                                               boost::bind(&Controller::followPathGoalCallback, this, _1),
+                                                                                               boost::bind(&Controller::followPathPreemptCallback, this, _1),
+                                                                                               false));
   follow_path_server_->start();
 }
 
@@ -184,10 +183,10 @@ void Controller::drivetoCallback(const ros::MessageEvent<geometry_msgs::PoseStam
 {
   const geometry_msgs::PoseStampedConstPtr& goal = event.getConstMessage();
 
-  if (follow_path_server_->isActive()){
+  if (followPathServerIsActive()){
     move_base_lite_msgs::FollowPathResult result;
     result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
-    follow_path_server_->setPreempted(result, "drive to callback");
+    follow_path_goal_.setCanceled(result, "Cancelled by drivetoCallback");
   }
   driveto(*goal, 0.0);
 }
@@ -206,10 +205,10 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
   {
     ROS_ERROR("[vehicle_controller] %s", ex.what());
     stop();
-    if (follow_path_server_->isActive()){
+    if (followPathServerIsActive()){
       move_base_lite_msgs::FollowPathResult result;
       result.result.val = move_base_lite_msgs::ErrorCodes::TF_LOOKUP_FAILURE;
-      follow_path_server_->setAborted(result, ex.what());
+      follow_path_goal_.setCanceled(result, ex.what());
     }
     return false;
   }
@@ -232,11 +231,11 @@ void Controller::drivepathCallback(const ros::MessageEvent<nav_msgs::Path>& even
   const nav_msgs::PathConstPtr& path = event.getConstMessage();
 
   //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a new path");
-  if (follow_path_server_->isActive()){
+  if (followPathServerIsActive()){
     ROS_INFO("Received new path while Action running, preempted.");
     move_base_lite_msgs::FollowPathResult result;
     result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
-    follow_path_server_->setPreempted(result, "drive path callback");
+    follow_path_goal_.setCanceled(result, "drive path callback");
     ROS_INFO("Preempted, new path. desired vel: %f", robot_control_state.desired_velocity_linear);
   }
   drivepath(*path);
@@ -277,21 +276,19 @@ bool Controller::drivepath(const nav_msgs::Path& path)
   double desired_speed = default_path_options_.desired_speed;
   bool is_fixed = default_path_options_.is_fixed;
 
-  if (follow_path_server_->isActive()){
-    if (follow_path_goal_.get()){
-      const move_base_lite_msgs::FollowPathOptions& options = follow_path_goal_->follow_path_options;
-      desired_speed = options.desired_speed;
-      is_fixed = options.is_fixed;
-    }
+  if (followPathServerIsActive()){
+    const move_base_lite_msgs::FollowPathOptions& options = follow_path_goal_.getGoal()->follow_path_options;
+    desired_speed = options.desired_speed;
+    is_fixed = options.is_fixed;
   }
 
   if (!latest_odom_.get()){
     ROS_ERROR("No latest odom message received, aborting path planning in drivepath!");
     stop();
-    if (follow_path_server_->isActive()){
+    if (followPathServerIsActive()){
       move_base_lite_msgs::FollowPathResult result;
       result.result.val = move_base_lite_msgs::ErrorCodes::FAILURE;
-      follow_path_server_->setAborted(result, "no odom message received");
+      follow_path_goal_.setCanceled(result, "no odom message received");
     }
     return false;
   }
@@ -302,10 +299,10 @@ bool Controller::drivepath(const nav_msgs::Path& path)
   {
     ROS_WARN("[vehicle_controller] Received empty path");
     stop();
-    if (follow_path_server_->isActive()){
+    if (followPathServerIsActive()){
       move_base_lite_msgs::FollowPathResult result;
       result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
-      follow_path_server_->setSucceeded(result, "empty path received, automatic success.");
+      follow_path_goal_.setSucceeded(result, "empty path received, automatic success.");
     }
     return false;
   }
@@ -427,10 +424,10 @@ bool Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, 
                 "%s", ex.what());
       stop();
       //publishActionResult(actionlib_msgs::GoalStatus::REJECTED);
-      if (follow_path_server_->isActive()){
+      if (followPathServerIsActive()){
         move_base_lite_msgs::FollowPathResult result;
         result.result.val = move_base_lite_msgs::ErrorCodes::TF_LOOKUP_FAILURE;
-        follow_path_server_->setAborted(result, ex.what());
+        follow_path_goal_.setCanceled(result, ex.what());
       }
       return false;
     }
@@ -446,11 +443,11 @@ bool Controller::createDrivepath2MapTransform(tf::StampedTransform & transform, 
 void Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
 {
   //publishActionResult(actionlib_msgs::GoalStatus::PREEMPTED, "received a velocity command");
-  if (follow_path_server_->isActive()){
+  if (followPathServerIsActive()){
     ROS_INFO("Direct cmd_vel received, preempting running Action!");
     move_base_lite_msgs::FollowPathResult result;
     result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
-    follow_path_server_->setPreempted(result, "cmd_vel callback");
+    follow_path_goal_.setCanceled(result, "cmd_vel callback");
   }
   reset();
   state = ((velocity.linear.x == 0.0) && (velocity.angular.z == 0.0)) ? INACTIVE : VELOCITY;
@@ -459,11 +456,11 @@ void Controller::cmd_velCallback(const geometry_msgs::Twist& velocity)
 
 void Controller::cmd_velTeleopCallback(const geometry_msgs::Twist& velocity)
 {
-  if (follow_path_server_->isActive()){
+  if (followPathServerIsActive()){
     ROS_INFO("Direct teleop cmd_vel received, preempting running Action!");
     move_base_lite_msgs::FollowPathResult result;
     result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
-    follow_path_server_->setPreempted(result, "cmd_vel teleop callback");
+    follow_path_goal_.setCanceled(result, "cmd_vel teleop callback");
   }
   reset();
   state = ((velocity.linear.x == 0.0) && (velocity.angular.z == 0.0)) ? INACTIVE : VELOCITY;
@@ -487,25 +484,61 @@ void Controller::stopVehicle()
   vehicle_control_interface_->stop();
 }
 
-void Controller::followPathGoalCallback()
+bool Controller::followPathServerIsActive() {
+  if (!follow_path_goal_.getGoal()) {
+    return false;
+  }
+  unsigned int status = follow_path_goal_.getGoalStatus().status;
+  return status == actionlib_msgs::GoalStatus::ACTIVE ||
+         status == actionlib_msgs::GoalStatus::PREEMPTING;
+}
+
+void Controller::followPathGoalCallback(actionlib::ActionServer<move_base_lite_msgs::FollowPathAction>::GoalHandle goal)
 {
-  follow_path_goal_ = follow_path_server_->acceptNewGoal();
-  if (follow_path_goal_->follow_path_options.reset_stuck_history)
+  ROS_INFO_STREAM("Received new goal.");
+  // Check if another goal exists
+  if (followPathServerIsActive()) {
+    // Check if new one is newer
+    if (goal.getGoalID().stamp >= follow_path_goal_.getGoalID().stamp) {
+      // Abort previous goal
+      move_base_lite_msgs::FollowPathResult result;
+      result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
+      follow_path_goal_.setCanceled(result, "This goal has been preempted by a newer goal.");
+      ROS_INFO_STREAM("Preempted the previous goal");
+    } else {
+      move_base_lite_msgs::FollowPathResult result;
+      result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
+      goal.setCanceled(result, "This goal has been preempted by a newer goal.");
+      ROS_INFO_STREAM("Old goal was newer");
+      return;
+    }
+  }
+
+  // Accept new goal
+  goal.setAccepted();
+  follow_path_goal_ = goal;
+  if (follow_path_goal_.getGoal()->follow_path_options.reset_stuck_history)
   {
     stuck->reset();
   }
-  current_path = follow_path_goal_->target_path;
-  drivepath(follow_path_goal_->target_path);
-  drivepathPublisher.publish(follow_path_goal_->target_path);
+  current_path = follow_path_goal_.getGoal()->target_path;
+  drivepath(follow_path_goal_.getGoal()->target_path);
+  drivepathPublisher.publish(follow_path_goal_.getGoal()->target_path);
 }
 
-void Controller::followPathPreemptCallback()
+void Controller::followPathPreemptCallback(actionlib::ActionServer<move_base_lite_msgs::FollowPathAction>::GoalHandle preempt)
 {
-  stopVehicle();
-  move_base_lite_msgs::FollowPathResult result;
-  result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
-  follow_path_server_->setPreempted(result, "preempt from incoming message to server");
-  reset();
+  if (preempt == follow_path_goal_) {
+    stopVehicle();
+    move_base_lite_msgs::FollowPathResult result;
+    result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
+    follow_path_goal_.setCanceled(result, "preempt from incoming message to server");
+    reset();
+    ROS_INFO_STREAM("Goal preempted, stopping vehicle");
+  } else {
+    ROS_WARN_STREAM("Received preempt for unknown goal");
+  }
+
 }
 
 void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
@@ -594,8 +627,8 @@ bool Controller::reverseAllowed()
     return true;
   }
   // If not, check for path specific settings
-  if (follow_path_server_->isActive()) {
-    return follow_path_goal_->follow_path_options.reverse_allowed;
+  if (followPathServerIsActive()) {
+    return follow_path_goal_.getGoal()->follow_path_options.reverse_allowed;
   } else {
     // Return default
     return default_path_options_.reverse_allowed;
@@ -605,8 +638,8 @@ bool Controller::reverseAllowed()
 bool Controller::reverseForced()
 {
   return false;
-  if (follow_path_server_->isActive()) {
-    return follow_path_goal_->follow_path_options.reverse_forced;
+  if (followPathServerIsActive()) {
+    return follow_path_goal_.getGoal()->follow_path_options.reverse_forced;
   } else {
     return false;
   }
@@ -645,15 +678,15 @@ void Controller::update()
   double angular_tolerance_for_current_path = default_path_options_.goal_pose_angle_tolerance;
   bool rotate_front_to_goal_pose_orientation = default_path_options_.rotate_front_to_goal_pose_orientation;
 
-  if (follow_path_server_->isActive()){
-    if (follow_path_goal_->follow_path_options.goal_pose_position_tolerance > 0.0){
-      linear_tolerance_for_current_path = follow_path_goal_->follow_path_options.goal_pose_position_tolerance;
+  if (followPathServerIsActive()){
+    if (follow_path_goal_.getGoal()->follow_path_options.goal_pose_position_tolerance > 0.0){
+      linear_tolerance_for_current_path = follow_path_goal_.getGoal()->follow_path_options.goal_pose_position_tolerance;
     }
 
-    if (follow_path_goal_->follow_path_options.goal_pose_angle_tolerance > 0.0){
-      angular_tolerance_for_current_path = follow_path_goal_->follow_path_options.goal_pose_angle_tolerance;
+    if (follow_path_goal_.getGoal()->follow_path_options.goal_pose_angle_tolerance > 0.0){
+      angular_tolerance_for_current_path = follow_path_goal_.getGoal()->follow_path_options.goal_pose_angle_tolerance;
     }
-    rotate_front_to_goal_pose_orientation = follow_path_goal_->follow_path_options.rotate_front_to_goal_pose_orientation;
+    rotate_front_to_goal_pose_orientation = follow_path_goal_.getGoal()->follow_path_options.rotate_front_to_goal_pose_orientation;
   }
 
   // Check if goal has been reached based on goal_position_tolerance/goal_angle_tolerance
@@ -688,10 +721,10 @@ void Controller::update()
                  final_twist_trials, mp_.final_twist_trials_max);
         final_twist_trials = 0;
         stop();
-        if (follow_path_server_->isActive()){
+        if (followPathServerIsActive()){
           move_base_lite_msgs::FollowPathResult result;
           result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
-          follow_path_server_->setSucceeded(result, "reached goal");
+          follow_path_goal_.setSucceeded(result, "Reached goal");
         }
         return;
       }
@@ -861,10 +894,10 @@ void Controller::update()
     state = INACTIVE;
     stop();
 
-    if (follow_path_server_->isActive()){
+    if (followPathServerIsActive()){
       move_base_lite_msgs::FollowPathResult result;
       result.result.val = move_base_lite_msgs::ErrorCodes::CONTROL_FAILED;
-      follow_path_server_->setAborted(result, std::string("Control failed, distance between trajectory and robot too large."));
+      follow_path_goal_.setCanceled(result, std::string("Control failed, distance between trajectory and robot too large."));
     }
     return;
   }
@@ -914,16 +947,16 @@ void Controller::update()
       stuck->reset();
       //publishActionResult(actionlib_msgs::GoalStatus::ABORTED,
       //                    vehicle_control_type == "differential_steering" ? "blocked_tracked" : "blocked");
-      if (follow_path_server_->isActive()){
+      if (followPathServerIsActive()){
         move_base_lite_msgs::FollowPathResult result;
         result.result.val = move_base_lite_msgs::ErrorCodes::STUCK_DETECTED;
-        follow_path_server_->setAborted(result, std::string("I think I am blocked! Terminating current drive goal."));
+        follow_path_goal_.setCanceled(result, "I think I am blocked! Terminating current drive goal.");
       }
     }
   }
 
   // publish feedback
-  if (follow_path_server_->isActive()) {
+  if (followPathServerIsActive()) {
     //      ROS_INFO_STREAM_THROTTLE(1, "Current lagg: " << lagg.toSec());
     move_base_lite_msgs::FollowPathFeedback feedback;
     feedback.current_waypoint = current;
@@ -939,7 +972,7 @@ void Controller::update()
       feedback.current_lagg = lagg;
     }
 
-    follow_path_server_->publishFeedback(feedback);
+    follow_path_goal_.publishFeedback(feedback);
   }
 
   // camera control
