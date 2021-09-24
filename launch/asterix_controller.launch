@@ -20,6 +20,8 @@
     <param name="goal_position_tolerance" value="0.1" />
     <param name="goal_angle_tolerance" value="0.05" />
     <param name="pd_params/speed" value="0.3"/>
+    <param name="pd_params/angle_p_gain" value="1.0"/>
+    <param name="pd_params/angle_d_gain" value="0.0"/>
     
     <param name="check_stuck" value="true" /> 
     
