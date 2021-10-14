@@ -258,7 +258,7 @@ void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double
 {
   if(keep_curvature) {
     double clamped_angular_velocity = std::clamp(twist.angular.z, -max_angular_rate, max_angular_rate);
-    double clamp_ratio = std::abs(clamped_angular_velocity)/std::abs(twist.angular.z);
+    double clamp_ratio = std::abs(twist.angular.z) > 1E-7 ? std::abs(clamped_angular_velocity)/std::abs(twist.angular.z) : 1.0;
     double clamped_linear_velocity = clamp_ratio * twist.linear.x;
     double unlimited_velocity_right = clamped_linear_velocity + wheel_separation * clamped_angular_velocity / 2.0;
     double unlimited_velocity_left = clamped_linear_velocity - wheel_separation * clamped_angular_velocity / 2.0;
