@@ -130,7 +130,7 @@ class DifferentialDriveController: public VehicleControlInterface
         }
     }
 
-    void limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate) const;
+    void limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate, bool keep_curvature = false) const;
 
   private:
 

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(vehicle_controller)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -Wall")
 
 find_package(catkin REQUIRED COMPONENTS tf actionlib dynamic_reconfigure nav_msgs geometry_msgs cmake_modules move_base_lite_msgs monstertruck_msgs eigen_conversions)
 

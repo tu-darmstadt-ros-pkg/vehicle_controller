@@ -253,26 +253,27 @@ void DifferentialDriveController::stop()
     cmd_vel_raw_pub_.publish(twist_);
 }
 
-void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate) const
+// Limits twist within track velocity limits. keep_curvature defines whether to keep the curvature or the angular velocity.
+void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate, bool keep_curvature) const
 {
-    double speed = twist.linear.x;
-    double unlimited_speed = speed;
-    double angular_rate = twist.angular.z;
-
-    speed        = std::max(-mp_->max_unlimited_speed, std::min(mp_->max_unlimited_speed, speed));
-    angular_rate = std::max(-mp_->max_unlimited_angular_rate, std::min(mp_->max_unlimited_angular_rate, angular_rate));
-
-    double m = -mp_->max_controller_speed / mp_->max_controller_angular_rate;
-    double t = mp_->max_controller_speed;
-    double speedAbsUL = std::min(std::max(0.0, m * std::abs(angular_rate) * SPEED_REDUCTION_GAIN_ + t), max_speed);
-
-    twist.linear.x = std::max(-speedAbsUL, std::min(speed, speedAbsUL));
-
-    if(unlimited_speed != 0.0){
-      twist.angular.z = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate * twist.linear.x/unlimited_speed));
-    }
-    else{
-      twist.angular.z = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate));
-    }
-
+  if(keep_curvature) {
+    double unlimited_velocity_right = twist.linear.x + wheel_separation * twist.angular.z / 2.0;
+    double unlimited_velocity_left = twist.linear.x - wheel_separation * twist.angular.z / 2.0;
+    double reduction_gain_right =  std::abs(unlimited_velocity_right) > 1E-7 ? std::min(mp_->max_unlimited_speed / std::abs(unlimited_velocity_right), 1.0) : 1.0;
+    double reduction_gain_left = std::abs(unlimited_velocity_left) > 1E-7 ?  std::min(mp_->max_unlimited_speed / std::abs(unlimited_velocity_left), 1.0) : 1.0;
+    double reduction_gain = std::min(reduction_gain_left, reduction_gain_right);    
+    twist.linear.x = reduction_gain * twist.linear.x;
+    twist.angular.z = reduction_gain * twist.angular.z;
+  }
+  else {
+    double clamped_angular_velocity = std::clamp(twist.angular.z, -max_angular_rate, max_angular_rate);
+    double wheel_velocity_angular_component =  wheel_separation * clamped_angular_velocity / 2.0;
+    double upper_bound_right_wheel = mp_->max_unlimited_speed - wheel_velocity_angular_component;
+    double lower_bound_right_wheel = -mp_->max_unlimited_speed - wheel_velocity_angular_component;
+    double upper_bound_left_wheel = mp_->max_unlimited_speed + wheel_velocity_angular_component;
+    double lower_bound_left_wheel = -mp_->max_unlimited_speed + wheel_velocity_angular_component;
+    twist.linear.x = std::clamp(twist.linear.x, lower_bound_right_wheel, upper_bound_right_wheel);
+    twist.linear.x = std::clamp(twist.linear.x, lower_bound_left_wheel, upper_bound_left_wheel);
+    twist.angular.z = clamped_angular_velocity;
+  }
 }
