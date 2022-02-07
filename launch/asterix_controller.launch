@@ -22,7 +22,7 @@
     
     <param name="check_stuck" value="true" /> 
     
-    <remap from="/state" to="/odom" />
+    <remap from="state" to="odom" />
   </node>
   
 </launch>

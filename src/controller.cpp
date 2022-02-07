@@ -109,7 +109,7 @@ bool Controller::configure()
     pathPosePublisher   = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
 
     diagnosticsPublisher = params.advertise<std_msgs::Float32>("velocity_error", 1, true);
-    autonomy_level_pub_ = nh.advertise<std_msgs::String>("/autonomy_level", 30);
+    autonomy_level_pub_ = nh.advertise<std_msgs::String>("autonomy_level", 30);
 
     if (camera_control)
     {
