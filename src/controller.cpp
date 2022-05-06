@@ -547,7 +547,7 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
   leg.p2.x = pose.pose.position.x;
   leg.p2.y = pose.pose.position.y;
 
-  if (legs.size() == 0)
+  if (legs.empty())
   {
     leg.start_time = start.header.stamp; // start time is goal time of start state
     leg.p1.x = start.pose.position.x;
@@ -595,10 +595,10 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
   leg.length  = std::sqrt(leg.length2);
 
   if (leg.finish_time != ros::Time(0)) {
-    ros::Duration dt = leg.finish_time - leg.start_time;
-    double dt_s = dt.toSec();
-    if (dt_s > 0) {
-      leg.speed = leg.length / dt_s;
+    ros::Duration time_diff = leg.finish_time - leg.start_time;
+    double time_diff_s = time_diff.toSec();
+    if (time_diff_s > 0) {
+      leg.speed = leg.length / time_diff_s;
     } else {
       ROS_WARN_STREAM("Waypoint time is not monotonic. Can't compute speed.");
       leg.speed = mp_.commanded_speed;
@@ -614,6 +614,12 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
                    << leg.length << ", Backward: " << leg.backward);
 
   if (leg.length2 == 0.0f) return;
+  ros::Time now = ros::Time::now();
+  if (leg.finish_time != ros::Time(0) && now > leg.finish_time) {
+    ros::Duration diff = now - leg.finish_time;
+    ROS_WARN_STREAM("Leg finish time is in the past (" << diff.toSec() << " s), discarding.");
+  }
+
   legs.push_back(leg);
 }
 
