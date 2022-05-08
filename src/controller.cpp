@@ -618,6 +618,7 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
   if (leg.finish_time != ros::Time(0) && now > leg.finish_time) {
     ros::Duration diff = now - leg.finish_time;
     ROS_WARN_STREAM("Leg finish time is in the past (" << diff.toSec() << " s), discarding.");
+    return;
   }
 
   legs.push_back(leg);
