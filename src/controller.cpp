@@ -866,7 +866,7 @@ void Controller::update()
   // Check if we need to wait
   ros::Time current_time = ros::Time::now();
   double speed;
-  if (current_time < legs[current].start_time) {
+  if (legs[current].start_time != ros::Time(0) && current_time < legs[current].start_time) {
     ROS_DEBUG_STREAM("[vehicle_controller] Start time of waypoint " << current << " not reached yet, waiting..");
     speed = 0;
   } else {
@@ -879,6 +879,10 @@ void Controller::update()
       double error = dx_des - dx_cur;
       speed = legs[current].speed + 1.5 * error;
 
+//      ros::Duration total_time = legs[current].finish_time - legs[current].start_time;
+//      ROS_INFO_STREAM("Driving to: " << current << ". Leg time " << dt.toSec() << "/" << total_time.toSec() <<
+//                      "s. Des. pos: " << dx_des << ". Curr. pos: " << dx_cur << ". Error: " << error <<
+//                      ". Original speed: " << legs[current].speed << ". Speed: " << speed);
     } else {
       speed = legs[current].speed;
     }
