@@ -126,7 +126,8 @@ class DifferentialDriveController: public VehicleControlInterface
           cmd_vel_raw_pub_         = nh.advertise<geometry_msgs::Twist>("/affw_ctrl/target_vel", 1, true);
         }
         else{
-          cmd_vel_raw_pub_         = nh.advertise<geometry_msgs::Twist>("cmd_vel_raw", 1, true);
+//          cmd_vel_raw_pub_         = nh.advertise<geometry_msgs::Twist>("cmd_vel_raw", 1, true);
+            cmd_vel_raw_pub_         = nh.advertise<geometry_msgs::Twist>("cmd_unthrottled_vel_raw", 1, true); // added to enable imu_based_speed_control
         }
     }
 

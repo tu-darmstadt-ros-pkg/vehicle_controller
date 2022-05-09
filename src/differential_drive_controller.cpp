@@ -37,7 +37,8 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
     mp_ = mp;
 
     //ros::NodeHandle nh;
-    cmd_vel_raw_pub_ = nh.advertise<geometry_msgs::Twist>("cmd_vel_raw", 1);
+//    cmd_vel_raw_pub_ = nh.advertise<geometry_msgs::Twist>("cmd_vel_raw", 1);
+    cmd_vel_raw_pub_ = nh.advertise<geometry_msgs::Twist>("cmd_unthrottled_vel_raw", 1); // added to enable imu_based_speed_control
     pdout_pub_       = nh.advertise<monstertruck_msgs::Pdout>("pdout", 1);
 
     params.getParam("max_controller_speed", mp_->max_controller_speed);
