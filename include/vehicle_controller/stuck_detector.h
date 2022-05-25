@@ -43,6 +43,7 @@ class StuckDetector
 {
 private:
     std::deque< geometry_msgs::PoseStamped > pose_history;
+    std::deque< double > speed_history;
 
     double const MIN_ANGULAR_CHANGE = M_PI / 5.0;              // radians
     double const MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION = 0.1; // 1
@@ -59,10 +60,11 @@ public:
     explicit StuckDetector(double detection_window = DEFAULT_DETECTION_WINDOW);
 
     /**
-     * @brief update the pose history that is investigated to determine if the robot is stuck
+     * @brief update the pose and speed history that is investigated to determine if the robot is stuck
      * @param pose added to the pose history
+     * @param cmded_speed added to the speed history
      */
-    void update(geometry_msgs::PoseStamped const & pose);
+    void update(geometry_msgs::PoseStamped const & pose, double cmded_speed);
 
     /**
      * @brief reset the stuck detection by clearing the pose history
@@ -70,16 +72,16 @@ public:
     void reset();
 
     /**
-     * @brief operator ()
+     * @brief isStuck
      *        Core function of the stuck detection class. The robot is deemed stuck if the
      *        following two conditions are satisfied
      *        During the sliding time window
      *        - the robot's orientation has changed less than MIN_ANGULAR_CHANGE
      *        - the robot's position has changed less than MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION
-     *          of what the commanded linear speed would imply
+     *          of what the average commanded linear speed would imply
      * @return true if the robot is stuck else false
      */
-    bool operator()(double cmded_speed) const;
+    bool isStuck() const;
 };
 
 #endif // STUCK_DETECTOR_H

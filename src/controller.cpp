@@ -946,8 +946,8 @@ void Controller::update()
     //        geometry_msgs::PoseStamped ps;
     //        ps.header = robot_state_header;
     //        ps.pose   = robot_control_state.pose;
-    stuck->update(current_pose);
-    if((*stuck)(robot_control_state.desired_velocity_linear))
+    stuck->update(current_pose, robot_control_state.desired_velocity_linear);
+    if(stuck->isStuck())
     {
       ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal.");
       state = INACTIVE;
