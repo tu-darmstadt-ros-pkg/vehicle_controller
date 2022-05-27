@@ -26,6 +26,8 @@
     <param name="check_stuck" value="true" /> 
     
     <remap from="/state" to="/odom" />
+    <remap from="/cmd_vel_raw" to="/cmd_unthrottled_vel_raw" />
+
   </node>
   
 </launch>
