@@ -142,7 +142,7 @@ bool Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
     robot_control_state.setRobotState(velocity_linear.vector, velocity_angular.vector, pose.pose, dt);
     robot_control_state.clearControlState();
   }
-  catch (tf::TransformException ex)
+  catch (const tf::TransformException& ex)
   {
     ROS_ERROR("%s", ex.what());
     return false;
@@ -201,7 +201,7 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
     listener.waitForTransform(map_frame_id, goal.header.frame_id, goal.header.stamp, ros::Duration(3.0));
     listener.transformPose(map_frame_id, goal, goal_transformed);
   }
-  catch (tf::TransformException ex)
+  catch (const tf::TransformException& ex)
   {
     ROS_ERROR("[vehicle_controller] %s", ex.what());
     stop();
