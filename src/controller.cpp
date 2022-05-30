@@ -611,7 +611,7 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
   leg.percent = 0.0f;
 
   ROS_DEBUG_STREAM("Leg " << legs.size() << ": [" << leg.p1.x << ", " << leg.p1.y << "] -> [" << leg.p2.x << ", " << leg.p2.y << "], Length: "
-                   << leg.length << ", Backward: " << leg.backward);
+                   << leg.length << ", Speed: " << leg.speed << ", Backward: " << leg.backward);
 
   if (leg.length2 == 0.0f) return;
   ros::Time now = ros::Time::now();
