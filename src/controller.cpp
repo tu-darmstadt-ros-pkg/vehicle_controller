@@ -600,7 +600,7 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
     if (time_diff_s > 0) {
       leg.speed = leg.length / time_diff_s;
     } else {
-      ROS_WARN_STREAM("Waypoint time is not monotonic. Can't compute speed.");
+      ROS_WARN_STREAM("Waypoint time is not monotonic (-" << time_diff_s << " s). Can't compute speed.");
       leg.speed = mp_.commanded_speed;
     }
 
