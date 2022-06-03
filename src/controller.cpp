@@ -864,32 +864,34 @@ void Controller::update()
   }
 
   // Compute speed
-  // Check if we need to wait
   ros::Time current_time = ros::Time::now();
   double speed;
-  if (legs[current].start_time != ros::Time(0) && current_time < legs[current].start_time) {
-    ROS_DEBUG_STREAM("[vehicle_controller] Start time of waypoint " << current << " not reached yet, waiting..");
-    speed = 0;
-  } else {
-    // if we are lagging behind the trajectory, increase speed accordingly
-    if (legs[current].finish_time != ros::Time(0)) {
-      ros::Duration dt = current_time - legs[current].start_time;
-      double dx_des = dt.toSec() * legs[current].speed;
-      double dx_cur = std::sqrt(std::pow(robot_control_state.pose.position.x - legs[current].p1.x, 2)
-                                + std::pow(robot_control_state.pose.position.y - legs[current].p1.y, 2));
-      double error = dx_des - dx_cur;
-      speed = legs[current].speed + 1.5 * error;
-
-//      ros::Duration total_time = legs[current].finish_time - legs[current].start_time;
-//      ROS_INFO_STREAM("Driving to: " << current << ". Leg time " << dt.toSec() << "/" << total_time.toSec() <<
-//                      "s. Des. pos: " << dx_des << ". Curr. pos: " << dx_cur << ". Error: " << error <<
-//                      ". Original speed: " << legs[current].speed << ". Speed: " << speed);
+  if (legs[current].start_time != ros::Time(0) && legs[current].finish_time != ros::Time(0)) {
+    // Control speed based on time stamps
+    double time_diff;
+    if (current_time < legs[current].start_time) {
+      // before the start time
+      time_diff = -1 * (legs[current].start_time - current_time).toSec();
     } else {
-      speed = legs[current].speed;
+      // after the start time
+      time_diff = (current_time - legs[current].start_time).toSec();
     }
-    speed = sign * speed;
+
+    double dx_des = time_diff * legs[current].speed;
+    double distance_to_goal = std::sqrt(std::pow(robot_control_state.pose.position.x - legs[current].p2.x, 2)
+                                        + std::pow(robot_control_state.pose.position.y - legs[current].p2.y, 2));
+    double dx_cur = legs[current].length - distance_to_goal;
+    double error = dx_des - dx_cur;
+    speed = sign * legs[current].speed + 1.5 * error;
+
+    //      ros::Duration total_time = legs[current].finish_time - legs[current].start_time;
+    //      ROS_INFO_STREAM("Driving to: " << current << ". Leg time " << dt.toSec() << "/" << total_time.toSec() <<
+    //                      "s. Des. pos: " << dx_des << ". Curr. pos: " << dx_cur << ". Error: " << error <<
+    //                      ". Original speed: " << legs[current].speed << ". Speed: " << speed);
+  } else {
+    // Use pre-defined speed
+    speed = sign * legs[current].speed;
   }
-  //    ROS_INFO_STREAM("Speed: " << speed);
 
   double signed_carrot_distance_2_robot =
       sign * euclideanDistance2D(carrotPose.pose.position,
