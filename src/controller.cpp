@@ -882,16 +882,21 @@ void Controller::update()
                                         + std::pow(robot_control_state.pose.position.y - legs[current].p2.y, 2));
     double dx_cur = legs[current].length - distance_to_goal;
     double error = dx_des - dx_cur;
-    speed = sign * legs[current].speed + 1.5 * error;
+    speed = legs[current].speed + 1.5 * error;
+    // do not drive backwards
+    speed = std::max(speed, 0.0);
 
-    //      ros::Duration total_time = legs[current].finish_time - legs[current].start_time;
-    //      ROS_INFO_STREAM("Driving to: " << current << ". Leg time " << dt.toSec() << "/" << total_time.toSec() <<
-    //                      "s. Des. pos: " << dx_des << ". Curr. pos: " << dx_cur << ". Error: " << error <<
-    //                      ". Original speed: " << legs[current].speed << ". Speed: " << speed);
+//    ros::Duration total_time = legs[current].finish_time - legs[current].start_time;
+//    ROS_INFO_STREAM("Driving to: " << current << ". Leg time " << time_diff << "/" << total_time.toSec() <<
+//                    "s. Des. pos: " << dx_des << ". Curr. pos: " << dx_cur << ". Error: " << error <<
+//                    ". Original speed: " << legs[current].speed << ". Speed: " << speed);
   } else {
     // Use pre-defined speed
-    speed = sign * legs[current].speed;
+    speed = legs[current].speed;
   }
+
+  // Account for driving direction
+  speed *= sign;
 
   double signed_carrot_distance_2_robot =
       sign * euclideanDistance2D(carrotPose.pose.position,
