@@ -706,7 +706,7 @@ void Controller::update()
     current = legs.size();
   }
 
-  while(1)
+  while(true)
   {
     if (current == legs.size())
     {
@@ -778,10 +778,10 @@ void Controller::update()
   }
 
   // calculate carrot
-  Point carrot;
+  Point carrot{};
   unsigned int carrot_waypoint = current;
-  float carrot_percent = legs[current].percent;
-  float carrot_remaining = mp_.carrot_distance;
+  double carrot_percent = legs[current].percent;
+  double carrot_remaining = mp_.carrot_distance;
 
   while(carrot_waypoint < legs.size())
   {
@@ -807,17 +807,17 @@ void Controller::update()
     }
   }
 
-  carrot.x           = (1.0f - carrot_percent) * legs[carrot_waypoint].p1.x + carrot_percent * legs[carrot_waypoint].p2.x;
-  carrot.y           = (1.0f - carrot_percent) * legs[carrot_waypoint].p1.y + carrot_percent * legs[carrot_waypoint].p2.y;
+  carrot.x           = (1.0 - carrot_percent) * legs[carrot_waypoint].p1.x + carrot_percent * legs[carrot_waypoint].p2.x;
+  carrot.y           = (1.0 - carrot_percent) * legs[carrot_waypoint].p1.y + carrot_percent * legs[carrot_waypoint].p2.y;
   // carrot.orientation = legs[carrot_waypoint].p1.orientation + std::min(carrot_percent, 1.0f) * angular_norm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
 
   if (carrot_waypoint == legs.size() - 1)
   {
-    carrot.orientation = legs[carrot_waypoint].p1.orientation + std::min(carrot_percent, 1.0f) * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
+    carrot.orientation = legs[carrot_waypoint].p1.orientation + std::min(carrot_percent, 1.0) * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
   }
   else
   {
-    carrot.orientation = legs[carrot_waypoint].p1.orientation + /* carrot_percent * */ 1.0f * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
+    carrot.orientation = legs[carrot_waypoint].p1.orientation + /* carrot_percent * */ 1.0 * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
   }
 
   carrotPose.header = robot_state_header;
