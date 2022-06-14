@@ -639,6 +639,15 @@ bool Controller::reverseAllowed()
   }
 }
 
+bool Controller::usePathOrientation() {
+  if (followPathServerIsActive()) {
+    return follow_path_goal_.getGoal()->follow_path_options.use_path_orientation;
+  } else {
+    // Return default
+    return default_path_options_.use_path_orientation;
+  }
+}
+
 bool Controller::reverseForced()
 {
   return false;
@@ -925,12 +934,25 @@ void Controller::update()
   //            error_2_path = M_PI + error_2_path;
   //    }
 
-  if(reverseAllowed())
-  {
-    if(error_2_path > M_PI_2)
-      error_2_path = error_2_path - M_PI;
-    if(error_2_path < -M_PI_2)
-      error_2_path = M_PI + error_2_path;
+  if(reverseAllowed()) {
+    if (!usePathOrientation()) {
+      // We do not use the path orientation, check if we can drive backwards
+      // If angle error to path is outside of [-pi/2; pi/2], we drive backwards
+      if (error_2_path > M_PI_2)
+        error_2_path = error_2_path - M_PI;
+      if (error_2_path < -M_PI_2)
+        error_2_path = M_PI + error_2_path;
+    } else {
+      // We use the driving direction encoded in the path
+      // If this leg is backwards, flip angle error with pi to force backwards driving
+      if (legs[current].backward) {
+        if (error_2_path > 0) {
+          error_2_path -= M_PI;
+        } else {
+          error_2_path += M_PI;
+        }
+      }
+    }
   }
 
   robot_control_state.setControlState(speed,

@@ -84,6 +84,7 @@ protected:
   void addLeg(const geometry_msgs::PoseStamped &pose, double speed = 0.0);
 
   virtual bool reverseAllowed();
+  virtual bool usePathOrientation();
   virtual bool reverseForced();
   virtual bool pathToBeSmoothed(const std::deque<geometry_msgs::PoseStamped> &transformed_path, bool fixed_path);
   virtual bool createDrivepath2MapTransform(tf::StampedTransform  & transform, const nav_msgs::Path& path);
