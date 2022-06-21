@@ -9,16 +9,16 @@
 
 struct Point
 {
-  float x;
-  float y;
-  float orientation;
+  double x;
+  double y;
+  double orientation;
 };
 
 struct Leg
 {
   Point p1;
   Point p2;
-  float course;
+  double course;
 
   bool backward;
   double speed;

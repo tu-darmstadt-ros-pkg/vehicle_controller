@@ -142,7 +142,7 @@ bool Controller::updateRobotState(const nav_msgs::Odometry& odom_state)
     robot_control_state.setRobotState(velocity_linear.vector, velocity_angular.vector, pose.pose, dt);
     robot_control_state.clearControlState();
   }
-  catch (tf::TransformException ex)
+  catch (const tf::TransformException& ex)
   {
     ROS_ERROR("%s", ex.what());
     return false;
@@ -201,7 +201,7 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
     listener.waitForTransform(map_frame_id, goal.header.frame_id, goal.header.stamp, ros::Duration(3.0));
     listener.transformPose(map_frame_id, goal, goal_transformed);
   }
-  catch (tf::TransformException ex)
+  catch (const tf::TransformException& ex)
   {
     ROS_ERROR("[vehicle_controller] %s", ex.what());
     stop();
@@ -547,7 +547,7 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
   leg.p2.x = pose.pose.position.x;
   leg.p2.y = pose.pose.position.y;
 
-  if (legs.size() == 0)
+  if (legs.empty())
   {
     leg.start_time = start.header.stamp; // start time is goal time of start state
     leg.p1.x = start.pose.position.x;
@@ -595,12 +595,12 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
   leg.length  = std::sqrt(leg.length2);
 
   if (leg.finish_time != ros::Time(0)) {
-    ros::Duration dt = leg.finish_time - leg.start_time;
-    double dt_s = dt.toSec();
-    if (dt_s > 0) {
-      leg.speed = leg.length / dt_s;
+    ros::Duration time_diff = leg.finish_time - leg.start_time;
+    double time_diff_s = time_diff.toSec();
+    if (time_diff_s > 0) {
+      leg.speed = leg.length / time_diff_s;
     } else {
-      ROS_WARN_STREAM("Waypoint time is not monotonic. Can't compute speed.");
+      ROS_WARN_STREAM("Waypoint time is not monotonic (-" << time_diff_s << " s). Can't compute speed.");
       leg.speed = mp_.commanded_speed;
     }
 
@@ -611,9 +611,16 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
   leg.percent = 0.0f;
 
   ROS_DEBUG_STREAM("Leg " << legs.size() << ": [" << leg.p1.x << ", " << leg.p1.y << "] -> [" << leg.p2.x << ", " << leg.p2.y << "], Length: "
-                   << leg.length << ", Backward: " << leg.backward);
+                   << leg.length << ", Speed: " << leg.speed << ", Backward: " << leg.backward);
 
   if (leg.length2 == 0.0f) return;
+  ros::Time now = ros::Time::now();
+  if (leg.finish_time != ros::Time(0) && now > leg.finish_time) {
+    ros::Duration diff = now - leg.finish_time;
+    ROS_WARN_STREAM("Leg finish time is in the past (" << diff.toSec() << " s), discarding.");
+    return;
+  }
+
   legs.push_back(leg);
 }
 
@@ -629,6 +636,15 @@ bool Controller::reverseAllowed()
   } else {
     // Return default
     return default_path_options_.reverse_allowed;
+  }
+}
+
+bool Controller::usePathOrientation() {
+  if (followPathServerIsActive()) {
+    return follow_path_goal_.getGoal()->follow_path_options.use_path_orientation;
+  } else {
+    // Return default
+    return default_path_options_.use_path_orientation;
   }
 }
 
@@ -699,7 +715,7 @@ void Controller::update()
     current = legs.size();
   }
 
-  while(1)
+  while(true)
   {
     if (current == legs.size())
     {
@@ -771,10 +787,10 @@ void Controller::update()
   }
 
   // calculate carrot
-  Point carrot;
+  Point carrot{};
   unsigned int carrot_waypoint = current;
-  float carrot_percent = legs[current].percent;
-  float carrot_remaining = mp_.carrot_distance;
+  double carrot_percent = legs[current].percent;
+  double carrot_remaining = mp_.carrot_distance;
 
   while(carrot_waypoint < legs.size())
   {
@@ -800,17 +816,17 @@ void Controller::update()
     }
   }
 
-  carrot.x           = (1.0f - carrot_percent) * legs[carrot_waypoint].p1.x + carrot_percent * legs[carrot_waypoint].p2.x;
-  carrot.y           = (1.0f - carrot_percent) * legs[carrot_waypoint].p1.y + carrot_percent * legs[carrot_waypoint].p2.y;
+  carrot.x           = (1.0 - carrot_percent) * legs[carrot_waypoint].p1.x + carrot_percent * legs[carrot_waypoint].p2.x;
+  carrot.y           = (1.0 - carrot_percent) * legs[carrot_waypoint].p1.y + carrot_percent * legs[carrot_waypoint].p2.y;
   // carrot.orientation = legs[carrot_waypoint].p1.orientation + std::min(carrot_percent, 1.0f) * angular_norm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
 
   if (carrot_waypoint == legs.size() - 1)
   {
-    carrot.orientation = legs[carrot_waypoint].p1.orientation + std::min(carrot_percent, 1.0f) * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
+    carrot.orientation = legs[carrot_waypoint].p1.orientation + std::min(carrot_percent, 1.0) * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
   }
   else
   {
-    carrot.orientation = legs[carrot_waypoint].p1.orientation + /* carrot_percent * */ 1.0f * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
+    carrot.orientation = legs[carrot_waypoint].p1.orientation + /* carrot_percent * */ 1.0 * angularNorm(legs[carrot_waypoint].p2.orientation - legs[carrot_waypoint].p1.orientation);
   }
 
   carrotPose.header = robot_state_header;
@@ -857,28 +873,39 @@ void Controller::update()
   }
 
   // Compute speed
-  // Check if we need to wait
   ros::Time current_time = ros::Time::now();
   double speed;
-  if (current_time < legs[current].start_time) {
-    ROS_DEBUG_STREAM("[vehicle_controller] Start time of waypoint " << current << " not reached yet, waiting..");
-    speed = 0;
-  } else {
-    // if we are lagging behind the trajectory, increase speed accordingly
-    if (legs[current].finish_time != ros::Time(0)) {
-      ros::Duration dt = current_time - legs[current].start_time;
-      double dx_des = dt.toSec() * legs[current].speed;
-      double dx_cur = std::sqrt(std::pow(robot_control_state.pose.position.x - legs[current].p1.x, 2)
-                                + std::pow(robot_control_state.pose.position.y - legs[current].p1.y, 2));
-      double error = dx_des - dx_cur;
-      speed = legs[current].speed + 1.5 * error;
-
+  if (legs[current].start_time != ros::Time(0) && legs[current].finish_time != ros::Time(0)) {
+    // Control speed based on time stamps
+    double time_diff;
+    if (current_time < legs[current].start_time) {
+      // before the start time
+      time_diff = -1 * (legs[current].start_time - current_time).toSec();
     } else {
-      speed = legs[current].speed;
+      // after the start time
+      time_diff = (current_time - legs[current].start_time).toSec();
     }
-    speed = sign * speed;
+
+    double dx_des = time_diff * legs[current].speed;
+    double distance_to_goal = std::sqrt(std::pow(robot_control_state.pose.position.x - legs[current].p2.x, 2)
+                                        + std::pow(robot_control_state.pose.position.y - legs[current].p2.y, 2));
+    double dx_cur = legs[current].length - distance_to_goal;
+    double error = dx_des - dx_cur;
+    speed = legs[current].speed + 1.5 * error;
+    // do not drive backwards
+    speed = std::max(speed, 0.0);
+
+//    ros::Duration total_time = legs[current].finish_time - legs[current].start_time;
+//    ROS_INFO_STREAM("Driving to: " << current << ". Leg time " << time_diff << "/" << total_time.toSec() <<
+//                    "s. Des. pos: " << dx_des << ". Curr. pos: " << dx_cur << ". Error: " << error <<
+//                    ". Original speed: " << legs[current].speed << ". Speed: " << speed);
+  } else {
+    // Use pre-defined speed
+    speed = legs[current].speed;
   }
-  //    ROS_INFO_STREAM("Speed: " << speed);
+
+  // Account for driving direction
+  speed *= sign;
 
   double signed_carrot_distance_2_robot =
       sign * euclideanDistance2D(carrotPose.pose.position,
@@ -907,12 +934,25 @@ void Controller::update()
   //            error_2_path = M_PI + error_2_path;
   //    }
 
-  if(reverseAllowed())
-  {
-    if(error_2_path > M_PI_2)
-      error_2_path = error_2_path - M_PI;
-    if(error_2_path < -M_PI_2)
-      error_2_path = M_PI + error_2_path;
+  if(reverseAllowed()) {
+    if (!usePathOrientation()) {
+      // We do not use the path orientation, check if we can drive backwards
+      // If angle error to path is outside of [-pi/2; pi/2], we drive backwards
+      if (error_2_path > M_PI_2)
+        error_2_path = error_2_path - M_PI;
+      if (error_2_path < -M_PI_2)
+        error_2_path = M_PI + error_2_path;
+    } else {
+      // We use the driving direction encoded in the path
+      // If this leg is backwards, flip angle error with pi to force backwards driving
+      if (legs[current].backward) {
+        if (error_2_path > 0) {
+          error_2_path -= M_PI;
+        } else {
+          error_2_path += M_PI;
+        }
+      }
+    }
   }
 
   robot_control_state.setControlState(speed,
@@ -935,8 +975,8 @@ void Controller::update()
     //        geometry_msgs::PoseStamped ps;
     //        ps.header = robot_state_header;
     //        ps.pose   = robot_control_state.pose;
-    stuck->update(current_pose);
-    if((*stuck)(robot_control_state.desired_velocity_linear))
+    stuck->update(current_pose, robot_control_state.desired_velocity_linear);
+    if(stuck->isStuck())
     {
       ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal.");
       state = INACTIVE;

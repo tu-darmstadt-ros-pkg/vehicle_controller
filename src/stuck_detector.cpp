@@ -28,6 +28,7 @@
 #include <vehicle_controller/stuck_detector.h>
 #include <vehicle_controller/quaternions.h>
 #include <vehicle_controller/utility.h>
+#include <numeric>
 
 const double StuckDetector::DEFAULT_DETECTION_WINDOW = 8.0;
 
@@ -36,9 +37,10 @@ StuckDetector::StuckDetector(double detection_window) :DETECTION_WINDOW(detectio
 
 }
 
-void StuckDetector::update(geometry_msgs::PoseStamped const & pose)
+void StuckDetector::update(geometry_msgs::PoseStamped const & pose, double cmded_speed)
 {
     pose_history.push_back(pose);
+    speed_history.push_back(cmded_speed);
 
     double secs_to_remove = elapsedSecs() - DETECTION_WINDOW;
 
@@ -54,6 +56,8 @@ void StuckDetector::update(geometry_msgs::PoseStamped const & pose)
         it--;
         pose_history.erase(pose_history.begin(),
                             pose_history.begin() + std::distance(time.begin(), it));
+        speed_history.erase(speed_history.begin(),
+                            speed_history.begin() + std::distance(time.begin(), it));
     }
 }
 
@@ -78,9 +82,9 @@ double StuckDetector::quat2ZAngle(geometry_msgs::Quaternion const & q) const
     return a[0];
 }
 
-bool StuckDetector::operator ()(double cmded_speed) const
+bool StuckDetector::isStuck() const
 {
-    if(pose_history.size() < 2)
+    if(pose_history.size() < 2 || speed_history.size() < 2)
         return false;
 
     auto const & start_pose = pose_history.begin()->pose;
@@ -91,6 +95,9 @@ bool StuckDetector::operator ()(double cmded_speed) const
                             return euclideanDistance(start_pose.position, pl.pose.position)
                                    < euclideanDistance(start_pose.position, pr.pose.position);
                         });
+
+    double avg_cmded_speed = std::accumulate(speed_history.begin(), speed_history.end(), 0.0)
+                             / static_cast<double>(speed_history.size());
 
     double zstart = constrainAngle_mpi_pi(quat2ZAngle(start_pose.orientation));
 
@@ -110,14 +117,14 @@ bool StuckDetector::operator ()(double cmded_speed) const
     double max_lin = euclideanDistance(it_max_lin->pose.position, start_pose.position);
     double time_diff = elapsedSecs();
     if (max_ang < MIN_ANGULAR_CHANGE
-        && max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * std::abs(cmded_speed)
+        && max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * std::abs(avg_cmded_speed)
         && time_diff >= DETECTION_WINDOW) {
         std::cout << "ang  " << max_ang << MIN_ANGULAR_CHANGE << " < " << MIN_ANGULAR_CHANGE
                   << "  ,  "
-                  << "vlin  " << max_lin / time_diff << " < " << std::abs(cmded_speed) << std::endl;
+                  << "vlin  " << max_lin / time_diff << " < " << std::abs(avg_cmded_speed) << std::endl;
     }
 
     return max_ang < MIN_ANGULAR_CHANGE
-        && max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * std::abs(cmded_speed)
+        && max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * std::abs(avg_cmded_speed)
         && time_diff >= DETECTION_WINDOW;
 }
