@@ -84,41 +84,11 @@ void Pathsmoother3D::smooth(deque_vec3 const & in_path,
     vector_quat smoothed_orientations;
 
     vector<double> distances = computeAccumulatedDistances(in_path);
-
-    deque_vec3 in_path_without_duplicates = in_path;
-
-    // find and mark duplicates (repeated, as the same position can occur three times in a row)
-    int duplicate_counter = 1;
-    while (duplicate_counter > 0)
-    {
-      duplicate_counter = 0;
-
-      for (int i = 1; i < distances.size(); i++)
-      {
-        if (std::abs(distances[i] - distances[i - 1]) < 0.005)
-        {
-//          ROS_WARN_STREAM("Distances at position " << i << " and " << i - 1 << " are same! Pose in path: i:\n" <<
-//                                                   in_path[i] << "\ni-1:\n" << in_path[i - 1] << "\n. Remove pose " << i);
-          in_path_without_duplicates[i].setConstant(DBL_MAX);
-          distances[i] = DBL_MAX;
-          duplicate_counter++;
-        }
-      }
-
-      // remove duplicates
-      distances.erase(std::remove(distances.begin(), distances.end(), DBL_MAX), distances.end());
-      in_path_without_duplicates.erase(
-        std::remove_if(in_path_without_duplicates.begin(), in_path_without_duplicates.end(),
-                       [](vec3& input) { return input.isConstant(DBL_MAX); }),
-        in_path_without_duplicates.end());
-    }
-
-    smoothed_positions = computeSmoothedPositions(distances, in_path_without_duplicates);
-
+    smoothed_positions = computeSmoothedPositions(distances, in_path);
 
     if(allow_reverse_paths)
     {
-        if (in_path_without_duplicates.size() >= 2 && smoothed_positions.size() >= in_path_without_duplicates.size())
+        if(in_path.size() >= 2 && smoothed_positions.size() >= in_path.size())
         {
             if(reverse)
             {
@@ -224,11 +194,19 @@ vector_vec3 Pathsmoother3D::computeSmoothedPositions(std::vector<double> const &
 
     for(double d = 0; d < distances.back(); d += SMOOTHED_PATH_DISCRETIZATION)
     {
-        if(d > *(itT + 1))
+        while(d > *(itT + 1))
         {
             itT++;
             itX++;
         }
+
+        // remove / skip duplicates
+        while((*(itT + 1) - *itT) < std::numeric_limits<double>::epsilon())
+        {
+            itT++;
+            itX++;
+        }
+
         samples.push_back(d);
         samplesX.push_back(*itX + (*(itX + 1) - *itX) * (d - *itT) / (*(itT + 1) - *itT));
     }
