@@ -221,6 +221,12 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
   ROS_INFO("[vehicle_controller] Received new goal point (x = %.2f, y = %.2f), backward = %d.",
            goal_transformed.pose.position.x, goal_transformed.pose.position.y, legs.back().backward);
 
+  nav_msgs::Path map_path_msg;
+  map_path_msg.header.frame_id = map_frame_id;
+  map_path_msg.header.stamp = ros::Time::now();
+  map_path_msg.poses = {start, goal};
+  smoothPathPublisher.publish(map_path_msg);
+
   final_twist_trials = 0;
   return true;
 }
@@ -336,7 +342,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
 
   // If path is too short, drive directly to last point
   if (map_path.size() <= 2) {
-    driveto(map_path.back(), desired_speed);
+    return driveto(map_path.back(), desired_speed);
   }
 
   start = map_path[0];
