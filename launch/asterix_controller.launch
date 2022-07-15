@@ -11,7 +11,7 @@
     <param name="max_controller_speed" value="1.0" />
     <param name="max_unlimited_speed" value="1.0" />
     <param name="max_unlimited_angular_rate" value="3.0" />
-    <param name="max_controller_angular_rate" value="1.5" />
+    <param name="max_controller_angular_rate" value="1.0" />
     <param name="wheel_separation" value="0.49882" />
     
     <param name="controller_type" value="4"/>
