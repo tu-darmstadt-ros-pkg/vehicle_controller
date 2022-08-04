@@ -200,6 +200,7 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
   {
     listener.waitForTransform(map_frame_id, goal.header.frame_id, goal.header.stamp, ros::Duration(3.0));
     listener.transformPose(map_frame_id, goal, goal_transformed);
+    goal_transformed.header.stamp = goal.header.stamp; // Assign original stamp
   }
   catch (const tf::TransformException& ex)
   {
