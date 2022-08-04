@@ -736,8 +736,8 @@ void Controller::update()
         state = INACTIVE;
         ROS_INFO("[vehicle_controller] Finished orientation correction!"
                  " error = %f, tol = %f, trials = [%d, %d]",
-                 goal_angle_error * 180.0 / M_PI,
-                 angular_tolerance_for_current_path * 180.0 / M_PI,
+                 goal_angle_error,
+                 angular_tolerance_for_current_path,
                  final_twist_trials, mp_.final_twist_trials_max);
         final_twist_trials = 0;
         stop();
