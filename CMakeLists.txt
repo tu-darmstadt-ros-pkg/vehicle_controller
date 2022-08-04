@@ -38,7 +38,7 @@ catkin_package(
 include_directories(include ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
 
 add_library(vehicle_controller_lib src/ps3d.cpp src/differential_drive_controller.cpp src/stuck_detector.cpp src/four_wheel_steer_controller.cpp src/daf_controller.cpp
-  src/carrot_controller.cpp src/ackermann_pure_pursuit_controller src/differential_pure_pursuit_controller src/ekf.cpp src/lqr_controller.cpp src/controller.cpp)
+  src/carrot_controller.cpp src/ackermann_pure_pursuit_controller.cpp src/differential_pure_pursuit_controller.cpp src/ekf.cpp src/lqr_controller.cpp src/controller.cpp)
 add_dependencies(vehicle_controller_lib ${${PROJECT_NAME}_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
 target_link_libraries(vehicle_controller_lib ${catkin_LIBRARIES})
 
