@@ -72,8 +72,6 @@ void Lqr_Controller::calc_local_path(){
 
   int psize = current_path.poses.size();
 
-  double points[50][2];
-
   int st_point, co_points, path_po_lenght;
   double th_po_x, th_po_y, fi_po_x, fi_po_y, se_po_x, se_po_y;
   double max_H;
@@ -89,15 +87,15 @@ void Lqr_Controller::calc_local_path(){
   double mDx, mDy;
 
   //start point from closest point
-  points[0][0] = closest_point.point.x;
-  points[0][1] = closest_point.point.y;
+  std::vector<Eigen::Vector2d> points;
+  points.emplace_back(closest_point.point.x, closest_point.point.y);
 
   //search for closest point on path
   double min_dif = 20.0;
   for(int i=0; i < psize; i++)
   {
-    double po_dist = std::sqrt(std::pow(current_path.poses[i].pose.position.x - points[0][0] , 2) + std::pow(current_path.poses[i].pose.position.y - points[0][1], 2));
-    if(po_dist < min_dif)
+    double po_dist = std::sqrt(std::pow(current_path.poses[i].pose.position.x - points.front().x() , 2) + std::pow(current_path.poses[i].pose.position.y - points.front().y(), 2));
+    if (po_dist < min_dif)
     {
       min_dif = po_dist;
       st_point = i;
@@ -134,8 +132,7 @@ void Lqr_Controller::calc_local_path(){
     //ROS_INFO("angle diff carrot2waypoint: %f", angle_diff_carrot2waypoint);
     if (fabs(angle_diff_carrot2waypoint) < M_PI_2){
       co_points = co_points + 1;
-      points[co_points][0] = current_path.poses[st_point + i].pose.position.x;
-      points[co_points][1] = current_path.poses[st_point + i].pose.position.y;
+      points.emplace_back(current_path.poses[st_point + i].pose.position.x, current_path.poses[st_point + i].pose.position.y);
     }
   }
 
