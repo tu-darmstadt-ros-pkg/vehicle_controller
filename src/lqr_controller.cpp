@@ -68,26 +68,14 @@ void Lqr_Controller::computeMoveCmd(){
 
 
 void Lqr_Controller::calc_local_path(){
-  int next_point = calcClosestPoint();
 
   int psize = current_path.poses.size();
 
-  int st_point, co_points, path_po_lenght;
-  double th_po_x, th_po_y, fi_po_x, fi_po_y, se_po_x, se_po_y;
-  double max_H;
+  int st_point, path_po_lenght;
 
-  double dirx, diry;
-  double sideA, sideB, sideC;
-  double ss, area, tmp_H;
-  double Wid;
-
-  double midX, midY;
-  double dx, dy;
-  double distt, pdist;
-  double mDx, mDy;
-
-  //start point from closest point
   std::vector<Eigen::Vector2d> points;
+  //start point from closest point
+  calcClosestPoint();
   points.emplace_back(closest_point.point.x, closest_point.point.y);
 
   //search for closest point on path
@@ -102,7 +90,6 @@ void Lqr_Controller::calc_local_path(){
     }
   }
 
-  co_points = 0;
   path_po_lenght = 0;
   //calculate path_po_lenght -> number of waypoints in the carrot distance
   for(int i=st_point + 1; i < psize; i++)
@@ -131,54 +118,54 @@ void Lqr_Controller::calc_local_path(){
     double angle_diff_carrot2waypoint = constrainAngle_mpi_pi(angle_carrot - angle_waypoint);
     //ROS_INFO("angle diff carrot2waypoint: %f", angle_diff_carrot2waypoint);
     if (fabs(angle_diff_carrot2waypoint) < M_PI_2){
-      co_points = co_points + 1;
       points.emplace_back(current_path.poses[st_point + i].pose.position.x, current_path.poses[st_point + i].pose.position.y);
     }
   }
 
-  th_po_x = 0; th_po_y = 0; fi_po_x = 0; fi_po_y = 0;
-  se_po_x = 0; se_po_y = 0; dirx = 1; diry = -1; max_H = 0;
+//  th_po_x = 0; th_po_y = 0; fi_po_x = 0; fi_po_y = 0;
+//  se_po_x = 0; se_po_y = 0;
+  double dirx = 1;
+  double diry = -1;
+  double max_H = 0;
 
-  if(co_points < 2){
+  if(points.size() < 3){
     rot_vel_dir = 0;
-    max_H = 0.001;
+//    max_H = 0.001;
     local_path_radius = 99999;
-    alignment_angle = atan2(current_path.poses[st_point + co_points].pose.position.y - closest_point.point.y,
-                      current_path.poses[st_point + co_points].pose.position.x - closest_point.point.x);
+    alignment_angle = atan2(current_path.poses[st_point + points.size() - 1].pose.position.y - closest_point.point.y,
+                      current_path.poses[st_point + points.size() - 1].pose.position.x - closest_point.point.x);
   }
   else{
+    double sideC = (points.back() - points.front()).norm();
 
-    sideC = sqrt(((points[co_points][0] - points[0][0])*(points[co_points][0] - points[0][0])) + (points[co_points][1] - points[0][1])*(points[co_points][1] - points[0][1]));
-
-    Wid = sideC;
+    double Wid = sideC;
     //calculate triangle height height
-    for(int i=0; i < co_points; i++)
+    for(int i=0; i < points.size()-1; i++)
     {
       //p1            p2              p3
       //ROS_INFO("Points X: %f %f %f", points[0][0], points[i][0], points[co_points][0]);
       //ROS_INFO("Points Y: %f %f %f", points[0][1], points[i][1], points[co_points][1]);
-      sideA = sqrt(((points[0][0] - points[i][0])*(points[0][0] - points[i][0])) + (points[0][1] - points[i][1])*(points[0][1] - points[i][1]));
-      sideB = sqrt(((points[i][0] - points[co_points][0])*(points[i][0] - points[co_points][0])) + (points[i][1] - points[co_points][1])*(points[i][1] - points[co_points][1]));
+      double sideA = (points.front() - points[i]).norm();
+      double sideB = (points[i] - points.back()).norm();
       //ROS_INFO("triangle sides: %f %f %f", sideA, sideB, sideC);
-      ss = (sideA + sideB + sideC)/2;
-      area = sqrt(ss*(ss-sideA)*(ss-sideB)*(ss-sideC));
+      double ss = (sideA + sideB + sideC)/2;
+      double area = sqrt(ss*(ss-sideA)*(ss-sideB)*(ss-sideC));
       //determine params for radius calculation
-      tmp_H = (area*2)/sideC;
+      double tmp_H = (area*2)/sideC;
 
       if(tmp_H > max_H)
       {
         max_H = tmp_H;
-        //float det_dir = (points[co_points][0] - points[1][0])*(points[i][1] - points[0][1]) - (points[co_points][1] - points[0][1])*(points[i][0]- points[0][0]);
-        float det_dir = (points[co_points][0] - points[0][0])*(points[i][1] - points[0][1]) - (points[co_points][1] - points[0][1])*(points[i][0]- points[0][0]);
-        se_po_x = points[i][0];
-        se_po_y = points[i][1];
+        double det_dir = (points.back().x() - points.front().x())*(points[i].y() - points.front().y()) - (points.back().y() - points.front().y())*(points[i].x()- points.front().x());
+//        se_po_x = points[i][0];
+//        se_po_y = points[i][1];
 
         if(det_dir > 0)
         {
           dirx = -1;
           diry = 1;
           rot_vel_dir = -1;
-        }else
+        } else
         {
           dirx = 1;
           diry = -1;
@@ -191,35 +178,33 @@ void Lqr_Controller::calc_local_path(){
     //calculate ground compensation, which modifiy max_H and W
     //calc_ground_compensation();
 
-    fi_po_x = points[0][0];
-    fi_po_y = points[0][1];
-    th_po_x = points[co_points][0];
-    th_po_y = points[co_points][1];
+//    fi_po_x = points[0][0];
+//    fi_po_y = points[0][1];
+//    th_po_x = points[co_points][0];
+//    th_po_y = points[co_points][1];
 
     //calculate radious
     local_path_radius = max_H/2 + (Wid*Wid)/(8*max_H);
     //ROS_INFO("Fitted circle radius: %f", local_path_radius);
 
     //calculating circle center
-    midX = (points[0][0] + points[co_points][0])/2;
-    midY = (points[0][1] + points[co_points][1])/2;
-    dx = (points[0][0] - points[co_points][0])/2;
-    dy = (points[0][1] - points[co_points][1])/2;
-    distt = sqrt(dx*dx + dy*dy);
-    pdist = sqrt(local_path_radius*local_path_radius - distt*distt);
-    mDx = dirx*dy*pdist/distt;
-    mDy = diry*dx*pdist/distt;
+    Eigen::Vector2d mid = (points.front() + points.back())/2.0;
+    Eigen::Vector2d delta = (points.front() - points.back())/2.0;
+    double distt = delta.norm();
+    double pdist = sqrt(local_path_radius*local_path_radius - distt*distt);
+    Eigen::Vector2d mD;
+    mD.x() = dirx*delta.y()*pdist/distt;
+    mD.y() = diry*delta.x()*pdist/distt;
 
     //calculate alignemnt angle
-    double curr_dist_x = points[0][0] -  (midX + mDx);
-    double curr_dist_y = points[0][1] - (midY + mDy);
+    Eigen::Vector2d curr_dist = points.front() - (mid + mD);
 
     if(isinf(local_path_radius)){
-      alignment_angle = atan2(points[co_points][1] - closest_point.point.y,
-          points[co_points][0] - closest_point.point.x);
+      alignment_angle = atan2(points.back().y() - closest_point.point.y,
+          points.back().x() - closest_point.point.x);
     }
     else{
-      alignment_angle = atan2(curr_dist_y,curr_dist_x) + rot_vel_dir*M_PI/2;
+      alignment_angle = atan2(curr_dist.y(),curr_dist.x()) + rot_vel_dir*M_PI/2;
     }
   }
 
