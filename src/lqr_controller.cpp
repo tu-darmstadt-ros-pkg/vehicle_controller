@@ -71,7 +71,7 @@ void Lqr_Controller::calc_local_path(){
 
   int psize = current_path.poses.size();
 
-  int st_point, path_po_lenght;
+  int path_po_lenght;
 
   std::vector<Eigen::Vector2d> points;
   //start point from closest point
@@ -79,7 +79,8 @@ void Lqr_Controller::calc_local_path(){
   points.emplace_back(closest_point.point.x, closest_point.point.y);
 
   //search for closest point on path
-  double min_dif = 20.0;
+  double min_dif = std::numeric_limits<double>::max();
+  int st_point = 0;
   for(int i=0; i < psize; i++)
   {
     double po_dist = std::sqrt(std::pow(current_path.poses[i].pose.position.x - points.front().x() , 2) + std::pow(current_path.poses[i].pose.position.y - points.front().y(), 2));
@@ -140,7 +141,7 @@ void Lqr_Controller::calc_local_path(){
 
     double Wid = sideC;
     //calculate triangle height height
-    for(int i=0; i < points.size()-1; i++)
+    for(size_t i=0; i < points.size()-1; i++)
     {
       //p1            p2              p3
       //ROS_INFO("Points X: %f %f %f", points[0][0], points[i][0], points[co_points][0]);
@@ -259,10 +260,10 @@ void Lqr_Controller::calc_local_path(){
 //Calculate the closest Point on the linear interpolated path, returns index of next point on path
 int Lqr_Controller::calcClosestPoint(){
   //Calculate the two closest Points on the path
-  int closest = 1;
-  int second_closest = 0;
+  size_t closest = 1;
+  size_t second_closest = 0;
   double shortest_dist = 999999;
-  for(int i = 0; i < current_path.poses.size(); i++){
+  for(size_t i = 0; i < current_path.poses.size(); i++){
     double dist = std::sqrt(std::pow(robot_control_state.pose.position.x - current_path.poses[i].pose.position.x, 2)
                            + std::pow(robot_control_state.pose.position.y - current_path.poses[i].pose.position.y, 2));
     if (dist < shortest_dist){
