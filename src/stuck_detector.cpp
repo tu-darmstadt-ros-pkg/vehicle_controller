@@ -29,8 +29,9 @@
 #include <vehicle_controller/quaternions.h>
 #include <vehicle_controller/utility.h>
 #include <numeric>
+#include <ros/console.h>
 
-const double StuckDetector::DEFAULT_DETECTION_WINDOW = 8.0;
+const double StuckDetector::DEFAULT_DETECTION_WINDOW = 5.0;
 
 StuckDetector::StuckDetector(double detection_window) :DETECTION_WINDOW(detection_window)
 {
@@ -40,7 +41,7 @@ StuckDetector::StuckDetector(double detection_window) :DETECTION_WINDOW(detectio
 void StuckDetector::update(geometry_msgs::PoseStamped const & pose, double cmded_speed)
 {
     pose_history.push_back(pose);
-    speed_history.push_back(cmded_speed);
+    speed_history.push_back(std::abs(cmded_speed));
 
     double secs_to_remove = elapsedSecs() - DETECTION_WINDOW;
 
@@ -87,18 +88,29 @@ bool StuckDetector::isStuck() const
     if(pose_history.size() < 2 || speed_history.size() < 2)
         return false;
 
-    auto const & start_pose = pose_history.begin()->pose;
-    auto it_max_lin = std::max_element(pose_history.begin() + 1, pose_history.end(),
-                        [this,start_pose](geometry_msgs::PoseStamped const & pl,
-                                          geometry_msgs::PoseStamped const & pr)
-                        {
-                            return euclideanDistance(start_pose.position, pl.pose.position)
-                                   < euclideanDistance(start_pose.position, pr.pose.position);
-                        });
+    double time_diff = elapsedSecs();
+    if (time_diff < DETECTION_WINDOW)
+      return false;
 
+
+    // Linear motion
+    // Compute driven path length
+    double driven_distance = 0;
+    for (unsigned int i = 0; i < pose_history.size() - 1; ++i) {
+      driven_distance += euclideanDistance(pose_history[i].pose.position, pose_history[i+1].pose.position);
+    }
+    double avg_driven_speed = driven_distance / time_diff;
+
+    // Average commanded speed
     double avg_cmded_speed = std::accumulate(speed_history.begin(), speed_history.end(), 0.0)
                              / static_cast<double>(speed_history.size());
 
+    // Stuck if average driven speed is lower than percentage of average commanded speed
+    double speed_threshold = MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * std::abs(avg_cmded_speed);
+    bool lin_stuck = avg_driven_speed < speed_threshold;
+
+    // Angular motion
+    const geometry_msgs::Pose start_pose = pose_history.front().pose;
     double zstart = constrainAngle_mpi_pi(quat2ZAngle(start_pose.orientation));
 
     auto it_max_ang = std::max_element(pose_history.begin() + 1, pose_history.end(),
@@ -114,17 +126,14 @@ bool StuckDetector::isStuck() const
     double max_ang = std::abs(constrainAngle_mpi_pi(
                                   constrainAngle_mpi_pi(quat2ZAngle(it_max_ang->pose.orientation))
                                   - zstart));
-    double max_lin = euclideanDistance(it_max_lin->pose.position, start_pose.position);
-    double time_diff = elapsedSecs();
-    if (max_ang < MIN_ANGULAR_CHANGE
-        && max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * std::abs(avg_cmded_speed)
-        && time_diff >= DETECTION_WINDOW) {
-        std::cout << "ang  " << max_ang << MIN_ANGULAR_CHANGE << " < " << MIN_ANGULAR_CHANGE
-                  << "  ,  "
-                  << "vlin  " << max_lin / time_diff << " < " << std::abs(avg_cmded_speed) << std::endl;
-    }
+    bool rot_stuck = max_ang < MIN_ANGULAR_CHANGE;
 
-    return max_ang < MIN_ANGULAR_CHANGE
-        && max_lin / time_diff < MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * std::abs(avg_cmded_speed)
-        && time_diff >= DETECTION_WINDOW;
+    bool stuck = rot_stuck && lin_stuck;
+    if (stuck) {
+      ROS_INFO_STREAM("Stuck detected. " <<
+                      "ang:  " << max_ang << " < " << MIN_ANGULAR_CHANGE << "  ,  " <<
+                      "vlin:  " << avg_driven_speed << " < " << speed_threshold
+                      );
+    }
+    return stuck;
 }

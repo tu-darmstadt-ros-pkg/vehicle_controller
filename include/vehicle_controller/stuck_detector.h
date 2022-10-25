@@ -77,7 +77,7 @@ public:
      *        following two conditions are satisfied
      *        During the sliding time window
      *        - the robot's orientation has changed less than MIN_ANGULAR_CHANGE
-     *        - the robot's position has changed less than MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION
+     *        - the robot's driven distance is less than MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION
      *          of what the average commanded linear speed would imply
      * @return true if the robot is stuck else false
      */
