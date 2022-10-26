@@ -352,21 +352,21 @@ bool Controller::drivepath(const nav_msgs::Path& path)
   if(!is_fixed)
   {
     ROS_DEBUG("[vehicle_controller] Using PathSmoother.");
-    Pathsmoother3D ps3d(reverseAllowed());
+    Pathsmoother3D ps3d(reverseAllowed(), false);
 
-    quat in_start_orientation;
-    quat in_end_orientation;
+    Eigen::Quaterniond in_start_orientation;
+    Eigen::Quaterniond in_end_orientation;
 
-    deque_vec3 in_path;
+    std::deque<Eigen::Vector3d> in_path;
     std::transform(map_path.begin(), map_path.end(), std::back_inserter(in_path),
                    [](geometry_msgs::PoseStamped const & pose_)
-                   { return vec3(pose_.pose.position.x, pose_.pose.position.y, pose_.pose.position.z); });
+                   { return Eigen::Vector3d(pose_.pose.position.x, pose_.pose.position.y, pose_.pose.position.z); });
 
     in_start_orientation = geomQuat2EigenQuat(robot_control_state.pose.orientation);
     in_end_orientation   = geomQuat2EigenQuat(map_path.back().pose.orientation);
 
-    vector_vec3 out_smoothed_positions;
-    vector_quat out_smoothed_orientations;
+    std::vector<Eigen::Vector3d> out_smoothed_positions;
+    std::vector<Eigen::Quaterniond> out_smoothed_orientations;
     ps3d.smooth(in_path, in_start_orientation, in_end_orientation,
                 out_smoothed_positions, out_smoothed_orientations, reverseAllowed());
 
@@ -865,12 +865,12 @@ void Controller::update()
   double sign  = legs[current].backward ? -1.0 : 1.0;
 
   if (reverseAllowed()) {
-    vec3 rdp(desired_position.x - robot_control_state.pose.position.x, desired_position.y - robot_control_state.pose.position.y, 0.0);
+    Eigen::Vector3d rdp(desired_position.x - robot_control_state.pose.position.x, desired_position.y - robot_control_state.pose.position.y, 0.0);
     rdp.normalize();
-    quat rq(robot_control_state.pose.orientation.w, robot_control_state.pose.orientation.x, robot_control_state.pose.orientation.y, robot_control_state.pose.orientation.z);
+    Eigen::Quaterniond rq(robot_control_state.pose.orientation.w, robot_control_state.pose.orientation.x, robot_control_state.pose.orientation.y, robot_control_state.pose.orientation.z);
 
-    vec3 rpath = /*rq **/ rdp;
-    vec3 rpos = rq * vec3(1,0,0);
+    Eigen::Vector3d rpath = /*rq **/ rdp;
+    Eigen::Vector3d rpos = rq * Eigen::Vector3d::UnitX();
     if (reverseForced()) {
       rpos.dot(rpath);
       sign = -1.0;

@@ -26,17 +26,10 @@
 */
 
 #include <vehicle_controller/ps3d.h>
-#include <vehicle_controller/quaternions.h>
 
 #include <eigen_conversions/eigen_msg.h>
-
 #include <cmath>
-
 #include <ros/ros.h>
-
-using std::vector;
-using std::exp;
-using std::pow;
 
 void Pathsmoother3D::setSmoothedPathDiscretization(double value)
 {
@@ -48,11 +41,12 @@ void Pathsmoother3D::setPathSmoothness(double value)
   PATH_SMOOTHNESS = value;
 }
 
-Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths)
-    : SMOOTHED_PATH_DISCRETIZATION(0.05),// Hector best practice values
-      PATH_SMOOTHNESS(0.125),            // Hector best practice values
-      allow_reverse_paths(allow_reverse_paths),
-      local_robot_direction(vec3(1,0,0)) // ROS Cosy has always x axis being perpendicular to the front of the robot
+Pathsmoother3D::Pathsmoother3D(bool allow_reverse_paths, bool ignore_goal_orientation)
+  : SMOOTHED_PATH_DISCRETIZATION(0.05),// Hector best practice values
+  PATH_SMOOTHNESS(0.125),            // Hector best practice values
+  allow_reverse_paths(allow_reverse_paths),
+  ignore_goal_orientation(ignore_goal_orientation),
+  local_robot_direction(Eigen::Vector3d::UnitX()) // X points to the front
 {
 
 }
@@ -62,93 +56,90 @@ double Pathsmoother3D::gaussianWeight(double t0, double t1) const
   return exp(-pow(t0 - t1, 2.0) / (2.0 *  pow(PATH_SMOOTHNESS, 2.0)));
 }
 
-vector<double> Pathsmoother3D::computeAccumulatedDistances(deque_vec3 const & positions) const
+std::vector<double> Pathsmoother3D::computeAccumulatedDistances(const std::deque<Eigen::Vector3d>& positions)
 {
-  vector<double> result(positions.size(), 0);
+  std::vector<double> result(positions.size(), 0);
   for(unsigned i = 1; i < positions.size(); i++)
     result[i] = result[i - 1] + (positions[i] - positions[i - 1]).norm();
   return result;
 }
 
-void Pathsmoother3D::smooth(deque_vec3 const & in_path,
-                            quat const & in_start_orientation,
-                            quat const & in_end_orientation,
-                            vector_vec3 & out_smooth_positions,
-                            vector_quat & out_smooth_orientations,
-                            bool reverse) const
+void Pathsmoother3D::smooth(const std::deque<Eigen::Vector3d>& in_path, const Eigen::Quaterniond& in_start_orientation, const Eigen::Quaterniond& in_end_orientation, std::vector<Eigen::Vector3d>& out_smooth_positions,
+                            std::vector<Eigen::Quaterniond> & out_smooth_orientations, bool reverse) const
 {
-    // Missing
-    // forbid_reverse_path has to switched on by the user if the robot is too far away from the path.
+  // Missing
+  // forbid_reverse_path has to switched on by the user if the robot is too far away from the path.
 
-    vector_vec3 smoothed_positions;
-    vector_quat smoothed_orientations;
+  std::vector<Eigen::Vector3d> smoothed_positions;
+  std::vector<Eigen::Quaterniond> smoothed_orientations;
 
-    vector<double> distances = computeAccumulatedDistances(in_path);
-    smoothed_positions = computeSmoothedPositions(distances, in_path);
+  std::vector<double> distances = computeAccumulatedDistances(in_path);
+  smoothed_positions = computeSmoothedPositions(distances, in_path);
 
-    if(allow_reverse_paths)
+  if(allow_reverse_paths)
+  {
+    if(in_path.size() >= 2 && smoothed_positions.size() >= in_path.size())
     {
-        if(in_path.size() >= 2 && smoothed_positions.size() >= in_path.size())
-        {
-            if(reverse)
-            {
-                vec3 start_path_delta = (smoothed_positions[0] - smoothed_positions[1]).normalized();
-                double start_projection = start_path_delta.dot(in_start_orientation * local_robot_direction);
-                reverse = start_path_delta.dot(in_start_orientation * local_robot_direction) > 0.0;
+      if(reverse)
+      {
+        Eigen::Vector2d start_path_delta = (smoothed_positions[1] - smoothed_positions[0]).block<2, 1>(0, 0).normalized();
+        Eigen::Vector2d robot_direction_world = (in_start_orientation * local_robot_direction).block<2, 1>(0, 0).normalized();
+        double start_projection = start_path_delta.dot(robot_direction_world); // cos angle between robot and path
+        reverse = start_projection < 0.0; // Angle > 90° -> robot is pointing away from the path
 
-                if(reverse)
-                    ROS_INFO("[Pathsmoother3D] REVERSE! start_projection = %f", start_projection);
-            }
-            else
-            {
-                // Assume global COSY = COSY in position[0], current direction of looking = (1,0,0)
-                // given: smoothed_positions[0] in WORLD COORDINATES
-                // given: rotation at position 0
-                // searched: direction the robot is looking in LOCAL COORDINATES
+        if(reverse)
+          ROS_INFO("[Pathsmoother3D] REVERSE! start_projection = %f", start_projection);
+      }
+      else
+      {
+        // Assume global COSY = COSY in position[0], current direction of looking = (1,0,0)
+        // given: smoothed_positions[0] in WORLD COORDINATES
+        // given: rotation at position 0
+        // searched: direction the robot is looking in LOCAL COORDINATES
 
-                bool distC = distances.back() < 1.5;
+        bool distC = distances.back() < 1.5;
 
-                vec3 start_path_delta = (smoothed_positions[0] - smoothed_positions[1]).normalized();
-                double start_path_projection = start_path_delta.dot(in_start_orientation * local_robot_direction);
+        Eigen::Vector3d start_path_delta = (smoothed_positions[0] - smoothed_positions[1]).normalized();
+        double start_path_projection = start_path_delta.dot(in_start_orientation * local_robot_direction);
 
-                vec3 end_path_delta = (smoothed_positions[smoothed_positions.size() - 2] - smoothed_positions.back()).normalized();
-                vec3 end_vec = (in_end_orientation * local_robot_direction).normalized();
-                double end_path_projection = end_path_delta.dot(end_vec);
+        Eigen::Vector3d end_path_delta = (smoothed_positions[smoothed_positions.size() - 2] - smoothed_positions.back()).normalized();
+        Eigen::Vector3d end_vec = (in_end_orientation * local_robot_direction).normalized();
+        double end_path_projection = end_path_delta.dot(end_vec);
 
-                bool startC = start_path_projection > 0;
-                bool endC = end_path_projection > 0;
+        bool startC = start_path_projection > 0;
+        bool endC = end_path_projection > 0;
 
-                reverse = distC && startC && endC;
+        reverse = distC && startC && endC;
 
-                if(reverse)
-                    ROS_WARN("[Pathsmoother3D] REVERSE! dist = %d, start = %d, end = %d", distC, startC, endC);
-            }
-        }
+        if(reverse)
+          ROS_WARN("[Pathsmoother3D] REVERSE! dist = %d, start = %d, end = %d", distC, startC, endC);
+      }
     }
+  }
 
-    smoothed_orientations = computeSmoothedOrientations(smoothed_positions, in_start_orientation, in_end_orientation, reverse);
-    out_smooth_positions = smoothed_positions;
-    out_smooth_orientations = smoothed_orientations;
+  smoothed_orientations = computeSmoothedOrientations(smoothed_positions, in_start_orientation, in_end_orientation, reverse);
+  out_smooth_positions = smoothed_positions;
+  out_smooth_orientations = smoothed_orientations;
 }
 
 nav_msgs::Path Pathsmoother3D::smooth(const nav_msgs::Path& path_in, bool reverse) const
 {
-  deque_vec3 in_path;
+  std::deque<Eigen::Vector3d> in_path;
   std::transform(path_in.poses.begin(), path_in.poses.end(), std::back_inserter(in_path),
                  [](geometry_msgs::PoseStamped const & pose_)
-                 { return vec3(pose_.pose.position.x, pose_.pose.position.y, pose_.pose.position.z); });
+                 { return Eigen::Vector3d(pose_.pose.position.x, pose_.pose.position.y, pose_.pose.position.z); });
 
-  quat in_start_orientation;
-//  = geomQuat2EigenQuat(robot_control_state.pose.orientation);
+  Eigen::Quaterniond in_start_orientation;
+  //  = geomEigen::Quaterniond2EigenQuat(robot_control_state.pose.orientation);
   tf::quaternionMsgToEigen(path_in.poses.front().pose.orientation, in_start_orientation);
-  quat in_end_orientation;
+  Eigen::Quaterniond in_end_orientation;
   tf::quaternionMsgToEigen(path_in.poses.back().pose.orientation, in_end_orientation);
 
-  vector_vec3 out_smoothed_positions;
-  vector_quat out_smoothed_orientations;
+  std::vector<Eigen::Vector3d> out_smoothed_positions;
+  std::vector<Eigen::Quaterniond> out_smoothed_orientations;
 
   smooth(in_path, in_start_orientation, in_end_orientation,
-              out_smoothed_positions, out_smoothed_orientations, reverse);
+         out_smoothed_positions, out_smoothed_orientations, reverse);
 
   nav_msgs::Path path_out;
   path_out.header = path_in.header;
@@ -173,103 +164,86 @@ nav_msgs::Path Pathsmoother3D::smooth(const nav_msgs::Path& path_in, bool revers
  * @param positions defines a piecewise linear input path
  * @return a smoothed piecewise linear output path
  */
-vector_vec3 Pathsmoother3D::computeSmoothedPositions(std::vector<double> const & distances,
-                                                     deque_vec3 const & positions) const
+std::vector<Eigen::Vector3d> Pathsmoother3D::computeSmoothedPositions(const std::vector<double>& distances, const std::deque<Eigen::Vector3d>& positions) const
 {
-    // The total distance is in accumulatedDistances(...).back()
-    // => sample path along the accumulated (approx. for the time needed for the path).
-    // ROS_INFO("total linear distance = %f \n", distances.back());
+  // The total distance is in accumulatedDistances(...).back()
+  // => sample path along the accumulated (approx. for the time needed for the path).
+  // ROS_INFO("total linear distance = %f \n", distances.back());
 
-    vector_vec3 smoothed_positions;
-    smoothed_positions.reserve(distances.back() / SMOOTHED_PATH_DISCRETIZATION + 1);
+  std::vector<Eigen::Vector3d> smoothed_positions;
+  smoothed_positions.reserve(distances.back() / SMOOTHED_PATH_DISCRETIZATION + 1);
 
-    std::vector<double> samples;
-    samples.reserve(distances.back() / SMOOTHED_PATH_DISCRETIZATION);
+  std::vector<double> samples;
+  samples.reserve(distances.back() / SMOOTHED_PATH_DISCRETIZATION);
 
-    vector_vec3 samplesX;
-    samplesX.reserve(distances.back() / SMOOTHED_PATH_DISCRETIZATION);
+  std::vector<Eigen::Vector3d> samplesX;
+  samplesX.reserve(distances.back() / SMOOTHED_PATH_DISCRETIZATION);
 
-    vector<double>::const_iterator itT = distances.begin();
-    deque_vec3::const_iterator itX = positions.begin();
+  auto itT = distances.begin();
+  auto itX = positions.begin();
 
-    for(double d = 0; d < distances.back(); d += SMOOTHED_PATH_DISCRETIZATION)
+  for(double d = 0; d < distances.back(); d += SMOOTHED_PATH_DISCRETIZATION)
+  {
+    while(d > *(itT + 1))
     {
-        if(d > *(itT + 1))
-        {
-            itT++;
-            itX++;
-        }
-        samples.push_back(d);
-        samplesX.push_back(*itX + (*(itX + 1) - *itX) * (d - *itT) / (*(itT + 1) - *itT));
+      itT++;
+      itX++;
     }
-    samples.push_back(distances.back());
-    samplesX.push_back(positions.back());
+    samples.push_back(d);
+    samplesX.push_back(*itX + (*(itX + 1) - *itX) * (d - *itT) / (*(itT + 1) - *itT));
+  }
+  samples.push_back(distances.back());
+  samplesX.push_back(positions.back());
 
-    smoothed_positions.clear();
-    smoothed_positions.push_back(positions.front());
-    for(unsigned i = 1; i < samples.size() - 1; ++i)
+  smoothed_positions.clear();
+  smoothed_positions.push_back(positions.front());
+  for(unsigned i = 1; i < samples.size() - 1; ++i)
+  {
+    Eigen::Vector3d p = Eigen::Vector3d::Zero();
+    double weight = 0;
+    int step = std::min(static_cast<int>(i), static_cast<int>(samples.size() - 1) - static_cast<int>(i));
+    for(unsigned j = i - step; j < i + step + 1; ++j)
+      weight += gaussianWeight(samples[i], samples[j]);
+    for(unsigned j = i - step; j < i + step + 1; ++j)
     {
-        vec3 p = vec3::Zero();
-        double weight = 0;
-        for(unsigned j = 0; j < samples.size(); ++j)
-            weight += gaussianWeight(samples[i], samples[j]);
-        for(unsigned j = 0; j < samples.size(); ++j)
-        {
-            double w_ij = gaussianWeight(samples[i], samples[j]);
-            p(0) += (w_ij / weight) * samplesX[j](0);
-            p(1) += (w_ij / weight) * samplesX[j](1);
-            p(2) += (w_ij / weight) * samplesX[j](2);
-        }
-        smoothed_positions.push_back(p);
+      double w_ij = gaussianWeight(samples[i], samples[j]);
+      p(0) += (w_ij / weight) * samplesX[j](0);
+      p(1) += (w_ij / weight) * samplesX[j](1);
+      p(2) += (w_ij / weight) * samplesX[j](2);
     }
-    smoothed_positions.push_back(positions.back());
-    return smoothed_positions;
+    smoothed_positions.push_back(p);
+  }
+  smoothed_positions.push_back(positions.back());
+  return smoothed_positions;
 }
 
-vector_quat Pathsmoother3D::computeSmoothedOrientations(vector_vec3 const & smoothed_positions,
-                                                        quat const & start_orientation,
-                                                        quat const & end_orientation,
-                                                        bool reverse) const
+std::vector<Eigen::Quaterniond> Pathsmoother3D::computeSmoothedOrientations(const std::vector<Eigen::Vector3d>& smoothed_positions, const Eigen::Quaterniond& start_orientation, const Eigen::Quaterniond& end_orientation, bool reverse) const
 {
-    vector_quat smoothed_orientations;
-    smoothed_orientations.reserve(smoothed_positions.size());
-    if(!reverse)
+  std::vector<Eigen::Quaterniond> smoothed_orientations;
+  smoothed_orientations.reserve(smoothed_positions.size());
+  double reverse_factor = reverse ? -1.0 : 1.0;
+  for (unsigned i = 0; i < smoothed_positions.size(); i++)
+  {
+    // Requires smoothed positions
+    // robot_direction points to next position
+    if (0 < i && i < smoothed_positions.size() - 1)
     {
-        for(unsigned i = 0; i < smoothed_positions.size(); i++)
-        {
-            // Requires smoothed positions
-            // Computes the related orientations with forward difference approximation based on
-            // stepwidth of the smoothed path discretization over "virtual time variable"
-            if(0 < i && i < smoothed_positions.size() - 1)
-            {
-                quat q;
-                q.setFromTwoVectors(local_robot_direction, smoothed_positions[i + 1] - smoothed_positions[i]);
-                smoothed_orientations.push_back(q);
-            }
-            else if(i == smoothed_positions.size() - 1)
-                smoothed_orientations.push_back(end_orientation);
-            else // i == 0
-                smoothed_orientations.push_back(start_orientation);
-        }
+      Eigen::Quaterniond q;
+      Eigen::Vector3d delta_vector = smoothed_positions[i + 1] - smoothed_positions[i];
+      delta_vector.z() = 0; // If this is != 0, it leads to solutions rotated around X (local_robot_direction)
+      q.setFromTwoVectors(reverse_factor * local_robot_direction, delta_vector);
+      smoothed_orientations.push_back(q);
     }
-    else
-    {
-        // Requires smoothed positions
-        // Computes the related orientations with negative reverse difference approximation based on
-        // stepwidth of the smoothed path discretization over "virtual time variable"
-        for(unsigned i = 0; i < smoothed_positions.size(); i++)
-        {
-            if(0 < i && i < smoothed_positions.size() - 1)
-            {
-                quat q;
-                q.setFromTwoVectors(local_robot_direction, smoothed_positions[i] - smoothed_positions[i + 1]);
-                smoothed_orientations.push_back(q);
-            }
-            else if(i == smoothed_positions.size() - 1)
-                smoothed_orientations.push_back(end_orientation);
-            else // i == 0
-                smoothed_orientations.push_back(start_orientation);
-        }
+    else if (i == smoothed_positions.size() - 1) {
+      if (!ignore_goal_orientation) {
+        smoothed_orientations.push_back(end_orientation);
+      }
+      else {
+        smoothed_orientations.push_back(smoothed_orientations.back()); // Repeat last orientation
+      }
     }
-    return smoothed_orientations;
+    else // i == 0
+      smoothed_orientations.push_back(start_orientation);
+  }
+  return smoothed_orientations;
 }
