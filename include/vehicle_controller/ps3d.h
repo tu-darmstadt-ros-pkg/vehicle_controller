@@ -44,7 +44,7 @@ private:
   Eigen::Vector3d local_robot_direction;
 
 public:
-  explicit Pathsmoother3D(bool allow_reverse_paths, bool ignore_goal_orientation);
+  explicit Pathsmoother3D(bool allow_reverse_paths, bool ignore_goal_orientation=false);
 
   /**
      * @brief smooth is the core function of the path smoother, it computes a smoothed path from a given path
