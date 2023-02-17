@@ -132,6 +132,7 @@ protected:
   unsigned int current;
   geometry_msgs::PoseStamped start;
   Legs legs;
+  unsigned int discarded_legs;
 
   double flipper_state;
 

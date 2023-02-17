@@ -1,7 +1,7 @@
 #include <vehicle_controller/controller.h>
 
 Controller::Controller(ros::NodeHandle& nh_)
-  : state(INACTIVE), stuck(new StuckDetector)
+  : state(INACTIVE), discarded_legs(0), stuck(new StuckDetector)
 {
   nh = nh_;
 
@@ -217,6 +217,7 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
   start = geometry_msgs::PoseStamped();
   start.pose = robot_control_state.pose;
   addLeg(goal_transformed, speed);
+  ROS_WARN_STREAM("Dropping the first " << discarded_legs << " legs out of " << discarded_legs + legs.size() << " because their finish time is in the past.");
   state = DRIVETO;
 
   ROS_INFO("[vehicle_controller] Received new goal point (x = %.2f, y = %.2f), backward = %d.",
@@ -376,6 +377,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
                    boost::bind(&createPoseFromQuatAndPosition, _1, _2));
 
     std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Controller::addLeg, this, _1, desired_speed));
+    ROS_WARN_STREAM("Dropping the first " << discarded_legs << " legs out of " << discarded_legs + legs.size() << " because their finish time is in the past.");
 
     nav_msgs::Path smooth_path_msg;
     smooth_path_msg.header.frame_id = map_frame_id;
@@ -394,11 +396,12 @@ bool Controller::drivepath(const nav_msgs::Path& path)
   }
   else
   {
-    for(std::vector<geometry_msgs::PoseStamped>::const_iterator it = map_path.begin()+1; it != map_path.end(); ++it)
+    for(auto it = map_path.begin()+1; it != map_path.end(); ++it)
     {
       const geometry_msgs::PoseStamped& waypoint = *it;
       addLeg(waypoint, desired_speed);
     }
+    ROS_WARN_STREAM("Dropping the first " << discarded_legs << " legs out of " << discarded_legs + legs.size() << " because their finish time is in the past.");
     nav_msgs::Path map_path_msg;
     map_path_msg.header.frame_id = map_frame_id;
     map_path_msg.header.stamp = ros::Time::now();
@@ -623,8 +626,9 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
   if (leg.length2 == 0.0f) return;
   ros::Time now = ros::Time::now();
   if (leg.finish_time != ros::Time(0) && now > leg.finish_time) {
-    ros::Duration diff = now - leg.finish_time;
-    ROS_WARN_STREAM("Leg finish time is in the past (" << diff.toSec() << " s), discarding.");
+//    ros::Duration diff = now - leg.finish_time;
+//    ROS_WARN_STREAM("Leg finish time is in the past (" << diff.toSec() << " s), discarding.");
+    ++discarded_legs;
     return;
   }
 
@@ -674,6 +678,7 @@ void Controller::reset()
   final_twist_trials = 0;
   dt = 0.0;
   legs.clear();
+  discarded_legs = 0;
 }
 
 
