@@ -217,7 +217,8 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
   start = geometry_msgs::PoseStamped();
   start.pose = robot_control_state.pose;
   addLeg(goal_transformed, speed);
-  ROS_WARN_STREAM("Dropping the first " << discarded_legs << " legs out of " << discarded_legs + legs.size() << " because their finish time is in the past.");
+  if (discarded_legs > 0)
+    ROS_WARN_STREAM("Dropping the first " << discarded_legs << " legs out of " << discarded_legs + legs.size() << " because their finish time is in the past.");
   state = DRIVETO;
 
   ROS_INFO("[vehicle_controller] Received new goal point (x = %.2f, y = %.2f), backward = %d.",
@@ -377,8 +378,8 @@ bool Controller::drivepath(const nav_msgs::Path& path)
                    boost::bind(&createPoseFromQuatAndPosition, _1, _2));
 
     std::for_each(smooth_path.begin() + 1, smooth_path.end(), boost::bind(&Controller::addLeg, this, _1, desired_speed));
-    ROS_WARN_STREAM("Dropping the first " << discarded_legs << " legs out of " << discarded_legs + legs.size() << " because their finish time is in the past.");
-
+    if (discarded_legs > 0)
+      ROS_WARN_STREAM("Dropping the first " << discarded_legs << " legs out of " << discarded_legs + legs.size() << " because their finish time is in the past.");
     nav_msgs::Path smooth_path_msg;
     smooth_path_msg.header.frame_id = map_frame_id;
     smooth_path_msg.header.stamp = ros::Time::now();
@@ -401,8 +402,8 @@ bool Controller::drivepath(const nav_msgs::Path& path)
       const geometry_msgs::PoseStamped& waypoint = *it;
       addLeg(waypoint, desired_speed);
     }
-    ROS_WARN_STREAM("Dropping the first " << discarded_legs << " legs out of " << discarded_legs + legs.size() << " because their finish time is in the past.");
-    nav_msgs::Path map_path_msg;
+    if (discarded_legs > 0)
+      ROS_WARN_STREAM("Dropping the first " << discarded_legs << " legs out of " << discarded_legs + legs.size() << " because their finish time is in the past.");    nav_msgs::Path map_path_msg;
     map_path_msg.header.frame_id = map_frame_id;
     map_path_msg.header.stamp = ros::Time::now();
     map_path_msg.poses = map_path;
