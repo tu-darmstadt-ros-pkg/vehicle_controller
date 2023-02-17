@@ -11,18 +11,18 @@ class Lqr_Controller : public Controller
 public:
 
   Lqr_Controller(ros::NodeHandle& nh_);
-  virtual ~Lqr_Controller();
+  ~Lqr_Controller() override;
 
-  virtual bool configure() override;
+  bool configure() override;
 
-  inline virtual std::string getName()
+  inline std::string getName() override
   {
     return "LQR Controller";
   }
 
 protected:
-  virtual void computeMoveCmd() override;
-  virtual void reset() override;
+  void computeMoveCmd() override;
+  void reset() override;
 
   virtual void controllerParamsCallback(vehicle_controller::LqrControllerParamsConfig & config, uint32_t level);
 
