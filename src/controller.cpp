@@ -507,6 +507,7 @@ bool Controller::followPathServerIsActive() {
 void Controller::followPathGoalCallback(actionlib::ActionServer<move_base_lite_msgs::FollowPathAction>::GoalHandle goal)
 {
   // Check if another goal exists
+  bool goal_updated = false;
   if (followPathServerIsActive()) {
     // Check if new one is newer
     if (goal.getGoalID().stamp >= follow_path_goal_.getGoalID().stamp) {
@@ -514,6 +515,7 @@ void Controller::followPathGoalCallback(actionlib::ActionServer<move_base_lite_m
       move_base_lite_msgs::FollowPathResult result;
       result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
       follow_path_goal_.setCanceled(result, "This goal has been preempted by a newer goal.");
+      goal_updated = true;
     } else {
       move_base_lite_msgs::FollowPathResult result;
       result.result.val = move_base_lite_msgs::ErrorCodes::PREEMPTED;
@@ -525,7 +527,8 @@ void Controller::followPathGoalCallback(actionlib::ActionServer<move_base_lite_m
   // Accept new goal
   goal.setAccepted();
   follow_path_goal_ = goal;
-  if (follow_path_goal_.getGoal()->follow_path_options.reset_stuck_history)
+  // Reset if requested or if we received a new goal (not an updated goal)
+  if (!goal_updated || follow_path_goal_.getGoal()->follow_path_options.reset_stuck_history)
   {
     stuck->reset();
   }
