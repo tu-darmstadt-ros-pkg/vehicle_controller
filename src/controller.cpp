@@ -1,7 +1,7 @@
 #include <vehicle_controller/controller.h>
 
 Controller::Controller(ros::NodeHandle& nh_)
-  : state(INACTIVE), discarded_legs(0), stuck(new StuckDetector)
+  : state(INACTIVE), discarded_legs(0), stuck(new StuckDetector(nh_))
 {
   nh = nh_;
 
@@ -67,7 +67,7 @@ bool Controller::configure()
   params.param<std::string>("vehicle_control_type", vehicle_control_type, "differential_steering");
   double stuck_detection_window;
   params.param("stuck_detection_window", stuck_detection_window, StuckDetector::DEFAULT_DETECTION_WINDOW);
-  stuck.reset(new StuckDetector(stuck_detection_window));
+  stuck = std::make_unique<StuckDetector>(nh, stuck_detection_window);
 
   params.param("max_controller_speed", mp_.max_controller_speed, 0.6);
   params.getParam("max_controller_angular_rate", mp_.max_controller_angular_rate);
@@ -988,7 +988,7 @@ void Controller::update()
     //        geometry_msgs::PoseStamped ps;
     //        ps.header = robot_state_header;
     //        ps.pose   = robot_control_state.pose;
-    stuck->update(current_pose, robot_control_state.desired_velocity_linear);
+    stuck->update(current_pose, vehicle_control_interface_->getCommandedSpeed(), vehicle_control_interface_->getCommandedRotationalRate());
     if(stuck->isStuck())
     {
       ROS_WARN("[vehicle_controller] I think I am blocked! Terminating current drive goal.");

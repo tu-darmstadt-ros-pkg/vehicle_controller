@@ -33,6 +33,8 @@
 
 #include <geometry_msgs/PoseStamped.h>
 #include <vehicle_controller/motion_parameters.h>
+#include <ros/node_handle.h>
+#include <ros/publisher.h>
 
 /**
  * @brief The StuckDetector class is used to detect if the robot has maneuvered
@@ -44,27 +46,40 @@ class StuckDetector
 private:
     std::deque< geometry_msgs::PoseStamped > pose_history;
     std::deque< double > speed_history;
+    std::deque< double > rotation_rate_history;
 
-    double const MIN_ANGULAR_CHANGE = M_PI / 5.0;              // radians
-    double const MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION = 0.1; // 1
+    double const MIN_ANGULAR_CHANGE = 0.1;              // radians
+    double const MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION = 0.2; // 1
+    double const MIN_COMMANDED_SPEED = 0.05;
 
     double DETECTION_WINDOW;                                   // seconds
 
+    ros::NodeHandle nh_;
+
+    ros::Publisher cmded_speed_pub_;
+    ros::Publisher estimated_speed_pub_;
+    ros::Publisher speed_threshold_pub_;
+
+    ros::Publisher cmded_rot_speed_pub_;
+    ros::Publisher estimated_rot_speed_pub_;
+    ros::Publisher rot_speed_threshold_pub_;
+
 protected:
-    double elapsedSecs() const;
-    double quat2ZAngle(geometry_msgs::Quaternion const & q) const;
+    [[nodiscard]] double elapsedSecs() const;
+    [[nodiscard]] double quat2ZAngle(geometry_msgs::Quaternion const & q) const;
+    static void publishDouble(const ros::Publisher& publisher, double value);
 
 public:
     static const double DEFAULT_DETECTION_WINDOW;
 
-    explicit StuckDetector(double detection_window = DEFAULT_DETECTION_WINDOW);
+    explicit StuckDetector(const ros::NodeHandle& nh, double detection_window = DEFAULT_DETECTION_WINDOW);
 
     /**
      * @brief update the pose and speed history that is investigated to determine if the robot is stuck
      * @param pose added to the pose history
      * @param cmded_speed added to the speed history
      */
-    void update(geometry_msgs::PoseStamped const & pose, double cmded_speed);
+    void update(geometry_msgs::PoseStamped const & pose, double cmded_speed, double cmded_rotation);
 
     /**
      * @brief reset the stuck detection by clearing the pose history
@@ -81,7 +96,7 @@ public:
      *          of what the average commanded linear speed would imply
      * @return true if the robot is stuck else false
      */
-    bool isStuck() const;
+    [[nodiscard]] bool isStuck() const;
 };
 
 #endif // STUCK_DETECTOR_H

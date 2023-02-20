@@ -46,6 +46,7 @@ class VehicleControlInterface
 
     virtual void stop() = 0;
     virtual double getCommandedSpeed() const = 0;
+    virtual double getCommandedRotationalRate() const = 0;
     virtual std::string getName() = 0;
 
     virtual bool hasReachedFinalOrientation(double goal_angle_error, double tol, bool reverse_allowed) = 0;

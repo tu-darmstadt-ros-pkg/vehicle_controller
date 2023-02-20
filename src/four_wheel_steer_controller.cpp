@@ -76,6 +76,11 @@ double FourWheelSteerController::getCommandedSpeed() const
   return drive.speed;
 }
 
+double FourWheelSteerController::getCommandedRotationalRate() const
+{
+  return 0; // No idea how to compute that
+}
+
 void FourWheelSteerController::setDriveCommand(double speed, double kappa, double tan_gamma)
 {
 

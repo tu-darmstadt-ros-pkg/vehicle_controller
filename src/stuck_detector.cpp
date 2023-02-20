@@ -30,18 +30,26 @@
 #include <vehicle_controller/utility.h>
 #include <numeric>
 #include <ros/console.h>
+#include <std_msgs/Float64.h>
 
 const double StuckDetector::DEFAULT_DETECTION_WINDOW = 5.0;
 
-StuckDetector::StuckDetector(double detection_window) :DETECTION_WINDOW(detection_window)
+StuckDetector::StuckDetector(const ros::NodeHandle& nh, double detection_window) : DETECTION_WINDOW(detection_window), nh_(ros::NodeHandle(nh, "stuck_detector"))
 {
+  cmded_speed_pub_ = nh_.advertise<std_msgs::Float64>("average_commanded_speed", 10);
+  estimated_speed_pub_ = nh_.advertise<std_msgs::Float64>("average_estimated_speed", 10);
+  speed_threshold_pub_ = nh_.advertise<std_msgs::Float64>("speed_threshold", 10);
 
+  cmded_rot_speed_pub_ = nh_.advertise<std_msgs::Float64>("average_commanded_rotational_speed", 10);
+  estimated_rot_speed_pub_ = nh_.advertise<std_msgs::Float64>("average_estimated_rotational_speed", 10);
+  rot_speed_threshold_pub_ = nh_.advertise<std_msgs::Float64>("rotational_speed_threshold", 10);
 }
 
-void StuckDetector::update(geometry_msgs::PoseStamped const & pose, double cmded_speed)
+void StuckDetector::update(geometry_msgs::PoseStamped const & pose, double cmded_speed, double cmded_rotation)
 {
     pose_history.push_back(pose);
     speed_history.push_back(std::abs(cmded_speed));
+    rotation_rate_history.push_back(std::abs(cmded_rotation));
 
     double secs_to_remove = elapsedSecs() - DETECTION_WINDOW;
 
@@ -59,6 +67,8 @@ void StuckDetector::update(geometry_msgs::PoseStamped const & pose, double cmded
                             pose_history.begin() + std::distance(time.begin(), it));
         speed_history.erase(speed_history.begin(),
                             speed_history.begin() + std::distance(time.begin(), it));
+        rotation_rate_history.erase(rotation_rate_history.begin(),
+                                    rotation_rate_history.begin() + std::distance(time.begin(), it));
     }
 }
 
@@ -74,6 +84,8 @@ double StuckDetector::elapsedSecs() const
 void StuckDetector::reset()
 {
     pose_history.clear();
+    speed_history.clear();
+    rotation_rate_history.clear();
 }
 
 double StuckDetector::quat2ZAngle(geometry_msgs::Quaternion const & q) const
@@ -92,48 +104,48 @@ bool StuckDetector::isStuck() const
     if (time_diff < DETECTION_WINDOW)
       return false;
 
-
-    // Linear motion
     // Compute driven path length
     double driven_distance = 0;
+    double rotation_distance = 0;
     for (unsigned int i = 0; i < pose_history.size() - 1; ++i) {
       driven_distance += euclideanDistance(pose_history[i].pose.position, pose_history[i+1].pose.position);
+      double z_start = constrainAngle_mpi_pi(quat2ZAngle(pose_history[i].pose.orientation));
+      double z_end = constrainAngle_mpi_pi(quat2ZAngle(pose_history[i+1].pose.orientation));
+      rotation_distance += std::abs(constrainAngle_mpi_pi(z_end - z_start));
     }
     double avg_driven_speed = driven_distance / time_diff;
 
+    // Linear motion
     // Average commanded speed
     double avg_cmded_speed = std::accumulate(speed_history.begin(), speed_history.end(), 0.0)
                              / static_cast<double>(speed_history.size());
 
     // Stuck if average driven speed is lower than percentage of average commanded speed
     double speed_threshold = MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * std::abs(avg_cmded_speed);
-    bool lin_stuck = avg_driven_speed < speed_threshold;
+    bool lin_stuck = avg_driven_speed < speed_threshold && avg_cmded_speed > MIN_COMMANDED_SPEED;
 
     // Angular motion
-    const geometry_msgs::Pose start_pose = pose_history.front().pose;
-    double zstart = constrainAngle_mpi_pi(quat2ZAngle(start_pose.orientation));
+    double avg_cmded_rotational_rate = std::accumulate(rotation_rate_history.begin(), rotation_rate_history.end(), 0.0)
+                                       / static_cast<double>(rotation_rate_history.size());
+    double avg_driven_rotational_rate = rotation_distance / time_diff;
+    double rotational_rate_threshold = MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * avg_cmded_rotational_rate;
+    bool rot_stuck = avg_driven_rotational_rate < rotational_rate_threshold && avg_cmded_rotational_rate > MIN_ANGULAR_CHANGE;
 
-    auto it_max_ang = std::max_element(pose_history.begin() + 1, pose_history.end(),
-                        [this,start_pose,zstart](geometry_msgs::PoseStamped const & pl,
-                                          geometry_msgs::PoseStamped const & pr)
-                        {
-                            double zl = constrainAngle_mpi_pi(quat2ZAngle(pl.pose.orientation));
-                            double zr = constrainAngle_mpi_pi(quat2ZAngle(pr.pose.orientation));
-                            return std::abs(constrainAngle_mpi_pi(zl - zstart))
-                                    < std::abs(constrainAngle_mpi_pi(zr - zstart));
-                        });
+    bool stuck = rot_stuck || lin_stuck;
 
-    double max_ang = std::abs(constrainAngle_mpi_pi(
-                                  constrainAngle_mpi_pi(quat2ZAngle(it_max_ang->pose.orientation))
-                                  - zstart));
-    bool rot_stuck = max_ang < MIN_ANGULAR_CHANGE;
+    // Publish results
+    publishDouble(cmded_speed_pub_, avg_cmded_speed);
+    publishDouble(estimated_speed_pub_, avg_driven_speed);
+    publishDouble(speed_threshold_pub_, speed_threshold);
 
-    bool stuck = rot_stuck && lin_stuck;
-    if (stuck) {
-      ROS_INFO_STREAM("Stuck detected. " <<
-                      "ang:  " << max_ang << " < " << MIN_ANGULAR_CHANGE << "  ,  " <<
-                      "vlin:  " << avg_driven_speed << " < " << speed_threshold
-                      );
-    }
+    publishDouble(cmded_rot_speed_pub_, avg_cmded_rotational_rate);
+    publishDouble(estimated_rot_speed_pub_, avg_driven_rotational_rate);
+    publishDouble(rot_speed_threshold_pub_, rotational_rate_threshold);
     return stuck;
+}
+void StuckDetector::publishDouble(const ros::Publisher& publisher, double value)
+{
+  std_msgs::Float64 float_msg;
+  float_msg.data = value;
+  publisher.publish(float_msg);
 }

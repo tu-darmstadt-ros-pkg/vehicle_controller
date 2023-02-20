@@ -85,6 +85,11 @@ class DifferentialDriveController: public VehicleControlInterface
       return twist_.linear.x;
     }
 
+    inline double getCommandedRotationalRate() const override
+    {
+      return twist_.angular.z;
+    }
+
     inline std::string getName() override
     {
       return "Differential Drive Controller";

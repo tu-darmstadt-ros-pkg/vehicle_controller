@@ -55,6 +55,8 @@ class FourWheelSteerController: public VehicleControlInterface
 
     virtual double getCommandedSpeed() const;
 
+    double getCommandedRotationalRate() const override;
+
     inline virtual std::string getName()
     {
       return "Four Wheel Steering Controller";
