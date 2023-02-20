@@ -40,9 +40,9 @@ StuckDetector::StuckDetector(const ros::NodeHandle& nh, double detection_window)
   estimated_speed_pub_ = nh_.advertise<std_msgs::Float64>("average_estimated_speed", 10);
   speed_threshold_pub_ = nh_.advertise<std_msgs::Float64>("speed_threshold", 10);
 
-  cmded_rot_speed_pub_ = nh_.advertise<std_msgs::Float64>("average_commanded_rotational_speed", 10);
-  estimated_rot_speed_pub_ = nh_.advertise<std_msgs::Float64>("average_estimated_rotational_speed", 10);
-  rot_speed_threshold_pub_ = nh_.advertise<std_msgs::Float64>("rotational_speed_threshold", 10);
+  cmded_rot_speed_pub_ = nh_.advertise<std_msgs::Float64>("average_commanded_angular_speed", 10);
+  estimated_rot_speed_pub_ = nh_.advertise<std_msgs::Float64>("average_estimated_angular_speed", 10);
+  rot_speed_threshold_pub_ = nh_.advertise<std_msgs::Float64>("angular_speed_threshold", 10);
 }
 
 void StuckDetector::update(geometry_msgs::PoseStamped const & pose, double cmded_speed, double cmded_rotation)
@@ -97,14 +97,14 @@ double StuckDetector::quat2ZAngle(geometry_msgs::Quaternion const & q) const
 
 bool StuckDetector::isStuck() const
 {
-    if(pose_history.size() < 2 || speed_history.size() < 2)
+    if (pose_history.size() < 2 || speed_history.size() < 2)
         return false;
 
     double time_diff = elapsedSecs();
     if (time_diff < DETECTION_WINDOW)
       return false;
 
-    // Compute driven path length
+    // Compute driven distance and rotation
     double driven_distance = 0;
     double rotation_distance = 0;
     for (unsigned int i = 0; i < pose_history.size() - 1; ++i) {
@@ -113,23 +113,23 @@ bool StuckDetector::isStuck() const
       double z_end = constrainAngle_mpi_pi(quat2ZAngle(pose_history[i+1].pose.orientation));
       rotation_distance += std::abs(constrainAngle_mpi_pi(z_end - z_start));
     }
-    double avg_driven_speed = driven_distance / time_diff;
 
     // Linear motion
-    // Average commanded speed
+    double avg_driven_speed = driven_distance / time_diff;
     double avg_cmded_speed = std::accumulate(speed_history.begin(), speed_history.end(), 0.0)
                              / static_cast<double>(speed_history.size());
 
     // Stuck if average driven speed is lower than percentage of average commanded speed
     double speed_threshold = MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * std::abs(avg_cmded_speed);
-    bool lin_stuck = avg_driven_speed < speed_threshold && avg_cmded_speed > MIN_COMMANDED_SPEED;
+    bool lin_stuck = avg_driven_speed < speed_threshold && avg_cmded_speed > MIN_COMMANDED_LINEAR_SPEED;
 
     // Angular motion
-    double avg_cmded_rotational_rate = std::accumulate(rotation_rate_history.begin(), rotation_rate_history.end(), 0.0)
+    double avg_cmded_angular_speed = std::accumulate(rotation_rate_history.begin(), rotation_rate_history.end(), 0.0)
                                        / static_cast<double>(rotation_rate_history.size());
-    double avg_driven_rotational_rate = rotation_distance / time_diff;
-    double rotational_rate_threshold = MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * avg_cmded_rotational_rate;
-    bool rot_stuck = avg_driven_rotational_rate < rotational_rate_threshold && avg_cmded_rotational_rate > MIN_ANGULAR_CHANGE;
+    double avg_driven_angular_speed = rotation_distance / time_diff;
+    double angular_speed_threshold = MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION * avg_cmded_angular_speed;
+    bool rot_stuck =
+        avg_driven_angular_speed < angular_speed_threshold && avg_cmded_angular_speed > MIN_COMMANDED_ANGULAR_SPEED;
 
     bool stuck = rot_stuck || lin_stuck;
 
@@ -138,9 +138,9 @@ bool StuckDetector::isStuck() const
     publishDouble(estimated_speed_pub_, avg_driven_speed);
     publishDouble(speed_threshold_pub_, speed_threshold);
 
-    publishDouble(cmded_rot_speed_pub_, avg_cmded_rotational_rate);
-    publishDouble(estimated_rot_speed_pub_, avg_driven_rotational_rate);
-    publishDouble(rot_speed_threshold_pub_, rotational_rate_threshold);
+    publishDouble(cmded_rot_speed_pub_, avg_cmded_angular_speed);
+    publishDouble(estimated_rot_speed_pub_, avg_driven_angular_speed);
+    publishDouble(rot_speed_threshold_pub_, angular_speed_threshold);
     return stuck;
 }
 void StuckDetector::publishDouble(const ros::Publisher& publisher, double value)

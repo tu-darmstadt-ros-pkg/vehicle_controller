@@ -48,11 +48,11 @@ private:
     std::deque< double > speed_history;
     std::deque< double > rotation_rate_history;
 
-    double const MIN_ANGULAR_CHANGE = 0.1;              // radians
-    double const MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION = 0.2; // 1
-    double const MIN_COMMANDED_SPEED = 0.05;
+    double const MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION = 0.2;
+    double const MIN_COMMANDED_ANGULAR_SPEED = 0.1;  // radians/second
+    double const MIN_COMMANDED_LINEAR_SPEED = 0.05;  // meters/second
 
-    double DETECTION_WINDOW;                                   // seconds
+    double DETECTION_WINDOW;                         // seconds
 
     ros::NodeHandle nh_;
 
@@ -75,25 +75,27 @@ public:
     explicit StuckDetector(const ros::NodeHandle& nh, double detection_window = DEFAULT_DETECTION_WINDOW);
 
     /**
-     * @brief update the pose and speed history that is investigated to determine if the robot is stuck
-     * @param pose added to the pose history
-     * @param cmded_speed added to the speed history
+     * @brief Update the pose and speed history that is investigated to determine if the robot is stuck
+     * @param pose current pose of the robot
+     * @param cmded_speed linear speed commanded to the robot
+     * @param cmded_rotation angular speed commanded to the robot
      */
     void update(geometry_msgs::PoseStamped const & pose, double cmded_speed, double cmded_rotation);
 
     /**
-     * @brief reset the stuck detection by clearing the pose history
+     * @brief Reset the stuck detection by clearing the history
      */
     void reset();
 
     /**
      * @brief isStuck
-     *        Core function of the stuck detection class. The robot is deemed stuck if the
-     *        following two conditions are satisfied
+     *        Core function of the stuck detection class. The robot is deemed stuck if *one of the
+     *        following two* conditions is satisfied
      *        During the sliding time window
-     *        - the robot's orientation has changed less than MIN_ANGULAR_CHANGE
-     *        - the robot's driven distance is less than MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION
-     *          of what the average commanded linear speed would imply
+     *        - the robot's estimated average angular speed is less than MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION of the average commanded speed
+     *          and the average commanded speed is higher than MIN_COMMANDED_ANGULAR_SPEED
+     *        - the robot's estimated average linear speed is less than MIN_ACTUAL_TO_COMMANDED_SPEED_FRACTION of the average commanded speed
+     *        and the average commanded speed is higher than MIN_COMMANDED_LINEAR_SPEED
      * @return true if the robot is stuck else false
      */
     [[nodiscard]] bool isStuck() const;
