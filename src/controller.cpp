@@ -407,11 +407,23 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     smoothPathPublisher.publish(map_path_msg);
   }
 
-  state = DRIVEPATH;
-  if(!legs.empty())
+  if (discarded_legs > 0)
+    ROS_WARN_STREAM("Dropping the first " << discarded_legs << " legs out of " << discarded_legs + legs.size() << " because their finish time is in the past.");
+
+  if(!legs.empty()) {
     ROS_INFO("[vehicle_controller] Received new path to goal point (x = %.2f, y = %.2f)", legs.back().p2.x, legs.back().p2.y);
-  else
-    ROS_WARN("[vehicle_controller] Controller::drivepath produced empty legs array.");
+    state = DRIVEPATH;
+  }
+  else {
+    ROS_WARN("Controller::drivepath produced empty legs array.");
+    state = INACTIVE;
+    stop();
+    if (followPathServerIsActive()){
+      move_base_lite_msgs::FollowPathResult result;
+      result.result.val = move_base_lite_msgs::ErrorCodes::SUCCESS;
+      follow_path_goal_.setSucceeded(result, "Received empty path"); // trivially succeeded
+    }
+  }
 
   return true;
 }
