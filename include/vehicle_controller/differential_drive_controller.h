@@ -120,6 +120,7 @@ class DifferentialDriveController: public VehicleControlInterface
         KD_POSITION_ = config.position_d_gain;
         mp_->commanded_speed = config.speed;
         SPEED_REDUCTION_GAIN_ = config.speed_reduction_gain;
+        mp_->speed_p_gain = config.speed_p_gain;
         mp_->use_final_twist = config.use_final_twist;
         mp_->final_twist_trials_max = config.final_twist_trials_max;
 

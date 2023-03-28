@@ -47,6 +47,7 @@ class MotionParameters : public PS3dMotionParameters
     double carrot_distance;
     double min_speed;
     double commanded_speed;
+    double speed_p_gain;
     double inclination_speed_reduction_factor;
     double inclination_speed_reduction_time_constant;
     double current_inclination;

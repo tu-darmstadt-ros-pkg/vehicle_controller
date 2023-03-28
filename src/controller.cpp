@@ -925,7 +925,7 @@ void Controller::update()
                                         + std::pow(robot_control_state.pose.position.y - legs[current].p2.y, 2));
     double dx_cur = legs[current].length - distance_to_goal;
     double error = dx_des - dx_cur;
-    speed += 1.5 * error; // Add position error term
+    speed += mp_.speed_p_gain * error; // Add position error term
     // do not drive in the wrong direction
     speed = std::max(speed, 0.0);
 
