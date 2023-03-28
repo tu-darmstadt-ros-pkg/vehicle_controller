@@ -82,6 +82,7 @@ protected:
    *        value is used for this purpose
    */
   void addLeg(const geometry_msgs::PoseStamped &pose, double speed = 0.0);
+  void removeLegsInThePast();
 
   virtual bool reverseAllowed();
   virtual bool usePathOrientation();
@@ -133,7 +134,6 @@ protected:
   unsigned int current;
   geometry_msgs::PoseStamped start;
   Legs legs;
-  unsigned int discarded_legs;
 
   double flipper_state;
 

@@ -3,7 +3,7 @@
 #include <std_msgs/Float64.h>
 
 Controller::Controller(ros::NodeHandle& nh_)
-  : state(INACTIVE), discarded_legs(0), stuck(new StuckDetector(nh_))
+  : state(INACTIVE), stuck(new StuckDetector(nh_))
 {
   nh = nh_;
 
@@ -220,8 +220,7 @@ bool Controller::driveto(const geometry_msgs::PoseStamped& goal, double speed)
   start = geometry_msgs::PoseStamped();
   start.pose = robot_control_state.pose;
   addLeg(goal_transformed, speed);
-  if (discarded_legs > 0)
-    ROS_WARN_STREAM("Dropping the first " << discarded_legs << " legs out of " << discarded_legs + legs.size() << " because their finish time is in the past.");
+  removeLegsInThePast();
   state = DRIVETO;
 
   ROS_INFO("[vehicle_controller] Received new goal point (x = %.2f, y = %.2f), backward = %d.",
@@ -410,9 +409,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
     smoothPathPublisher.publish(map_path_msg);
   }
 
-  if (discarded_legs > 0)
-    ROS_WARN_STREAM("Dropping the first " << discarded_legs << " legs out of " << discarded_legs + legs.size() << " because their finish time is in the past.");
-
+  removeLegsInThePast();
   if(!legs.empty()) {
     ROS_INFO("[vehicle_controller] Received new path to goal point (x = %.2f, y = %.2f)", legs.back().p2.x, legs.back().p2.y);
     state = DRIVEPATH;
@@ -636,20 +633,29 @@ void Controller::addLeg(const geometry_msgs::PoseStamped& pose, double speed)
 
   leg.percent = 0.0f;
 
-  ROS_DEBUG_STREAM("Leg " << legs.size() << ": [" << leg.p1.x << ", " << leg.p1.y << "] -> [" << leg.p2.x << ", " << leg.p2.y << "], Length: "
+  ROS_INFO_STREAM("Leg " << legs.size() << ": [" << leg.p1.x << ", " << leg.p1.y << "] -> [" << leg.p2.x << ", " << leg.p2.y << "], Length: "
                    << leg.length << ", Speed: " << leg.speed << ", Backward: " << leg.backward);
 
   if (leg.length2 == 0.0f) return;
-  ros::Time now = ros::Time::now();
-  if (leg.finish_time != ros::Time(0) && now > leg.finish_time) {
-//    ros::Duration diff = now - leg.finish_time;
-//    ROS_WARN_STREAM("Leg finish time is in the past (" << diff.toSec() << " s), discarding.");
-    ++discarded_legs;
-    return;
-  }
 
   legs.push_back(leg);
 }
+
+void Controller::removeLegsInThePast() {
+  ros::Time now = ros::Time::now();
+  Legs legs_copy = legs;
+  legs.clear();
+  legs.reserve(legs_copy.size());
+  std::copy_if (legs_copy.begin(), legs_copy.end(), std::back_inserter(legs),
+               [now](const Leg& leg) {
+                 return leg.finish_time.toSec() == 0.0 || leg.finish_time > now;
+               }
+               );
+  size_t discarded_legs = legs_copy.size() - legs.size();
+  if (discarded_legs > 0)
+    ROS_WARN_STREAM("Dropping the first " << discarded_legs << " legs out of " << legs_copy.size() << " because their finish time is in the past.");
+}
+
 
 bool Controller::reverseAllowed()
 {
@@ -694,7 +700,6 @@ void Controller::reset()
   final_twist_trials = 0;
   dt = 0.0;
   legs.clear();
-  discarded_legs = 0;
 }
 
 
