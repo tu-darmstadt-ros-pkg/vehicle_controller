@@ -4,6 +4,7 @@
 #include <cmath>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/Quaternion.h>
+#include <std_msgs/Float64.h>
 #include <Eigen/Dense>
 
 
@@ -80,6 +81,12 @@ inline static geometry_msgs::PoseStamped createPoseFromQuatAndPosition(const Eig
   pose.pose.orientation.y = orientation.y();
   pose.pose.orientation.z = orientation.z();
   return pose;
+}
+
+inline void publishDouble(const ros::Publisher& publisher, double value) {
+  std_msgs::Float64 float_msg;
+  float_msg.data = value;
+  publisher.publish(float_msg);
 }
 
 #endif // UTILITY_H

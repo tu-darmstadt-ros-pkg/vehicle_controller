@@ -1,5 +1,7 @@
 #include <vehicle_controller/controller.h>
 
+#include <std_msgs/Float64.h>
+
 Controller::Controller(ros::NodeHandle& nh_)
   : state(INACTIVE), discarded_legs(0), stuck(new StuckDetector(nh_))
 {
@@ -89,9 +91,10 @@ bool Controller::configure()
   poseSubscriber      = nh.subscribe("robot_pose", 10, &Controller::poseCallback, this);
 
   carrotPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("carrot", 1, true);
-  endPosePoublisher   = nh.advertise<geometry_msgs::PoseStamped>("end_pose", 1, true);
+  endPosePublisher = nh.advertise<geometry_msgs::PoseStamped>("end_pose", 1, true);
   drivepathPublisher  = nh.advertise<nav_msgs::Path>("drivepath", 1, true);
   smoothPathPublisher   = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
+  speedPublisher = params.advertise<std_msgs::Float64>("desired_speed", 10, false);
 
   diagnosticsPublisher = params.advertise<std_msgs::Float32>("velocity_error", 1, true);
   autonomy_level_pub_ = nh.advertise<std_msgs::String>("/autonomy_level", 30);
@@ -341,7 +344,7 @@ bool Controller::drivepath(const nav_msgs::Path& path)
   ptbp.header.stamp = ros::Time::now();
   ptbp.header.frame_id = map_frame_id;
   ptbp.pose = map_path.back().pose;
-  endPosePoublisher.publish(ptbp);
+  endPosePublisher.publish(ptbp);
 
   // If path is too short, drive directly to last point
   if (map_path.size() <= 2) {
@@ -899,7 +902,8 @@ void Controller::update()
 
   // Compute speed
   ros::Time current_time = ros::Time::now();
-  double speed;
+  double speed = legs[current].speed;
+  publishDouble(speedPublisher, speed);
   if (legs[current].start_time != ros::Time(0) && legs[current].finish_time != ros::Time(0)) {
     // Control speed based on time stamps
     double time_diff;
@@ -916,17 +920,14 @@ void Controller::update()
                                         + std::pow(robot_control_state.pose.position.y - legs[current].p2.y, 2));
     double dx_cur = legs[current].length - distance_to_goal;
     double error = dx_des - dx_cur;
-    speed = legs[current].speed + 1.5 * error;
-    // do not drive backwards
+    speed += 1.5 * error; // Add position error term
+    // do not drive in the wrong direction
     speed = std::max(speed, 0.0);
 
 //    ros::Duration total_time = legs[current].finish_time - legs[current].start_time;
 //    ROS_INFO_STREAM("Driving to: " << current << ". Leg time " << time_diff << "/" << total_time.toSec() <<
 //                    "s. Des. pos: " << dx_des << ". Curr. pos: " << dx_cur << ". Error: " << error <<
 //                    ". Original speed: " << legs[current].speed << ". Speed: " << speed);
-  } else {
-    // Use pre-defined speed
-    speed = legs[current].speed;
   }
 
   // Account for driving direction

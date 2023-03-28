@@ -101,12 +101,13 @@ protected:
   ros::Subscriber poseSubscriber;
 
 
-  ros::Publisher endPosePoublisher;
+  ros::Publisher endPosePublisher;
   ros::Publisher carrotPosePublisher;
   ros::Publisher lookatPublisher;
   ros::Publisher cameraOrientationPublisher;
   ros::Publisher drivepathPublisher;
   ros::Publisher diagnosticsPublisher;
+  ros::Publisher speedPublisher;
 
   ros::Publisher smoothPathPublisher;
   ros::Publisher autonomy_level_pub_;
