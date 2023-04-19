@@ -14,7 +14,8 @@
     <param name="max_controller_angular_rate" value="1.0" />
     <param name="wheel_separation" value="0.49882" />
     
-    <param name="controller_type" value="4"/>
+    <!-- Carrot (0), DAF (1), Ackermann Pure Pursuit (2), Differential Pure Pursuit (3), LQR (4) -->
+    <param name="controller_type" value="0"/>
     <param name="vehicle_control_type" value="differential_steering"/>
 
     <param name="goal_position_tolerance" value="0.1" />
