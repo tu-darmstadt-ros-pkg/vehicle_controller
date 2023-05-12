@@ -14,6 +14,8 @@ Controller::Controller(ros::NodeHandle& nh_)
   mp_.max_unlimited_speed = 2.0;
   mp_.max_unlimited_angular_rate = 1.0;
   mp_.max_controller_angular_rate =  0.4;
+  mp_.max_linear_acceleration_ = 2.0;
+  mp_.max_angular_acceleration_ = 3.0;
   mp_.inclination_speed_reduction_factor = 0.5 / (30 * M_PI/180.0); // 0.5 per 30 degrees
   mp_.inclination_speed_reduction_time_constant = 0.3;
 

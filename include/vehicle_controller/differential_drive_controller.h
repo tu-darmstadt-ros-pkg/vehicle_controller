@@ -104,6 +104,9 @@ class DifferentialDriveController: public VehicleControlInterface
     geometry_msgs::Twist twist_;
     MotionParameters* mp_;
 
+    double old_linear_x_velocity_;
+    double old_angular_z_velocity_;
+
     ros::Time ekf_lastTime;
     geometry_msgs::Twist ekf_lastCmd;
     EKF ekf;
@@ -137,6 +140,8 @@ class DifferentialDriveController: public VehicleControlInterface
     }
 
     void limitTwist(geometry_msgs::Twist& twist, double max_speed, double max_angular_rate, bool keep_curvature = false) const;
+    void limitAccel(geometry_msgs::Twist& twist, double dt, double max_linear_accel, double max_angular_accel, bool keep_curvature = false) const;
+    void publishTwist(const geometry_msgs::Twist& twist);
 
   private:
 

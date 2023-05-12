@@ -28,7 +28,9 @@
 #include <vehicle_controller/differential_drive_controller.h>
 
 DifferentialDriveController::DifferentialDriveController():
-  nh_dr_pdparams("~/pd_params")
+  nh_dr_pdparams("~/pd_params"),
+  old_linear_x_velocity_(0.0),
+  old_angular_z_velocity_(0.0)
 {
 }
 
@@ -44,6 +46,8 @@ void DifferentialDriveController::configure(ros::NodeHandle& params, MotionParam
     params.getParam("max_unlimited_speed", mp_->max_unlimited_speed);
     params.getParam("max_controller_angular_rate", mp_->max_controller_angular_rate);
     params.getParam("max_unlimited_angular_rate", mp_->max_unlimited_angular_rate);
+    params.getParam("max_linear_acceleration", mp_->max_linear_acceleration_);
+    params.getParam("max_angular_acceleration", mp_->max_angular_acceleration_);
     params.getParam("wheel_separation", wheel_separation);
 
 
@@ -67,14 +71,14 @@ void DifferentialDriveController::executeUnlimitedTwist(const geometry_msgs::Twi
                                 std::min(mp_->max_unlimited_angular_rate, twist_.angular.z));
     twist_.linear.x  = std::max(-mp_->max_unlimited_speed,
                                 std::min(mp_->max_unlimited_speed, twist_.linear.x));
-    cmd_vel_raw_pub_.publish(twist_);
+    publishTwist(twist_);
 }
 
 void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_twist)
 {
     twist_ = inc_twist;
     this->limitTwist(twist_, mp_->max_controller_speed, mp_->max_controller_angular_rate, true);
-    cmd_vel_raw_pub_.publish(twist_);
+    publishTwist(twist_);
 }
 
 
@@ -82,6 +86,7 @@ void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_t
 {
     twist_ = inc_twist;
     this->limitTwist(twist_, mp_->max_controller_speed, mp_->max_controller_angular_rate, true);
+    this->limitAccel(twist_, rcs.dt, mp_->max_linear_acceleration_, mp_->max_angular_acceleration_, true);
 
     //ROS_INFO("limited: lin: %f, ang: %f", twist_.linear.x, twist_.angular.z);
 
@@ -99,7 +104,7 @@ void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_t
         ekf_last_roll = roll;
         ekf_last_yaw = yaw;
 
-        cmd_vel_raw_pub_.publish(twist_);
+        publishTwist(twist_);
       }
       else{
         double dt = (ros::Time::now().toSec() - ekf_lastTime.toSec());
@@ -135,7 +140,7 @@ void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_t
           twist_.linear.x = (vl_corrected + vr_corrected) / 2;
           twist_.angular.z = (vr_corrected - vl_corrected) / wheel_separation;
 
-          cmd_vel_raw_pub_.publish(twist_);
+          publishTwist(twist_);
 
           //ROS_INFO("yl: %f, yr: %f, x: %f",ekf.x_(4), ekf.x_(3), ekf.x_(5) );
 
@@ -152,7 +157,7 @@ void DifferentialDriveController::executeTwist(const geometry_msgs::Twist& inc_t
       }
     }
     else{
-      cmd_vel_raw_pub_.publish(twist_);
+      publishTwist(twist_);
     }
 
 
@@ -186,8 +191,8 @@ void DifferentialDriveController::executePDControlledMotionCommand(double e_angl
     twist_.linear.x = speed;
     twist_.angular.z = z_angular_rate;
     this->limitTwist(twist_, mp_->max_controller_speed, mp_->max_controller_angular_rate, false);
-    cmd_vel_raw_pub_.publish(twist_);
-
+    this->limitAccel(twist_, dt, mp_->max_linear_acceleration_, mp_->max_angular_acceleration_, false);
+    publishTwist(twist_);
     if (pdout_pub_.getNumSubscribers() > 0)
     {
       monstertruck_msgs::Pdout pdout;
@@ -243,14 +248,14 @@ void DifferentialDriveController::executeMotionCommandSimple(RobotControlState r
 
     limitTwist(twist_, mp_->max_controller_speed, mp_->max_controller_angular_rate, false);
 
-    cmd_vel_raw_pub_.publish(twist_);
+    publishTwist(twist_);
 }
 
 void DifferentialDriveController::stop()
 {
     twist_.angular.z = 0.0;
     twist_.linear.x  = 0.0;
-    cmd_vel_raw_pub_.publish(twist_);
+    publishTwist(twist_);
 }
 
 // Limits twist within track velocity limits. keep_curvature defines whether to keep the curvature or the angular velocity.
@@ -289,6 +294,36 @@ void DifferentialDriveController::limitTwist(geometry_msgs::Twist& twist, double
     twist.linear.x = std::max(-speedAbsUL, std::min(speed, speedAbsUL));
     twist.angular.z = std::max(-max_angular_rate, std::min(max_angular_rate, angular_rate));  
   }
+}
 
+void DifferentialDriveController::limitAccel(geometry_msgs::Twist& twist, double dt, double max_linear_accel, double max_angular_accel, bool keep_curvature) const
+{
+  // respect acceleration limits
+  double max_linear_speed_change = max_linear_accel * dt;
+  double max_angular_speed_change = max_angular_accel * dt;
+  double linear_clamped = std::min(std::max(twist.linear.x, old_linear_x_velocity_ - max_linear_speed_change), old_linear_x_velocity_ + max_linear_speed_change);
+  double angular_clamped = std::min(std::max(twist.angular.z, old_angular_z_velocity_ - max_angular_speed_change), old_angular_z_velocity_ + max_angular_speed_change);
+  double reduction_ration_linear = std::abs(twist.linear.x) > 1E-7 ? linear_clamped/twist.linear.x : 1.0;
+  double reduction_ration_angular = std::abs(twist.angular.z) > 1E-7 ? angular_clamped/twist.angular.z : 1.0;
+  // Do not clamp breaking/de-acceleration
+  reduction_ration_linear = std::min(reduction_ration_linear, 1.0);
+  reduction_ration_angular = std::min(reduction_ration_angular, 1.0);
+  double ratio = std::min(reduction_ration_linear, reduction_ration_angular);
+//  ROS_INFO_STREAM("Angular: old " << old_angular_z_velocity_ << " max change: " << max_angular_speed_change << " desired: " << twist.angular.z);
+//  ROS_INFO_STREAM("Ratio: " << ratio << "(linear: " << reduction_ration_linear << ", angular: " << reduction_ration_angular << ")");
 
+  if (keep_curvature && ratio > 0) { // Do not enforce curvature if we would need to drive backwards
+    twist.linear.x *= ratio;
+    twist.angular.z *= ratio;
+  } else {
+    twist.linear.x *= reduction_ration_linear;
+    twist.angular.z *= reduction_ration_angular;
+  }
+
+}
+void DifferentialDriveController::publishTwist(const geometry_msgs::Twist& twist)
+{
+  old_linear_x_velocity_ = twist.linear.x;
+  old_angular_z_velocity_ = twist.angular.z;
+  cmd_vel_raw_pub_.publish(twist);
 }
