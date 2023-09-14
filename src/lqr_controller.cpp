@@ -44,6 +44,7 @@ void Lqr_Controller::reset()
 
 
 void Lqr_Controller::computeMoveCmd(){
+  checkPathReq();
   calc_local_path();
   calcLqr();
   //ROS_INFO("radius: %f", local_path_radius);
@@ -66,6 +67,16 @@ void Lqr_Controller::computeMoveCmd(){
   lqr_time = ros::Time::now();
 }
 
+void Lqr_Controller::checkPathReq() {
+  // LQR path controller requires at least 2 points in the path, if there is just one pose
+  // an additional pose in the middle between the current robot position and the goal position is added
+  if(current_path.poses.size()==1){
+      current_path.poses.push_back(current_path.poses[0]);
+      current_path.poses[0].pose.position.x = 0.5 * ( robot_control_state.pose.position.x + current_path.poses[0].pose.position.x);
+      current_path.poses[0].pose.position.y = 0.5 * ( robot_control_state.pose.position.y + current_path.poses[0].pose.position.y);
+      current_path.poses[0].pose.position.z = 0.5 * ( robot_control_state.pose.position.z + current_path.poses[0].pose.position.z);
+  }
+}
 
 void Lqr_Controller::calc_local_path(){
 
@@ -74,7 +85,7 @@ void Lqr_Controller::calc_local_path(){
   int path_po_lenght;
 
   std::vector<Eigen::Vector2d> points;
-  //start point from closest point
+  //start point from the closest point
   calcClosestPoint();
   points.emplace_back(closest_point.point.x, closest_point.point.y);
 
@@ -299,7 +310,6 @@ int Lqr_Controller::calcClosestPoint(){
       second_closest = closest - 1;
     }
   }
-
   //Calculate the closest Point on the connection line of the two closest points on the path
   double l1 = current_path.poses[second_closest].pose.position.x - current_path.poses[closest].pose.position.x;
   double l2 = current_path.poses[second_closest].pose.position.y - current_path.poses[closest].pose.position.y;

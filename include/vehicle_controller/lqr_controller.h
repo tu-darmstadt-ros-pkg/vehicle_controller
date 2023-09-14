@@ -31,7 +31,7 @@ protected:
   int calcClosestPoint();
   void calcLqr();
   void solveDare();
-
+  void checkPathReq();
 
   ros::NodeHandle nh_dr_params;
   dynamic_reconfigure::Server<vehicle_controller::LqrControllerParamsConfig> * dr_controller_params_server;
