@@ -1,9 +1,11 @@
 <?xml version="1.0"?>
 
 <launch>
+  <arg name="use_stability_assistance" default="$(optenv HECTOR_USE_STABILITY_ASSISTANCE false)"/>
+  <arg name="cmd_vel_raw_topic" unless="$(arg use_stability_assistance)"  value="/cmd_vel_raw"/>
+  <arg name="cmd_vel_raw_topic" if="$(arg use_stability_assistance)"      value="/cmd_vel_unlimited"/>
   
   <node pkg="vehicle_controller" type="controller_node" name="vehicle_controller" output="screen" respawn="true">
-    
     <param name="frame_id" value="world" />
     <param name="carrot_controller_params/carrot_distance" value="0.2"/>
     <param name="y_symmetry" value="false" />
@@ -27,8 +29,7 @@
     <param name="check_stuck" value="true" /> 
     
     <remap from="/state" to="/odom" />
-    <remap from="/cmd_vel_raw" to="/cmd_unthrottled_vel_raw" />
-
+    <remap from="/cmd_vel_raw" to="$(arg cmd_vel_raw_topic)" />
   </node>
   
 </launch>
