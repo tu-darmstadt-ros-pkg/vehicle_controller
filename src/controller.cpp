@@ -1,6 +1,7 @@
 #include <vehicle_controller/controller.h>
 
 #include <std_msgs/Float64.h>
+#include <eigen_conversions/eigen_msg.h>
 
 Controller::Controller(ros::NodeHandle& nh_)
   : state(INACTIVE), stuck(new StuckDetector(nh_))
@@ -805,12 +806,24 @@ void Controller::update()
       }
     }
 
-    legs[current].percent =
-        (  (robot_control_state.pose.position.x - legs[current].p1.x)
-           * (legs[current].p2.x - legs[current].p1.x)
+    if (legs[current].start_time != ros::Time(0) && legs[current].finish_time != ros::Time(0)) {
+      double leg_time = (legs[current].finish_time - legs[current].start_time).toSec();
+      double time_in_leg;
+      if (latest_odom_->header.stamp >= legs[current].start_time) {
+        time_in_leg = (latest_odom_->header.stamp - legs[current].start_time).toSec();
+      } else {
+        time_in_leg = -1.0 * (legs[current].start_time - latest_odom_->header.stamp).toSec();
+      }
+      legs[current].percent = time_in_leg / leg_time;
+//      ROS_INFO_STREAM("Start time: " << legs[current].start_time.toSec() << ", finish time: " << legs[current].finish_time.toSec() << ", odom time: " << latest_odom_->header.stamp.toSec() << ", percent: " << legs[current].percent);
+    } else {
+      legs[current].percent =
+          (  (robot_control_state.pose.position.x - legs[current].p1.x)
+               * (legs[current].p2.x - legs[current].p1.x)
            + (robot_control_state.pose.position.y - legs[current].p1.y)
-           * (legs[current].p2.y - legs[current].p1.y))
-        / legs[current].length2;
+                 * (legs[current].p2.y - legs[current].p1.y))
+          / legs[current].length2;
+    }
 
     ROS_DEBUG("[vehicle_controller] Robot has passed %.1f percent of leg %u.", legs[current].percent, current);
     if (legs[current].percent < 1.0) break;
@@ -830,6 +843,7 @@ void Controller::update()
     if (carrot_remaining <= (1.0f - carrot_percent) * legs[carrot_waypoint].length)
     {
       carrot_percent += carrot_remaining / legs[carrot_waypoint].length;
+      ROS_DEBUG_STREAM("Current waypoint contains carrot at " << carrot_percent);
       break;
     }
 
@@ -906,37 +920,39 @@ void Controller::update()
   }
 
   // Compute speed
-  ros::Time current_time = ros::Time::now();
-  double speed = legs[current].speed;
+  ros::Time current_time = latest_odom_->header.stamp;
+  double speed = sign * legs[current].speed;
   publishDouble(speedPublisher, speed);
   if (legs[current].start_time != ros::Time(0) && legs[current].finish_time != ros::Time(0)) {
-    // Control speed based on time stamps
-    double time_diff;
-    if (current_time < legs[current].start_time) {
-      // before the start time
-      time_diff = -1 * (legs[current].start_time - current_time).toSec();
-    } else {
-      // after the start time
-      time_diff = (current_time - legs[current].start_time).toSec();
-    }
+    Eigen::Isometry3d robot_pose(Eigen::AngleAxisd(alpha, Eigen::Vector3d::UnitZ()));
+    robot_pose.translation().x() = robot_control_state.pose.position.x;
+    robot_pose.translation().y() = robot_control_state.pose.position.y;
+    robot_pose.translation().z() = 0;
+//    tf::poseMsgToEigen(robot_control_state.pose, robot_pose);
 
-    double dx_des = time_diff * legs[current].speed;
-    double distance_to_goal = std::sqrt(std::pow(robot_control_state.pose.position.x - legs[current].p2.x, 2)
-                                        + std::pow(robot_control_state.pose.position.y - legs[current].p2.y, 2));
-    double dx_cur = legs[current].length - distance_to_goal;
-    double error = dx_des - dx_cur;
-    speed += mp_.speed_p_gain * error; // Add position error term
-    // do not drive in the wrong direction
-    speed = std::max(speed, 0.0);
+    Eigen::Vector3d dpos;
+    dpos.x() = legs[current].percent * legs[current].p2.x + (1.0 - legs[current].percent) * legs[current].p1.x;
+    dpos.y() = legs[current].percent * legs[current].p2.y + (1.0 - legs[current].percent) * legs[current].p1.y;
+    dpos.z() = 0.0;
 
-//    ros::Duration total_time = legs[current].finish_time - legs[current].start_time;
-//    ROS_INFO_STREAM("Driving to: " << current << ". Leg time " << time_diff << "/" << total_time.toSec() <<
-//                    "s. Des. pos: " << dx_des << ". Curr. pos: " << dx_cur << ". Error: " << error <<
-//                    ". Original speed: " << legs[current].speed << ". Speed: " << speed);
+    Eigen::Vector3d dpos_base = robot_pose.inverse() * dpos;
+
+//    ROS_INFO_STREAM("Leg " << current << ": [" << legs[current].p1.x << ", " << legs[current].p1.y << "] -> [" << legs[current].p2.x << ", " << legs[current].p2.y << "], Length: "
+//                            << legs[current].length << ", Speed: " << legs[current].speed << ", Backward: " << legs[current].backward);
+
+    double error = dpos_base.x();
+    speed += mp_.speed_p_gain * error;
+
+//    ROS_INFO_STREAM("Current percent: " << legs[current].percent <<
+//                    ", current pos: [" << robot_pose.translation().x() << ", " << robot_pose.translation().y() <<
+//                    "], desired pos: [" << dpos.x() << ", " << dpos.y() <<
+//                    "], base frame: [" << dpos_base.x() << ", " << dpos_base.y() <<
+//                    "], error: " << error << ", org. speed: " << legs[current].speed << ", new speed: " << speed);
+
   }
 
   // Account for driving direction
-  speed *= sign;
+//  speed *= sign;
 
   double signed_carrot_distance_2_robot =
       sign * euclideanDistance2D(carrotPose.pose.position,
