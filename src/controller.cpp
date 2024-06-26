@@ -949,10 +949,14 @@ void Controller::update()
 //                    "], base frame: [" << dpos_base.x() << ", " << dpos_base.y() <<
 //                    "], error: " << error << ", org. speed: " << legs[current].speed << ", new speed: " << speed);
 
-  }
+    // Prevent inversion of driving direction
+    if (sign > 0) {
+      speed = std::max(0.0, speed);
+    } else if (sign < 0) {
+      speed = std::min(speed, 0.0);
+    }
 
-  // Account for driving direction
-//  speed *= sign;
+  }
 
   double signed_carrot_distance_2_robot =
       sign * euclideanDistance2D(carrotPose.pose.position,
