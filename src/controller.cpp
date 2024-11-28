@@ -8,7 +8,7 @@ Controller::Controller(ros::NodeHandle& nh_)
 {
   nh = nh_;
 
-  mp_.carrot_distance = 1.0;
+  mp_.carrot_distance = 0.2;
   mp_.min_speed       = 0.0;
   mp_.commanded_speed = 0.0;
   mp_.max_controller_speed = 0.25;
@@ -52,6 +52,8 @@ bool Controller::configure()
 {
   ros::NodeHandle params("~");
   params.getParam("carrot_distance", mp_.carrot_distance);
+  mp_.max_carrot_distance = 1.5 * mp_.carrot_distance;
+  params.getParam("max_carrot_distance", mp_.max_carrot_distance);
   params.getParam("min_speed", mp_.min_speed);
   params.getParam("frame_id", map_frame_id);
   params.getParam("base_frame_id", base_frame_id);
@@ -963,9 +965,9 @@ void Controller::update()
                                  robot_control_state.pose.position);
   bool approaching_goal_point = goal_position_error < 0.4;
 
-  if(std::abs(signed_carrot_distance_2_robot) > (mp_.carrot_distance * 1.5))
+  if (std::abs(signed_carrot_distance_2_robot) > (mp_.max_carrot_distance))
   {
-    ROS_WARN("[vehicle_controller] Control failed, distance to carrot is %f (allowed: %f)", signed_carrot_distance_2_robot, (mp_.carrot_distance * 1.5));
+    ROS_WARN("[vehicle_controller] Control failed, distance to carrot is %f (allowed: %f)", signed_carrot_distance_2_robot, (mp_.max_carrot_distance));
     state = INACTIVE;
     stop();
 

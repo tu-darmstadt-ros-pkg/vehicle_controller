@@ -45,6 +45,7 @@ class MotionParameters : public PS3dMotionParameters
     bool y_symmetry;
 
     double carrot_distance;
+    double max_carrot_distance;
     double min_speed;
     double commanded_speed;
     double speed_p_gain;
